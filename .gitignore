@@ -4,4 +4,17 @@
 
 # node
 node_modules
+
+# package managers
+pnpm-lock.yaml
+npm-lock.yaml
+yarn.lock
+
+# build
+build
 dist
+out
+
+# env
+.env.*
+!.env.example
