@@ -44,7 +44,7 @@ export class EthereumAddress {
 
     public static fromBytes(bytes: Uint8Array): Either<Error, EthereumAddress> {
         try {
-            return right(new EthereumAddress(bytes.toString()));
+            return right(new EthereumAddress(Buffer.from(bytes).toString('hex')));
         } catch (e) {
             return left(e as Error);
         }

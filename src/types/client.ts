@@ -8,6 +8,7 @@ import { StreamType } from "./contractValues";
 import { IPrimitiveStream } from "./primitiveStream";
 import { IStream, StreamLocator } from "./stream";
 import { EthereumAddress } from '../util/EthereumAddress';
+import { StreamId } from '../util/StreamId';
 
 export interface Client {
     /**
@@ -21,11 +22,11 @@ export interface Client {
     /**
      * deploys a new stream
      */
-    deployStream(streamId: string, streamType: StreamType): Promise<GenericResponse<TxReceipt>>;
+    deployStream(streamId: StreamId, streamType: StreamType): Promise<GenericResponse<TxReceipt>>;
     /**
      * destroys a stream
      */
-    destroyStream(streamId: string): Promise<GenericResponse<TxReceipt>>;
+    destroyStream(streamId: StreamId): Promise<GenericResponse<TxReceipt>>;
     /**
      * loads a already deployed stream, permitting its API usage
      */
@@ -35,7 +36,7 @@ export interface Client {
     /**
      * creates a new stream locator
      */
-    ownStreamLocator(streamId: string): StreamLocator;
+    ownStreamLocator(streamId: StreamId): StreamLocator;
     /**
      * returns the address of the signer used by the client
      */
