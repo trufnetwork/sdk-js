@@ -1,4 +1,4 @@
-import { EthereumAddress } from "../util/types";
+import { EthereumAddress } from "../util/EthereumAddress";
 
 export type StreamType = "composed" | "primitive";
 

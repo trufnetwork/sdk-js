@@ -1,7 +1,9 @@
 import { GenericResponse } from "@kwilteam/kwil-js/dist/core/resreq";
 import { TxReceipt } from "@kwilteam/kwil-js/dist/core/tx";
-import { EthereumAddress, StreamId, VisibilityEnum } from "../util/types";
+import { StreamId } from "../util/StreamId";
 import { StreamType } from "./contractValues";
+import { EthereumAddress } from "../util/EthereumAddress";
+import { VisibilityEnum } from "../util/visibility";
 
 export interface StreamLocator {
     /**

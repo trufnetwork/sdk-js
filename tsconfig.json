@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "lib": ["ESNext", "DOM"],
+    "strict": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "moduleResolution": "node",
+    "skipLibCheck": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "incremental": true,
+    "sourceMap": true,
+    "declaration": true,
+    "types": [
+        "vitest/importMeta"
+    ]
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

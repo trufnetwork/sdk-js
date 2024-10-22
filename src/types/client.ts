@@ -3,11 +3,11 @@ import { EnvironmentType } from '@kwilteam/kwil-js/dist/core/enums';
 import { GenericResponse } from '@kwilteam/kwil-js/dist/core/resreq';
 import { TxReceipt } from '@kwilteam/kwil-js/dist/core/tx';
 import { TxInfoReceipt } from '@kwilteam/kwil-js/dist/core/txQuery';
-import { EthereumAddress } from '../util/types';
 import { IComposedStream } from "./composedStream";
 import { StreamType } from "./contractValues";
 import { IPrimitiveStream } from "./primitiveStream";
 import { IStream, StreamLocator } from "./stream";
+import { EthereumAddress } from '../util/EthereumAddress';
 
 export interface Client {
     /**
