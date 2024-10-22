@@ -1,14 +1,14 @@
 name: Feature Request
-description: Suggest a new feature or change for kwil-db.
+description: Suggest a new feature or change for tsn-sdk-js.
 title: "Feature Request: "
 labels: ["enhancement"]
 body:
     - type: markdown
       attributes:
           value: |
-              Thank you for taking the time to suggest a feature or change. This form is for suggesting **features or changes to kwil-db**.
+              Thank you for taking the time to suggest a feature or change. This form is for suggesting **features or changes to tsn-sdk-js**.
 
-              Feel free to discuss or mull over potential features in the [Discord server](https://discord.com/invite/HzRPZ59Kay).
+              Feel free to discuss or mull over potential features.
     - type: textarea
       id: about-the-feature
       attributes:
@@ -22,6 +22,6 @@ body:
       attributes:
           label: Example Implementation
           description: If you have an idea of how this feature could be implemented, please describe it here.
-          placeholder: e.g. I think this feature could be implemented by adding the following code to core/client...
+          placeholder: e.g. I think this feature could be implemented by adding the following code to directory...
       validations:
           required: false
