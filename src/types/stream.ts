@@ -1,35 +1,37 @@
-import { GenericResponse } from "@kwilteam/kwil-js/dist/core/resreq";
-import { TxReceipt } from "@kwilteam/kwil-js/dist/core/tx";
-import { StreamId } from "../util/StreamId";
-import { StreamType } from "./contractValues";
-import { EthereumAddress } from "../util/EthereumAddress";
-import { VisibilityEnum } from "../util/visibility";
+import {GenericResponse} from "@kwilteam/kwil-js/dist/core/resreq";
+import {TxReceipt} from "@kwilteam/kwil-js/dist/core/tx";
+import {StreamId} from "../util/StreamId";
+import {StreamType} from "./contractValues";
+import {EthereumAddress} from "../util/EthereumAddress";
+import {VisibilityEnum} from "../util/visibility";
 
 export interface StreamLocator {
     /**
      * the unique identifier of the stream, used as name of the deployed contract
      */
-    streamId: StreamId; 
+    streamId: StreamId;
     /**
      * the address of the data provider, it's the deployer of the stream
      */
-    dataProvider: EthereumAddress; 
+    dataProvider: EthereumAddress;
 }
 
+type DateString = string; // placeholder for ISO8601DateString
+
 export interface GetRecordInput {
-    dateFrom?: Date;
-    dateTo?: Date;
-    frozenAt?: Date;
-    baseDate?: Date;
+    dateFrom?: DateString;
+    dateTo?: DateString;
+    frozenAt?: number;
+    baseDate?: DateString;
 }
 
 export interface GetFirstRecordInput {
-    afterDate?: Date;
-    frozenAt?: Date;
+    afterDate?: DateString;
+    frozenAt?: DateString;
 }
 
 export interface StreamRecord {
-    dateValue: Date;
+    dateValue: DateString;
     value: string;
 }
 

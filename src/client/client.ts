@@ -1,21 +1,22 @@
-import { Client, KwilSigner, NodeKwil, WebKwil } from "@kwilteam/kwil-js";
-import { KwilConfig } from "@kwilteam/kwil-js/dist/api_client/config";
-import { Kwil } from "@kwilteam/kwil-js/dist/client/kwil";
-import { CustomSigner, EthSigner } from "@kwilteam/kwil-js/dist/core/builders";
-import { EnvironmentType } from "@kwilteam/kwil-js/dist/core/enums";
-import { GenericResponse } from "@kwilteam/kwil-js/dist/core/resreq";
-import { TxReceipt } from "@kwilteam/kwil-js/dist/core/tx";
-import { TxInfoReceipt } from "@kwilteam/kwil-js/dist/core/txQuery";
-import { Client as IClient } from "../types/client";
-import { StreamType } from "../types/contractValues";
-import { IStream, StreamLocator } from "../types/stream";
-import { EthereumAddress } from "../util/EthereumAddress";
-import { StreamId } from "../util/StreamId";
-import { IPrimitiveStream } from "../types/primitiveStream";
-import { IComposedStream } from "../types/composedStream";
-import { deployStream } from "../contracts-api/deployStream";
-import { destroyStream } from "../contracts-api/destroyStream";
-import { listAllStreams } from "./listAllStreams";
+import {Client, KwilSigner, NodeKwil, WebKwil} from "@kwilteam/kwil-js";
+import {KwilConfig} from "@kwilteam/kwil-js/dist/api_client/config";
+import {Kwil} from "@kwilteam/kwil-js/dist/client/kwil";
+import {EthSigner} from "@kwilteam/kwil-js/dist/core/builders";
+import {EnvironmentType} from "@kwilteam/kwil-js/dist/core/enums";
+import {GenericResponse} from "@kwilteam/kwil-js/dist/core/resreq";
+import {TxReceipt} from "@kwilteam/kwil-js/dist/core/tx";
+import {TxInfoReceipt} from "@kwilteam/kwil-js/dist/core/txQuery";
+import {Client as IClient} from "../types/client";
+import {StreamType} from "../types/contractValues";
+import {IStream, StreamLocator} from "../types/stream";
+import {EthereumAddress} from "../util/EthereumAddress";
+import {StreamId} from "../util/StreamId";
+import {IPrimitiveStream} from "../types/primitiveStream";
+import {IComposedStream} from "../types/composedStream";
+import {deployStream} from "../contracts-api/deployStream";
+import {destroyStream} from "../contracts-api/destroyStream";
+import {listAllStreams} from "./listAllStreams";
+import {Stream} from "../contracts-api/stream";
 
 export interface EthProvider {
   getAddress(): string;
@@ -94,7 +95,7 @@ export abstract class TSNClient<T extends EnvironmentType> implements IClient {
   }
 
   async loadStream(stream: StreamLocator): Promise<IStream> {
-    throw new Error("Method not implemented.");
+    return new Stream(this.getKwilClient() as WebKwil | NodeKwil, this.getKwilSigner(), stream);
   }
 
   async loadPrimitiveStream(stream: StreamLocator): Promise<IPrimitiveStream> {

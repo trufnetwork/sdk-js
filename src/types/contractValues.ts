@@ -1,6 +1,3 @@
-import { EthereumAddress } from "../util/EthereumAddress";
-
-
 export const StreamType = {
     Composed: "composed",
     Primitive: "primitive",
@@ -27,6 +24,30 @@ export const MetadataType = {
 } as const;
 export type MetadataType = typeof MetadataType[keyof typeof MetadataType];
 
-export interface MetadataValue {
-    value: number | boolean | string | EthereumAddress[];
+export const MetadataTableKey = {
+    [MetadataType.Int]: "value_i",
+    [MetadataType.Bool]: "value_b",
+    [MetadataType.Float]: "value_f",
+    [MetadataType.String]: "value_s",
+    [MetadataType.Ref]: "value_ref",
+} as const satisfies Record<MetadataType, string>;
+
+export const MetadataKeyValueMap = {
+    [MetadataKey.ReadonlyKey]: MetadataType.Bool,
+    [MetadataKey.StreamOwner]: MetadataType.Ref,
+    [MetadataKey.TypeKey]: MetadataType.String,
+    [MetadataKey.ComposeVisibilityKey]: MetadataType.Int,
+    [MetadataKey.ReadVisibilityKey]: MetadataType.Int,
+    [MetadataKey.AllowReadWalletKey]: MetadataType.Ref,
+    [MetadataKey.AllowComposeStreamKey]: MetadataType.Ref,
+} as const satisfies Record<MetadataKey, MetadataType>;
+
+type MetadataValueMap = {
+    [MetadataType.Int]: string;
+    [MetadataType.Bool]: boolean;
+    [MetadataType.Float]: string;
+    [MetadataType.String]: string;
+    [MetadataType.Ref]: string;
 }
+
+export type MetadataValueTypeForKey<K extends MetadataKey> = MetadataValueMap[typeof MetadataKeyValueMap[K]];

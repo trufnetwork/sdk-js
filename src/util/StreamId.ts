@@ -1,11 +1,12 @@
-import { sha256 } from "crypto-hash";
+import {sha256} from "crypto-hash";
+import {Either} from "monads-io";
 
 
 export class StreamId {
     private readonly id: string;
     private readonly correctlyCreated: boolean = false;
 
-    constructor(id: string) {
+    private constructor(id: string) {
         this.id = id;
         this.correctlyCreated = true;
     }
@@ -36,13 +37,21 @@ export class StreamId {
             return new StreamId(s);
         }
 
-        // Compute SHA-256 hash of the input string 
+        // Compute SHA-256 hash of the input string
         const hash = await sha256(s);
 
         // Take the first 30 characters of the hash and prepend "st"
         const streamIdStr = "st" + hash.slice(0, 30);
 
         return new StreamId(streamIdStr);
+    }
+
+    public static fromString(s: string): Either<Error, StreamId> {
+        try {
+            return Either.right(new StreamId(s));
+        } catch (e) {
+            return Either.left(e as Error);
+        }
     }
 }
 
