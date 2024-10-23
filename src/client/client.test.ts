@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
-import { NodeTSNClient } from "./client";
-import { ethers } from "ethers";
-import { StreamId } from "../util/StreamId";
+import {describe, expect, it} from "vitest";
+import {NodeTSNClient} from "./client";
+import {ethers} from "ethers";
+import {StreamId} from "../util/StreamId";
 
 describe('Client', {timeout: 15000}, () => {
     // Skip in CI, because it needs a local node
@@ -71,5 +71,19 @@ describe('Client', {timeout: 15000}, () => {
         await client.deployStream(streamId, "primitive", true);
         const streams = await client.getAllStreams(client.address());
         expect(streams.length).toBeGreaterThan(0);
+    });
+
+    it("try query a stream", async () => {
+        // TODO: this test is temporary just for development, will get replaced by one that also deploys streams
+        const chainId = await NodeTSNClient.getDefaultChainId("http://localhost:8484");
+        if (!chainId) {
+            throw new Error("Chain id not found");
+        }
+
+        const client = new NodeTSNClient({endpoint: "http://localhost:8484", walletProvider, chainId, autoAuthenticate: true});
+        const streamId = StreamId.fromString("st39830c44932bc42a3bffef72310948").throw();
+        const stream = client.loadStream(client.ownStreamLocator(streamId));
+        const record = await (await stream).getRecord({});
+        expect(record.length).toBeGreaterThan(0);
     });
 });
