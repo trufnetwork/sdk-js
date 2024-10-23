@@ -2,7 +2,7 @@ import { KwilSigner, NodeKwil, WebKwil } from "@kwilteam/kwil-js";
 import { ActionInput } from "@kwilteam/kwil-js/dist/core/action";
 import { GenericResponse } from "@kwilteam/kwil-js/dist/core/resreq";
 import { TxReceipt } from "@kwilteam/kwil-js/dist/core/tx";
-import { StreamType } from "../types/contractValues";
+import { StreamType } from "./contractValues";
 import { StreamLocator } from "../types/stream";
 import { Stream } from "./stream";
 

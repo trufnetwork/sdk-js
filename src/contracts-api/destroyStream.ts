@@ -1,9 +1,9 @@
-import { StreamId } from "../util/StreamId.js";
-import { Kwil } from "@kwilteam/kwil-js/dist/client/kwil.js";
+import { StreamId } from "../util/StreamId";
+import { Kwil } from "@kwilteam/kwil-js/dist/client/kwil";
 import { KwilSigner } from "@kwilteam/kwil-js";
-import { TxReceipt } from "@kwilteam/kwil-js/dist/core/tx.js";
-import { GenericResponse } from "@kwilteam/kwil-js/dist/core/resreq.js";
-import { generateDBID } from "@kwilteam/kwil-js/dist/utils/dbid.js";
+import { TxReceipt } from "@kwilteam/kwil-js/dist/core/tx";
+import { GenericResponse } from "@kwilteam/kwil-js/dist/core/resreq";
+import { generateDBID } from "@kwilteam/kwil-js/dist/utils/dbid";
 
 /**
  * Input parameters for destroying a stream.
