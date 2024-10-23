@@ -1,7 +1,7 @@
-import {describe, expect, it} from "vitest";
-import {ethers} from "ethers";
-import {StreamId} from "../util/StreamId";
-import {NodeTSNClient} from "./nodeClient";
+import { describe, expect, it } from "vitest";
+import { ethers } from "ethers";
+import { StreamId } from "../util/StreamId";
+import { NodeTSNClient } from "./nodeClient";
 
 describe.sequential("Client", { timeout: 30000 }, () => {
   // Skip in CI, because it needs a local node

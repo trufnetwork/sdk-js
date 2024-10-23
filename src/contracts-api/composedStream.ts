@@ -1,13 +1,13 @@
-import {KwilSigner, NodeKwil, WebKwil} from "@kwilteam/kwil-js";
-import {ActionInput} from "@kwilteam/kwil-js/dist/core/action";
-import {GenericResponse} from "@kwilteam/kwil-js/dist/core/resreq";
-import {TxReceipt} from "@kwilteam/kwil-js/dist/core/tx";
-import {StreamType} from "./contractValues";
-import {DateString} from "../types/other";
-import {StreamLocator} from "../types/stream";
-import {EthereumAddress} from "../util/EthereumAddress";
-import {StreamId} from "../util/StreamId";
-import {Stream} from "./stream";
+import { KwilSigner, NodeKwil, WebKwil } from "@kwilteam/kwil-js";
+import { ActionInput } from "@kwilteam/kwil-js/dist/core/action";
+import { GenericResponse } from "@kwilteam/kwil-js/dist/core/resreq";
+import { TxReceipt } from "@kwilteam/kwil-js/dist/core/tx";
+import { StreamType } from "./contractValues";
+import { DateString } from "../types/other";
+import { StreamLocator } from "../types/stream";
+import { EthereumAddress } from "../util/EthereumAddress";
+import { StreamId } from "../util/StreamId";
+import { Stream } from "./stream";
 
 export const ErrorStreamNotComposed = "stream is not a composed stream";
 

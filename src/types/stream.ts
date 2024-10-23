@@ -1,5 +1,5 @@
-import {StreamId} from "../util/StreamId";
-import {EthereumAddress} from "../util/EthereumAddress";
+import { StreamId } from "../util/StreamId";
+import { EthereumAddress } from "../util/EthereumAddress";
 
 export interface StreamLocator {
   /**
