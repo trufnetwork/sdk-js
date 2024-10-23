@@ -170,7 +170,8 @@ export class Stream {
    * Returns the records of the stream within the given date range
    */
   public async getRecord(input: GetRecordInput): Promise<StreamRecord[]> {
-    const result = await this.call<{ date_value: string; value: string }[]>(
+    // TODO: change value to string when kwil-js is updated
+    const result = await this.call<{ date_value: string; value: number }[]>(
       "get_record",
       [
         ActionInput.fromObject({
@@ -185,7 +186,7 @@ export class Stream {
       .mapRight((result) =>
         result.map((row) => ({
           dateValue: row.date_value,
-          value: row.value,
+          value: row.value.toString(),
         })),
       )
       .throw();
@@ -195,7 +196,7 @@ export class Stream {
    * Returns the index of the stream within the given date range
    */
   public async getIndex(input: GetRecordInput): Promise<StreamRecord[]> {
-    const result = await this.call<{ date_value: string; value: string }[]>(
+    const result = await this.call<{ date_value: string; value: number }[]>(
       "get_index",
       [
         ActionInput.fromObject({
@@ -210,7 +211,7 @@ export class Stream {
       .mapRight((result) =>
         result.map((row) => ({
           dateValue: row.date_value,
-          value: row.value,
+          value: row.value.toString(),
         })),
       )
       .throw();
@@ -247,7 +248,7 @@ export class Stream {
   public async getFirstRecord(
     input: GetFirstRecordInput,
   ): Promise<StreamRecord | null> {
-    const result = await this.call<{ date_value: string; value: string }[]>(
+    const result = await this.call<{ date_value: string; value: number }[]>(
       "get_first_record",
       [
         ActionInput.fromObject({
@@ -263,7 +264,7 @@ export class Stream {
         result
           .map((result) => ({
             dateValue: result.date_value,
-            value: result.value,
+            value: result.value.toString(),
           }))
           .unwrapOr(null),
       )
@@ -278,7 +279,7 @@ export class Stream {
       ActionInput.fromObject({
         $key: key,
         $value: value,
-        $value_type: MetadataKeyValueMap[key],
+        $val_type: MetadataKeyValueMap[key],
       }),
     ]);
   }
