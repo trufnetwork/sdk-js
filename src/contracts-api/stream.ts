@@ -1,6 +1,6 @@
 import {GenericResponse} from "@kwilteam/kwil-js/dist/core/resreq";
 import {TxReceipt} from "@kwilteam/kwil-js/dist/core/tx";
-import {GetFirstRecordInput, GetRecordInput, IStream, StreamLocator, StreamRecord,} from "../types/stream";
+import {GetFirstRecordInput, GetRecordInput, StreamLocator, StreamRecord,} from "../types/stream";
 import {
   MetadataKey,
   MetadataKeyValueMap,
@@ -18,7 +18,7 @@ import {StreamId} from "../util/StreamId";
 import {Either} from "monads-io";
 import {head} from "../util/head";
 
-export class Stream implements IStream {
+export class Stream {
   protected kwilClient: WebKwil | NodeKwil;
   protected kwilSigner: KwilSigner;
   protected locator: StreamLocator;
@@ -54,6 +54,9 @@ export class Stream implements IStream {
     this.schema = response.data;
   }
 
+  /**
+   * Executes a method on the stream
+   */
   protected async execute(
     method: string,
     inputs: ActionInput[]
@@ -68,6 +71,10 @@ export class Stream implements IStream {
     );
   }
 
+
+  /**
+   * Executes a method on the stream after checking if it's initialized
+   */
   protected async checkedExecute(
     method: string,
     inputs: ActionInput[]
@@ -76,6 +83,9 @@ export class Stream implements IStream {
     return this.execute(method, inputs);
   }
 
+  /**
+   * Calls a method on the stream
+   */
   protected async call<T>(
     method: string,
     inputs: ActionInput[]
@@ -96,7 +106,10 @@ export class Stream implements IStream {
     return Either.right(result.data?.result as T);
   }
 
-  protected async checkInitialized(): Promise<void> {
+  /**
+   * Checks if the stream is initialized
+   */
+  protected async checkInitialized(expectedType?: StreamType): Promise<void> {
     if (this.initialized) {
       return;
     }
@@ -105,14 +118,19 @@ export class Stream implements IStream {
 
     // check if is initialized by trying to get its type
     const type = await this.getType();
+
     // check if type is valid
-    if (type !== StreamType.Primitive && type !== StreamType.Composed) {
+    const expectedTypes = expectedType ? [expectedType] : [StreamType.Primitive, StreamType.Composed];
+    if (!expectedTypes.includes(type)) {
       throw new Error(`Invalid stream type: ${type}`);
     }
 
     this.initialized = true;
   }
 
+  /**
+   * Checks if the stream is deployed
+   */
   protected async checkDeployed(): Promise<void> {
     if (this.deployed) {
       return;
@@ -121,10 +139,16 @@ export class Stream implements IStream {
     this.deployed = true;
   }
 
+  /**
+   * Initializes the stream
+   */
   public async initializeStream(): Promise<GenericResponse<TxReceipt>> {
     return this.checkedExecute("init", []);
   }
 
+  /**
+   * Returns the records of the stream within the given date range
+   */
   public async getRecord(input: GetRecordInput): Promise<StreamRecord[]> {
     const result = await this.call<{ date_value: string; value: string }[]>(
       "get_record",
@@ -147,6 +171,9 @@ export class Stream implements IStream {
       .throw();
   }
 
+  /**
+   * Returns the index of the stream within the given date range
+   */
   public async getIndex(input: GetRecordInput): Promise<StreamRecord[]> {
     const result = await this.call<{ date_value: string; value: string }[]>(
       "get_index",
@@ -169,6 +196,9 @@ export class Stream implements IStream {
       .throw();
   }
 
+  /**
+   * Returns the type of the stream
+   */
   public async getType(): Promise<StreamType> {
     const result = await this.getMetadata(MetadataKey.TypeKey, true);
 
@@ -184,6 +214,9 @@ export class Stream implements IStream {
     return type;
   }
 
+  /**
+   * Returns the first record of the stream
+   */
   public async getFirstRecord(
     input: GetFirstRecordInput
   ): Promise<StreamRecord | null> {
@@ -260,6 +293,9 @@ export class Stream implements IStream {
       .throw();
   }
 
+  /**
+   * Sets the read visibility of the stream
+   */
   public async setReadVisibility(
     visibility: VisibilityEnum
   ): Promise<GenericResponse<TxReceipt>> {
@@ -269,6 +305,9 @@ export class Stream implements IStream {
     );
   }
 
+  /**
+   * Returns the read visibility of the stream
+   */
   public async getReadVisibility(): Promise<VisibilityEnum | null> {
     const result = await this.getMetadata(MetadataKey.ReadVisibilityKey, true);
 
@@ -277,6 +316,9 @@ export class Stream implements IStream {
       .unwrapOr(null);
   }
 
+  /**
+   * Sets the compose visibility of the stream
+   */
   public async setComposeVisibility(
     visibility: VisibilityEnum
   ): Promise<GenericResponse<TxReceipt>> {
@@ -286,6 +328,9 @@ export class Stream implements IStream {
     );
   }
 
+  /**
+   * Returns the compose visibility of the stream
+   */
   public async getComposeVisibility(): Promise<VisibilityEnum | null> {
     const result = await this.getMetadata(
       MetadataKey.ComposeVisibilityKey,
@@ -297,6 +342,9 @@ export class Stream implements IStream {
       .unwrapOr(null);
   }
 
+  /**
+   * Allows a wallet to read the stream
+   */
   public async allowReadWallet(
     wallet: EthereumAddress
   ): Promise<GenericResponse<TxReceipt>> {
@@ -306,6 +354,9 @@ export class Stream implements IStream {
     );
   }
 
+  /**
+   * Disables a wallet from reading the stream
+   */
   public async disableReadWallet(
     wallet: EthereumAddress
   ): Promise<GenericResponse<TxReceipt>> {
@@ -326,6 +377,9 @@ export class Stream implements IStream {
     return await this.disableMetadata(row_id);
   }
 
+  /**
+   * Allows a stream to use this stream as child
+   */
   public async allowComposeStream(
     locator: StreamLocator
   ): Promise<GenericResponse<TxReceipt>> {
@@ -339,6 +393,9 @@ export class Stream implements IStream {
     );
   }
 
+  /**
+   * Disables a stream from using this stream as child
+   */
   public async disableComposeStream(
     locator: StreamLocator
   ): Promise<GenericResponse<TxReceipt>> {
@@ -369,6 +426,9 @@ export class Stream implements IStream {
     ]);
   }
 
+  /**
+   * Returns the wallets allowed to read the stream
+   */
   public async getAllowedReadWallets(): Promise<EthereumAddress[]> {
     const result = await this.getMetadata(MetadataKey.AllowReadWalletKey);
 
@@ -377,6 +437,9 @@ export class Stream implements IStream {
       .map((row) => new EthereumAddress(row.value));
   }
 
+  /**
+   * Returns the streams allowed to compose the stream
+   */
   public async getAllowedComposeStreams(): Promise<StreamLocator[]> {
     const result = await this.getMetadata(MetadataKey.AllowComposeStreamKey);
 

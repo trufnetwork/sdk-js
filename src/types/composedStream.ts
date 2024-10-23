@@ -1,6 +1,6 @@
-import { GenericResponse } from "@kwilteam/kwil-js/dist/core/resreq";
-import { TxReceipt } from "@kwilteam/kwil-js/dist/core/tx";
-import { IStream, StreamLocator } from "./stream";
+import {GenericResponse} from "@kwilteam/kwil-js/dist/core/resreq";
+import {TxReceipt} from "@kwilteam/kwil-js/dist/core/tx";
+import {IStream, StreamLocator} from "./stream";
 
 export interface IComposedStream extends IStream {
     /**
