@@ -86,4 +86,22 @@ describe('Client', {timeout: 15000}, () => {
         const record = await (await stream).getRecord({});
         expect(record.length).toBeGreaterThan(0);
     });
+
+    it("insert records", async () => {
+        const chainId = await NodeTSNClient.getDefaultChainId("http://localhost:8484");
+        if (!chainId) {
+            throw new Error("Chain id not found");
+        }
+        const client = new NodeTSNClient({endpoint: "http://localhost:8484", walletProvider, chainId});
+        await using cleanup = new AsyncDisposableStack();
+        const streamId = await StreamId.generate("test");
+        cleanup.defer(async () => {
+            await client.destroyStream(streamId, true).catch(() => {});
+        });
+
+        const stream = await client.deployStream(streamId, "primitive", true);
+        const primitiveStream = client.loadPrimitiveStream
+        const receipt = await primitiveStream.insertRecords([{dateValue: "2024-01-01", value: "100"}]);
+        expect(receipt.status).toBe(200);
+    });
 });
