@@ -1,6 +1,11 @@
-import {GenericResponse} from "@kwilteam/kwil-js/dist/core/resreq";
-import {TxReceipt} from "@kwilteam/kwil-js/dist/core/tx";
-import {GetFirstRecordInput, GetRecordInput, StreamLocator, StreamRecord,} from "../types/stream";
+import { GenericResponse } from "@kwilteam/kwil-js/dist/core/resreq";
+import { TxReceipt } from "@kwilteam/kwil-js/dist/core/tx";
+import {
+  GetFirstRecordInput,
+  GetRecordInput,
+  StreamLocator,
+  StreamRecord,
+} from "../types/stream";
 import {
   MetadataKey,
   MetadataKeyValueMap,
@@ -8,15 +13,15 @@ import {
   MetadataValueTypeForKey,
   StreamType,
 } from "../types/contractValues";
-import {EthereumAddress} from "../util/EthereumAddress";
-import {toVisibilityEnum, VisibilityEnum} from "../util/visibility";
-import {KwilSigner, NodeKwil, WebKwil} from "@kwilteam/kwil-js";
-import {Database} from "@kwilteam/kwil-js/dist/core/database";
-import {generateDBID} from "@kwilteam/kwil-js/dist/utils/dbid";
-import {ActionInput} from "@kwilteam/kwil-js/dist/core/action";
-import {StreamId} from "../util/StreamId";
-import {Either} from "monads-io";
-import {head} from "../util/head";
+import { EthereumAddress } from "../util/EthereumAddress";
+import { toVisibilityEnum, VisibilityEnum } from "../util/visibility";
+import { KwilSigner, NodeKwil, WebKwil } from "@kwilteam/kwil-js";
+import { Database } from "@kwilteam/kwil-js/dist/core/database";
+import { generateDBID } from "@kwilteam/kwil-js/dist/utils/dbid";
+import { ActionInput } from "@kwilteam/kwil-js/dist/core/action";
+import { StreamId } from "../util/StreamId";
+import { Either } from "monads-io";
+import { head } from "../util/head";
 
 export class Stream {
   protected kwilClient: WebKwil | NodeKwil;
@@ -29,14 +34,14 @@ export class Stream {
   constructor(
     kwilClient: WebKwil | NodeKwil,
     kwilSigner: KwilSigner,
-    locator: StreamLocator
+    locator: StreamLocator,
   ) {
     this.kwilClient = kwilClient;
     this.kwilSigner = kwilSigner;
     this.locator = locator;
     this.dbid = generateDBID(
       locator.dataProvider.getAddress(),
-      locator.streamId.getId()
+      locator.streamId.getId(),
     );
   }
 
@@ -48,7 +53,7 @@ export class Stream {
     const response = await this.kwilClient.getSchema(this.dbid);
     if (response.status !== 200 || !response.data) {
       throw new Error(
-        `Failed to load schema for stream ${this.locator.streamId.getId()}`
+        `Failed to load schema for stream ${this.locator.streamId.getId()}`,
       );
     }
     this.schema = response.data;
@@ -59,7 +64,7 @@ export class Stream {
    */
   protected async execute(
     method: string,
-    inputs: ActionInput[]
+    inputs: ActionInput[],
   ): Promise<GenericResponse<TxReceipt>> {
     return this.kwilClient.execute(
       {
@@ -67,17 +72,16 @@ export class Stream {
         name: method,
         inputs,
       },
-      this.kwilSigner
+      this.kwilSigner,
     );
   }
-
 
   /**
    * Executes a method on the stream after checking if it's initialized
    */
   protected async checkedExecute(
     method: string,
-    inputs: ActionInput[]
+    inputs: ActionInput[],
   ): Promise<GenericResponse<TxReceipt>> {
     await this.checkInitialized();
     return this.execute(method, inputs);
@@ -88,7 +92,7 @@ export class Stream {
    */
   protected async call<T>(
     method: string,
-    inputs: ActionInput[]
+    inputs: ActionInput[],
   ): Promise<Either<number, T>> {
     const result = await this.kwilClient.call(
       {
@@ -96,7 +100,7 @@ export class Stream {
         name: method,
         inputs,
       },
-      this.kwilSigner
+      this.kwilSigner,
     );
 
     if (result.status !== 200) {
@@ -120,7 +124,9 @@ export class Stream {
     const type = await this.getType();
 
     // check if type is valid
-    const expectedTypes = expectedType ? [expectedType] : [StreamType.Primitive, StreamType.Composed];
+    const expectedTypes = expectedType
+      ? [expectedType]
+      : [StreamType.Primitive, StreamType.Composed];
     if (!expectedTypes.includes(type)) {
       throw new Error(`Invalid stream type: ${type}`);
     }
@@ -143,7 +149,8 @@ export class Stream {
    * Initializes the stream
    */
   public async initializeStream(): Promise<GenericResponse<TxReceipt>> {
-    return this.checkedExecute("init", []);
+    // shouldn't use checkedExecute, because it's not initialized yet
+    return this.execute("init", []);
   }
 
   /**
@@ -159,14 +166,14 @@ export class Stream {
           $frozen_at: input.frozenAt,
           $base_date: input.baseDate,
         }),
-      ]
+      ],
     );
     return result
       .mapRight((result) =>
         result.map((row) => ({
           dateValue: row.date_value,
           value: row.value,
-        }))
+        })),
       )
       .throw();
   }
@@ -179,19 +186,19 @@ export class Stream {
       "get_index",
       [
         ActionInput.fromObject({
-          date_from: input.dateFrom,
-          date_to: input.dateTo,
-          frozen_at: input.frozenAt,
-          base_date: input.baseDate,
+          $date_from: input.dateFrom,
+          $date_to: input.dateTo,
+          $frozen_at: input.frozenAt,
+          $base_date: input.baseDate,
         }),
-      ]
+      ],
     );
     return result
       .mapRight((result) =>
         result.map((row) => ({
           dateValue: row.date_value,
           value: row.value,
-        }))
+        })),
       )
       .throw();
   }
@@ -206,28 +213,35 @@ export class Stream {
       throw new Error("Failed to get stream type");
     }
 
-    const type = result[0].value;
-    if (type !== StreamType.Primitive && type !== StreamType.Composed) {
-      throw new Error(`Invalid stream type: ${type}`);
+    const type = head(result).unwrapOrElse(() => {
+      throw new Error(
+        "Failed to get stream type. Check if the stream is initialized.",
+      );
+    });
+
+    const validTypes = [StreamType.Primitive, StreamType.Composed];
+
+    if (!validTypes.includes(type.value as StreamType)) {
+      throw new Error(`Invalid stream type: ${type.value}`);
     }
 
-    return type;
+    return type.value as StreamType;
   }
 
   /**
    * Returns the first record of the stream
    */
   public async getFirstRecord(
-    input: GetFirstRecordInput
+    input: GetFirstRecordInput,
   ): Promise<StreamRecord | null> {
     const result = await this.call<{ date_value: string; value: string }[]>(
       "get_first_record",
       [
         ActionInput.fromObject({
-          after_date: input.afterDate,
-          frozen_at: input.frozenAt,
+          $after_date: input.afterDate,
+          $frozen_at: input.frozenAt,
         }),
-      ]
+      ],
     );
 
     return result
@@ -238,20 +252,20 @@ export class Stream {
             dateValue: result.date_value,
             value: result.value,
           }))
-          .unwrapOr(null)
+          .unwrapOr(null),
       )
       .throw();
   }
 
   protected async setMetadata<K extends MetadataKey>(
     key: K,
-    value: MetadataValueTypeForKey<K>
+    value: MetadataValueTypeForKey<K>,
   ): Promise<GenericResponse<TxReceipt>> {
     return await this.execute("insert_metadata", [
       ActionInput.fromObject({
-        key,
-        value,
-        value_type: MetadataKeyValueMap[key],
+        $key: key,
+        $value: value,
+        $value_type: MetadataKeyValueMap[key],
       }),
     ]);
   }
@@ -259,7 +273,7 @@ export class Stream {
   protected async getMetadata<K extends MetadataKey>(
     key: K,
     onlyLatest: boolean = true,
-    filteredRef?: string
+    filteredRef?: string,
   ): Promise<
     { rowId: string; value: MetadataValueTypeForKey<K>; createdAt: number }[]
   > {
@@ -275,9 +289,9 @@ export class Stream {
       }[]
     >("get_metadata", [
       ActionInput.fromObject({
-        key,
-        only_latest: onlyLatest,
-        ref: filteredRef,
+        $key: key,
+        $only_latest: onlyLatest,
+        $ref: filteredRef,
       }),
     ]);
     return result
@@ -288,7 +302,7 @@ export class Stream {
             MetadataTableKey[MetadataKeyValueMap[key as MetadataKey]]
           ] as MetadataValueTypeForKey<K>,
           createdAt: row.created_at,
-        }))
+        })),
       )
       .throw();
   }
@@ -297,11 +311,11 @@ export class Stream {
    * Sets the read visibility of the stream
    */
   public async setReadVisibility(
-    visibility: VisibilityEnum
+    visibility: VisibilityEnum,
   ): Promise<GenericResponse<TxReceipt>> {
     return await this.setMetadata(
       MetadataKey.ReadVisibilityKey,
-      visibility.toString()
+      visibility.toString(),
     );
   }
 
@@ -320,11 +334,11 @@ export class Stream {
    * Sets the compose visibility of the stream
    */
   public async setComposeVisibility(
-    visibility: VisibilityEnum
+    visibility: VisibilityEnum,
   ): Promise<GenericResponse<TxReceipt>> {
     return await this.setMetadata(
       MetadataKey.ComposeVisibilityKey,
-      visibility.toString()
+      visibility.toString(),
     );
   }
 
@@ -334,7 +348,7 @@ export class Stream {
   public async getComposeVisibility(): Promise<VisibilityEnum | null> {
     const result = await this.getMetadata(
       MetadataKey.ComposeVisibilityKey,
-      true
+      true,
     );
 
     return head(result)
@@ -346,11 +360,11 @@ export class Stream {
    * Allows a wallet to read the stream
    */
   public async allowReadWallet(
-    wallet: EthereumAddress
+    wallet: EthereumAddress,
   ): Promise<GenericResponse<TxReceipt>> {
     return await this.setMetadata(
       MetadataKey.AllowReadWalletKey,
-      wallet.getAddress()
+      wallet.getAddress(),
     );
   }
 
@@ -358,12 +372,12 @@ export class Stream {
    * Disables a wallet from reading the stream
    */
   public async disableReadWallet(
-    wallet: EthereumAddress
+    wallet: EthereumAddress,
   ): Promise<GenericResponse<TxReceipt>> {
     const result = await this.getMetadata(
       MetadataKey.AllowReadWalletKey,
       true,
-      wallet.getAddress()
+      wallet.getAddress(),
     );
 
     const row_id = head(result)
@@ -381,15 +395,15 @@ export class Stream {
    * Allows a stream to use this stream as child
    */
   public async allowComposeStream(
-    locator: StreamLocator
+    locator: StreamLocator,
   ): Promise<GenericResponse<TxReceipt>> {
     const streamDbId = generateDBID(
       locator.dataProvider.getAddress(),
-      locator.streamId.getId()
+      locator.streamId.getId(),
     );
     return await this.setMetadata(
       MetadataKey.AllowComposeStreamKey,
-      streamDbId
+      streamDbId,
     );
   }
 
@@ -397,12 +411,12 @@ export class Stream {
    * Disables a stream from using this stream as child
    */
   public async disableComposeStream(
-    locator: StreamLocator
+    locator: StreamLocator,
   ): Promise<GenericResponse<TxReceipt>> {
     const result = await this.getMetadata(
       MetadataKey.AllowComposeStreamKey,
       true,
-      locator.toString()
+      locator.toString(),
     );
 
     const row_id = head(result)
@@ -417,11 +431,11 @@ export class Stream {
   }
 
   protected async disableMetadata(
-    rowId: string
+    rowId: string,
   ): Promise<GenericResponse<TxReceipt>> {
     return await this.execute("disable_metadata", [
       ActionInput.fromObject({
-        row_id: rowId,
+        $row_id: rowId,
       }),
     ]);
   }

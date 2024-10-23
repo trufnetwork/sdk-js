@@ -44,19 +44,29 @@ export abstract class TSNClient<T extends EnvironmentType> {
   async waitForTx(txHash: string, timeout = 12000): Promise<TxInfoReceipt> {
     return new Promise<TxInfoReceipt>(async (resolve, reject) => {
       const interval = setInterval(async () => {
-        const receipt = await this.getKwilClient()["txInfoClient"](txHash).catch(() => ({ data: undefined, status: undefined }));
+        const receipt = await this.getKwilClient()
+          ["txInfoClient"](txHash)
+          .catch(() => ({ data: undefined, status: undefined }));
         switch (receipt.status) {
           case 200:
-            if (receipt.data?.tx_result.log === 'success') {
+            if (receipt.data?.tx_result.log === "success") {
               resolve(receipt.data);
             } else {
-              reject(new Error(`Transaction failed: status ${receipt.status} : log message ${receipt.data?.tx_result.log}`));
+              reject(
+                new Error(
+                  `Transaction failed: status ${receipt.status} : log message ${receipt.data?.tx_result.log}`,
+                ),
+              );
             }
             break;
           case undefined:
             break;
           default:
-            reject(new Error(`Transaction failed: status ${receipt.status} : log message ${receipt.data?.tx_result.log}`));
+            reject(
+              new Error(
+                `Transaction failed: status ${receipt.status} : log message ${receipt.data?.tx_result.log}`,
+              ),
+            );
         }
       }, 1000);
       setTimeout(() => {
@@ -71,7 +81,10 @@ export abstract class TSNClient<T extends EnvironmentType> {
    * @returns An instance of KwilSigner.
    */
   getKwilSigner(): KwilSigner {
-    return new KwilSigner(this.ethProvider.getSigner(), this.address().getAddress());
+    return new KwilSigner(
+      this.ethProvider.getSigner(),
+      this.address().getAddress(),
+    );
   }
 
   /**
@@ -96,7 +109,7 @@ export abstract class TSNClient<T extends EnvironmentType> {
   async deployStream(
     streamId: StreamId,
     streamType: StreamType,
-    synchronous?: boolean
+    synchronous?: boolean,
   ): Promise<GenericResponse<TxReceipt>> {
     return await deployStream({
       streamId,
@@ -113,7 +126,10 @@ export abstract class TSNClient<T extends EnvironmentType> {
    * @param synchronous - Whether the destruction should be synchronous.
    * @returns A promise that resolves to a generic response containing the transaction receipt.
    */
-  async destroyStream(streamId: StreamId, synchronous?: boolean): Promise<GenericResponse<TxReceipt>> {
+  async destroyStream(
+    streamId: StreamId,
+    synchronous?: boolean,
+  ): Promise<GenericResponse<TxReceipt>> {
     return await destroyStream({
       streamId,
       synchronous,
@@ -128,7 +144,11 @@ export abstract class TSNClient<T extends EnvironmentType> {
    * @returns An instance of IStream.
    */
   loadStream(stream: StreamLocator): Stream {
-    return new Stream(this.getKwilClient() as WebKwil | NodeKwil, this.getKwilSigner(), stream);
+    return new Stream(
+      this.getKwilClient() as WebKwil | NodeKwil,
+      this.getKwilSigner(),
+      stream,
+    );
   }
 
   /**
@@ -146,7 +166,11 @@ export abstract class TSNClient<T extends EnvironmentType> {
    * @returns An instance of IComposedStream.
    */
   loadComposedStream(stream: StreamLocator): IComposedStream {
-    return new ComposedStream(this.getKwilClient() as WebKwil | NodeKwil, this.getKwilSigner(), stream);
+    return new ComposedStream(
+      this.getKwilClient() as WebKwil | NodeKwil,
+      this.getKwilSigner(),
+      stream,
+    );
   }
 
   /**
@@ -211,6 +235,3 @@ export class NodeTSNClient extends TSNClient<EnvironmentType.NODE> {
     });
   }
 }
-
-
-
