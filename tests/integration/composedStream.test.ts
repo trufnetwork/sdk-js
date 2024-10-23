@@ -134,11 +134,9 @@ describe.sequential(
           expect(firstRecord!.dateValue).toBe("2020-01-01");
         } finally {
           // Cleanup: destroy all streams
-          await Promise.allSettled(
-            allStreamIds.map((streamId) =>
-              defaultClient.destroyStream(streamId, true).catch(() => {}),
-            ),
-          );
+          for (const streamId of allStreamIds) {
+            await defaultClient.destroyStream(streamId, true).catch(() => {});
+          }
         }
       },
     );
