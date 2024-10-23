@@ -27,14 +27,20 @@ export interface DestroyStreamOutput {
  * @param input - The input parameters for destroying the stream.
  * @returns The transaction receipt of the destruction.
  */
-export async function destroyStream(input: DestroyStreamInput): Promise<GenericResponse<TxReceipt>> {
-    const dbid = generateDBID(input.kwilSigner.identifier, input.streamId.getId());
+export async function destroyStream(
+  input: DestroyStreamInput,
+): Promise<GenericResponse<TxReceipt>> {
+  const dbid = generateDBID(
+    input.kwilSigner.identifier,
+    input.streamId.getId(),
+  );
   try {
-    const txReceipt = await input.kwilClient.drop({
-        dbid
-    },
+    const txReceipt = await input.kwilClient.drop(
+      {
+        dbid,
+      },
       input.kwilSigner,
-      input.synchronous
+      input.synchronous,
     );
 
     return txReceipt;
@@ -42,4 +48,3 @@ export async function destroyStream(input: DestroyStreamInput): Promise<GenericR
     throw new Error(`Failed to destroy stream: ${error}`);
   }
 }
-

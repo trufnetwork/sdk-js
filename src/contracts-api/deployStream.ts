@@ -1,9 +1,11 @@
 import { StreamType } from "../types/contractValues.js";
 import { TxReceipt } from "@kwilteam/kwil-js/dist/core/tx.js";
 import { Kwil } from "@kwilteam/kwil-js/dist/client/kwil.js";
-import { DeployBody } from "@kwilteam/kwil-js/dist/core/database.js";
 import { CompiledKuneiform } from "@kwilteam/kwil-js/dist/core/payload.js";
-import { composedStreamTemplate, primitiveStreamTemplate } from "../contracts/contractsContent.js";
+import {
+  composedStreamTemplate,
+  primitiveStreamTemplate,
+} from "../contracts/contractsContent.js";
 import { GenericResponse } from "@kwilteam/kwil-js/dist/core/resreq.js";
 import { KwilSigner } from "@kwilteam/kwil-js";
 import { StreamId } from "../util/StreamId.js";
@@ -17,7 +19,7 @@ export interface DeployStreamInput {
 }
 
 export interface DeployStreamOutput {
-  receipt: TxReceipt
+  receipt: TxReceipt;
 }
 
 /**
@@ -25,15 +27,21 @@ export interface DeployStreamOutput {
  * @param input - The input parameters for deploying the stream.
  * @returns The transaction hash of the deployment.
  */
-export async function deployStream(input: DeployStreamInput): Promise<GenericResponse<TxReceipt>> {
+export async function deployStream(
+  input: DeployStreamInput,
+): Promise<GenericResponse<TxReceipt>> {
   try {
     const schema = await getContract(input.streamType);
 
     schema.name = input.streamId.getId();
 
-    const txHash = await input.kwilClient.deploy({
-      schema,
-    }, input.kwilSigner, input.synchronous);
+    const txHash = await input.kwilClient.deploy(
+      {
+        schema,
+      },
+      input.kwilSigner,
+      input.synchronous,
+    );
 
     return txHash;
   } catch (error) {
@@ -56,4 +64,3 @@ async function getContract(streamType: StreamType): Promise<CompiledKuneiform> {
       throw new Error(`Unknown stream type: ${streamType}`);
   }
 }
-
