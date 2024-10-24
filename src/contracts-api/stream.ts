@@ -1,27 +1,40 @@
+import { KwilSigner, NodeKwil, WebKwil } from "@kwilteam/kwil-js";
+import { ActionInput } from "@kwilteam/kwil-js/dist/core/action";
+import { Database } from "@kwilteam/kwil-js/dist/core/database";
 import { GenericResponse } from "@kwilteam/kwil-js/dist/core/resreq";
 import { TxReceipt } from "@kwilteam/kwil-js/dist/core/tx";
-import {
-  GetFirstRecordInput,
-  GetRecordInput,
-  StreamLocator,
-  StreamRecord,
-} from "../types/stream";
+import { generateDBID } from "@kwilteam/kwil-js/dist/utils/dbid";
+import { Either } from "monads-io";
+import { DateString } from "../types/other";
+import { StreamLocator } from "../types/stream";
+import { EthereumAddress } from "../util/EthereumAddress";
+import { head } from "../util/head";
+import { StreamId } from "../util/StreamId";
+import { toVisibilityEnum, VisibilityEnum } from "../util/visibility";
 import {
   MetadataKey,
   MetadataKeyValueMap,
   MetadataTableKey,
   MetadataValueTypeForKey,
   StreamType,
-} from "../types/contractValues";
-import { EthereumAddress } from "../util/EthereumAddress";
-import { toVisibilityEnum, VisibilityEnum } from "../util/visibility";
-import { KwilSigner, NodeKwil, WebKwil } from "@kwilteam/kwil-js";
-import { Database } from "@kwilteam/kwil-js/dist/core/database";
-import { generateDBID } from "@kwilteam/kwil-js/dist/utils/dbid";
-import { ActionInput } from "@kwilteam/kwil-js/dist/core/action";
-import { StreamId } from "../util/StreamId";
-import { Either } from "monads-io";
-import { head } from "../util/head";
+} from "./contractValues";
+
+export interface GetRecordInput {
+  dateFrom?: DateString;
+  dateTo?: DateString;
+  frozenAt?: number;
+  baseDate?: DateString;
+}
+
+export interface GetFirstRecordInput {
+  afterDate?: DateString;
+  frozenAt?: DateString;
+}
+
+export interface StreamRecord {
+  dateValue: DateString;
+  value: string;
+}
 
 export class Stream {
   protected kwilClient: WebKwil | NodeKwil;

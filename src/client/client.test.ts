@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { NodeTSNClient } from "./client";
 import { ethers } from "ethers";
 import { StreamId } from "../util/StreamId";
+import { NodeTSNClient } from "./nodeClient";
 
-describe("Client", { timeout: 30000 }, () => {
+describe.sequential("Client", { timeout: 30000 }, () => {
   // Skip in CI, because it needs a local node
   it.skipIf(process.env.CI);
 
@@ -15,10 +15,16 @@ describe("Client", { timeout: 30000 }, () => {
     getSigner: () => wallet,
   };
   it("should create a client", async () => {
+    const chainId = await NodeTSNClient.getDefaultChainId(
+      "http://localhost:8484",
+    );
+    if (!chainId) {
+      throw new Error("Chain id not found");
+    }
     const client = new NodeTSNClient({
       endpoint: "http://localhost:8484",
       walletProvider,
-      chainId: "1234567890",
+      chainId,
     });
     const kwilClient = client.getKwilClient();
     const chainInfo = await kwilClient.chainInfo();
@@ -159,5 +165,67 @@ describe("Client", { timeout: 30000 }, () => {
       }
       await client.waitForTx(tx.data.tx_hash);
     }
+  });
+
+  it("composed stream", async () => {
+    const chainId = await NodeTSNClient.getDefaultChainId(
+      "http://localhost:8484",
+    );
+    if (!chainId) {
+      throw new Error("Chain id not found");
+    }
+    const client = new NodeTSNClient({
+      endpoint: "http://localhost:8484",
+      walletProvider,
+      chainId,
+    });
+    await using cleanup = new AsyncDisposableStack();
+    const streamId = await StreamId.generate("test");
+    cleanup.defer(async () => {
+      await client.destroyStream(streamId, true).catch(() => {});
+    });
+
+    // deploy a composed stream
+    await client.deployStream(streamId, "composed", true);
+
+    const composedStream = client.loadComposedStream({
+      streamId,
+      dataProvider: client.address(),
+    });
+
+    // Initialize the composed stream
+    {
+      const tx = await composedStream.initializeStream();
+      if (!tx.data?.tx_hash) {
+        throw new Error("Tx hash not found");
+      }
+      await client.waitForTx(tx.data.tx_hash);
+    }
+
+    // Set taxonomy
+    {
+      const tx = await composedStream.setTaxonomy({
+        taxonomyItems: [
+          {
+            childStream: {
+              streamId: StreamId.fromString("test-child").throw(),
+              dataProvider: client.address(),
+            },
+            weight: "1",
+          },
+        ],
+        startDate: "2024-01-01",
+      });
+      if (!tx.data?.tx_hash) {
+        throw new Error("Tx hash not found");
+      }
+      await client.waitForTx(tx.data.tx_hash);
+    }
+
+    // Get taxonomies
+    const taxonomies = await composedStream.describeTaxonomies({
+      latestVersion: true,
+    });
+    expect(taxonomies.length).toBeGreaterThan(0);
   });
 });

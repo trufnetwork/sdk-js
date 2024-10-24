@@ -1,14 +1,14 @@
-import { StreamType } from "../types/contractValues.js";
-import { TxReceipt } from "@kwilteam/kwil-js/dist/core/tx.js";
-import { Kwil } from "@kwilteam/kwil-js/dist/client/kwil.js";
-import { CompiledKuneiform } from "@kwilteam/kwil-js/dist/core/payload.js";
+import { StreamType } from "./contractValues";
+import { TxReceipt } from "@kwilteam/kwil-js/dist/core/tx";
+import { Kwil } from "@kwilteam/kwil-js/dist/client/kwil";
+import { CompiledKuneiform } from "@kwilteam/kwil-js/dist/core/payload";
 import {
   composedStreamTemplate,
   primitiveStreamTemplate,
 } from "../contracts/contractsContent.js";
-import { GenericResponse } from "@kwilteam/kwil-js/dist/core/resreq.js";
+import { GenericResponse } from "@kwilteam/kwil-js/dist/core/resreq";
 import { KwilSigner } from "@kwilteam/kwil-js";
-import { StreamId } from "../util/StreamId.js";
+import { StreamId } from "../util/StreamId";
 
 export interface DeployStreamInput {
   streamId: StreamId;
