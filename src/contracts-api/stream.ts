@@ -171,7 +171,7 @@ export class Stream {
    */
   public async getRecord(input: GetRecordInput): Promise<StreamRecord[]> {
     // TODO: change value to string when kwil-js is updated
-    const result = await this.call<{ date_value: string; value: number }[]>(
+    const result = await this.call<{ date_value: string; value: string }[]>(
       "get_record",
       [
         ActionInput.fromObject({
@@ -186,7 +186,7 @@ export class Stream {
       .mapRight((result) =>
         result.map((row) => ({
           dateValue: row.date_value,
-          value: row.value.toString(),
+          value: row.value,
         })),
       )
       .throw();
@@ -196,7 +196,7 @@ export class Stream {
    * Returns the index of the stream within the given date range
    */
   public async getIndex(input: GetRecordInput): Promise<StreamRecord[]> {
-    const result = await this.call<{ date_value: string; value: number }[]>(
+    const result = await this.call<{ date_value: string; value: string }[]>(
       "get_index",
       [
         ActionInput.fromObject({
@@ -211,7 +211,7 @@ export class Stream {
       .mapRight((result) =>
         result.map((row) => ({
           dateValue: row.date_value,
-          value: row.value.toString(),
+          value: row.value,
         })),
       )
       .throw();
@@ -248,7 +248,7 @@ export class Stream {
   public async getFirstRecord(
     input: GetFirstRecordInput,
   ): Promise<StreamRecord | null> {
-    const result = await this.call<{ date_value: string; value: number }[]>(
+    const result = await this.call<{ date_value: string; value: string }[]>(
       "get_first_record",
       [
         ActionInput.fromObject({
@@ -264,7 +264,7 @@ export class Stream {
         result
           .map((result) => ({
             dateValue: result.date_value,
-            value: result.value.toString(),
+            value: result.value,
           }))
           .unwrapOr(null),
       )

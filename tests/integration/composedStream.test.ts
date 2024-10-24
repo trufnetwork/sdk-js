@@ -30,20 +30,20 @@ describe.sequential(
           // Deploy child streams with initial data
           // Child A: [2020-01-01: 1, 2020-01-02: 2, 2020-01-30: 3, 2020-02-01: 4, 2020-02-02: 5]
           await deployPrimitiveStreamWithData(defaultClient, childAStreamId, [
-            { dateValue: "2020-01-01", value: "1" },
-            { dateValue: "2020-01-02", value: "2" },
-            { dateValue: "2020-01-30", value: "3" },
-            { dateValue: "2020-02-01", value: "4" },
-            { dateValue: "2020-02-02", value: "5" },
+            { dateValue: "2020-01-01", value: "1.000000000000000000" },
+            { dateValue: "2020-01-02", value: "2.000000000000000000" },
+            { dateValue: "2020-01-30", value: "3.000000000000000000" },
+            { dateValue: "2020-02-01", value: "4.000000000000000000" },
+            { dateValue: "2020-02-02", value: "5.000000000000000000" },
           ]);
 
           // Child B: [2020-01-01: 3, 2020-01-02: 4, 2020-01-30: 5, 2020-02-01: 6, 2020-02-02: 7]
           await deployPrimitiveStreamWithData(defaultClient, childBStreamId, [
-            { dateValue: "2020-01-01", value: "3" },
-            { dateValue: "2020-01-02", value: "4" },
-            { dateValue: "2020-01-30", value: "5" },
-            { dateValue: "2020-02-01", value: "6" },
-            { dateValue: "2020-02-02", value: "7" },
+            { dateValue: "2020-01-01", value: "3.000000000000000000" },
+            { dateValue: "2020-01-02", value: "4.000000000000000000" },
+            { dateValue: "2020-01-30", value: "5.000000000000000000" },
+            { dateValue: "2020-02-01", value: "6.000000000000000000" },
+            { dateValue: "2020-02-02", value: "7.000000000000000000" },
           ]);
 
           // Deploy composed stream

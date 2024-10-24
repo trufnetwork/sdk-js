@@ -54,7 +54,7 @@ describe.sequential(
 
           // Verify record content
           expect(records.length).toBe(1);
-          expect(records[0].value).toBe("1");
+          expect(records[0].value).toBe("1.000000000000000000");
           expect(records[0].dateValue).toBe("2020-01-01");
 
           // Query index
@@ -65,13 +65,13 @@ describe.sequential(
 
           // Verify index content
           expect(index.length).toBe(1);
-          expect(index[0].value).toBe("100");
+          expect(index[0].value).toBe("100.000000000000000000");
           expect(index[0].dateValue).toBe("2020-01-01");
 
           // Query first record
           const firstRecord = await primitiveStream.getFirstRecord({});
           expect(firstRecord).not.toBeNull();
-          expect(firstRecord?.value).toBe("1");
+          expect(firstRecord?.value).toBe("1.000000000000000000");
           expect(firstRecord?.dateValue).toBe("2020-01-01");
         } finally {
           // Cleanup: destroy the stream after test

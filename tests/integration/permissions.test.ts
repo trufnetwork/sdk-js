@@ -40,7 +40,7 @@ describe.sequential("Permissions", { timeout: 90000 }, () => {
 
         // Insert test data
         tx = await primitiveStream.insertRecords([
-          { dateValue: "2024-01-01", value: "100" },
+          { dateValue: "2024-01-01", value: "100.000000000000000000" },
         ]);
         await waitForTxSuccess(tx, ownerClient);
 
@@ -54,7 +54,7 @@ describe.sequential("Permissions", { timeout: 90000 }, () => {
           dateTo: "2024-01-01",
         });
         expect(publicRecords.length).toBe(1);
-        expect(publicRecords[0].value).toBe("100");
+        expect(publicRecords[0].value).toBe("100.000000000000000000");
 
         // Set stream to private
         tx = await primitiveStream.setReadVisibility(visibility.private);
@@ -128,7 +128,7 @@ describe.sequential("Permissions", { timeout: 90000 }, () => {
         tx = await primitiveStream.initializeStream();
         await waitForTxSuccess(tx, ownerClient);
         tx = await primitiveStream.insertRecords([
-          { dateValue: "2024-01-01", value: "100" },
+          { dateValue: "2024-01-01", value: "100.000000000000000000" },
         ]);
         await waitForTxSuccess(tx, ownerClient);
         // Deploy and initialize composed stream
