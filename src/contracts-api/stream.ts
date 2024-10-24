@@ -170,6 +170,7 @@ export class Stream {
    * Returns the records of the stream within the given date range
    */
   public async getRecord(input: GetRecordInput): Promise<StreamRecord[]> {
+    // TODO: change value to string when kwil-js is updated
     const result = await this.call<{ date_value: string; value: string }[]>(
       "get_record",
       [
@@ -278,7 +279,7 @@ export class Stream {
       ActionInput.fromObject({
         $key: key,
         $value: value,
-        $value_type: MetadataKeyValueMap[key],
+        $val_type: MetadataKeyValueMap[key],
       }),
     ]);
   }

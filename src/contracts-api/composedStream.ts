@@ -2,11 +2,11 @@ import { KwilSigner, NodeKwil, WebKwil } from "@kwilteam/kwil-js";
 import { ActionInput } from "@kwilteam/kwil-js/dist/core/action";
 import { GenericResponse } from "@kwilteam/kwil-js/dist/core/resreq";
 import { TxReceipt } from "@kwilteam/kwil-js/dist/core/tx";
-import { StreamType } from "./contractValues";
 import { DateString } from "../types/other";
 import { StreamLocator } from "../types/stream";
 import { EthereumAddress } from "../util/EthereumAddress";
 import { StreamId } from "../util/StreamId";
+import { StreamType } from "./contractValues";
 import { Stream } from "./stream";
 
 export const ErrorStreamNotComposed = "stream is not a composed stream";
@@ -93,17 +93,17 @@ export class ComposedStream extends Stream {
       .mapRight((records) => {
         const taxonomyItems: Map<DateString, TaxonomyItem[]> = records.reduce(
           (acc, record) => {
-            acc.set(record.start_date, [
-              {
-                childStream: {
-                  streamId: StreamId.fromString(record.child_stream_id).throw(),
-                  dataProvider: EthereumAddress.fromString(
-                    record.child_data_provider,
-                  ).throw(),
-                },
-                weight: record.weight,
+            const currentArray = acc.get(record.start_date) || [];
+            currentArray.push({
+              childStream: {
+                streamId: StreamId.fromString(record.child_stream_id).throw(),
+                dataProvider: EthereumAddress.fromString(
+                  record.child_data_provider,
+                ).throw(),
               },
-            ]);
+              weight: record.weight,
+            });
+            acc.set(record.start_date, currentArray);
             return acc;
           },
           new Map<DateString, TaxonomyItem[]>(),
