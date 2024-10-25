@@ -40,50 +40,6 @@ async function generateTypes() {
   }
 }
 
-async function createPackageJson() {
-  const pkg = JSON.parse(await readFile("package.json", { encoding: "utf-8" }));
-
-  const distPkg = {
-    name: pkg.name,
-    version: pkg.version,
-    description: pkg.description,
-    author: pkg.author,
-    license: pkg.license,
-    repository: pkg.repository,
-    keywords: pkg.keywords,
-    dependencies: pkg.dependencies,
-    peerDependencies: pkg.peerDependencies,
-    type: "module",
-    main: "./cjs/index.js",
-    module: "./esm/index.js",
-    types: "./types/index.d.ts",
-    exports: {
-      ".": {
-        browser: {
-          import: "./esm/index.browser.js",
-          require: "./cjs/index.browser.js",
-          types: "./types/index.d.ts",
-        },
-        default: {
-          import: "./esm/index.js",
-          require: "./cjs/index.js",
-          types: "./types/index.d.ts",
-        },
-      },
-    },
-    // Add engines constraint
-    engines: {
-      node: ">=18",
-    },
-    sideEffects: false,
-  };
-
-  await writeFile(
-    path.join(DIST_DIR, "package.json"),
-    JSON.stringify(distPkg, null, 2)
-  );
-}
-
 async function copyJsonFiles() {
   const jsonFiles = await glob("src/**/*.json");
   await Promise.all(
@@ -176,19 +132,6 @@ async function build() {
       target: ["es2020"],
       platform: "browser",
     });
-
-    // Create package.json, copy README, LICENSE, etc.
-    await createPackageJson();
-
-    console.log("Copying README and LICENSE...");
-    await Promise.all([
-      readFile("README.md")
-        .then((content) => writeFile(path.join(DIST_DIR, "README.md"), content))
-        .catch(() => console.log("No README.md found")),
-      readFile("LICENSE")
-        .then((content) => writeFile(path.join(DIST_DIR, "LICENSE"), content))
-        .catch(() => console.log("No LICENSE found")),
-    ]);
 
     console.log("Copying JSON files...");
     await copyJsonFiles();
