@@ -9,10 +9,6 @@ describe.sequential("Client", { timeout: 30000 }, () => {
   const wallet = new ethers.Wallet(
     "0x0000000000000000000000000000000000000000000000000000000000000001",
   );
-  const walletProvider = {
-    getAddress: () => wallet.address,
-    getSigner: () => wallet,
-  };
   it("should create a client", async () => {
     const chainId = await NodeTSNClient.getDefaultChainId(
       "http://localhost:8484",
@@ -22,7 +18,10 @@ describe.sequential("Client", { timeout: 30000 }, () => {
     }
     const client = new NodeTSNClient({
       endpoint: "http://localhost:8484",
-      walletProvider,
+      signerInfo: {
+        address: wallet.address,
+        signer: wallet,
+      },
       chainId,
     });
     const kwilClient = client.getKwilClient();

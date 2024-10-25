@@ -1,20 +1,56 @@
 {
-  "name": "tsn-sdk-js",
+  "name": "@truflation/tsn-sdk-js",
   "version": "0.1.0",
-  "description": "",
+  "description": "Truflation Stream Network SDK for JavaScript",
   "type": "module",
-  "keywords": [],
+  "keywords": [
+    "tsn",
+    "truflation",
+    "sdk",
+    "javascript",
+    "typescript",
+    "web3"
+  ],
   "author": "",
+  "files": [
+    "dist"
+  ],
   "license": "Apache-2.0",
-  "dependencies": {
-    "monads-io": "4.0.2",
-    "crypto-hash": "3.1.0",
-    "lodash": "4.17.21"
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    "node": {
+      "require": "./dist/cjs/index.node.js",
+      "import": "./dist/esm/index.node.js"
+    },
+    "browser": {
+      "require": "./dist/cjs/index.browser.js",
+      "import": "./dist/esm/index.browser.js"
+    },
+    "default": {
+      "require": "./dist/cjs/index.js",
+      "import": "./dist/esm/index.js"
+    }
   },
-  "peerDependencies": {
-    "@kwilteam/kwil-js": "0.7.2"
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsx esbuild.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "monads-io": "^4.0.2",
+    "crypto-hash": "^3.1.0",
+    "lodash": "^4.17.21",
+    "@kwilteam/kwil-js": "^0.7.3"
   },
   "devDependencies": {
+    "@types/node": "18.18.1",
+    "glob": "11.0.0",
     "@typescript-eslint/eslint-plugin": "8.11.0",
     "@typescript-eslint/parser": "8.11.0",
     "@types/lodash": "4.17.12",
@@ -34,7 +70,6 @@
     "tsx": "^4.19.1",
     "typescript": "^5.6.3",
     "vite-plugin-plain-text": "1.4.2",
-    "vite": "5.4.9",
     "vitest": "^2.1.3"
   }
 }

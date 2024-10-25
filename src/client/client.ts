@@ -17,22 +17,23 @@ import { EthereumAddress } from "../util/EthereumAddress";
 import { StreamId } from "../util/StreamId";
 import { listAllStreams } from "./listAllStreams";
 
-export interface EthProvider {
-  getAddress(): string;
-  getSigner(): EthSigner;
+export interface SignerInfo {
+  // we need to have the address upfront to create the KwilSigner, instead of relying on the signer to return it asynchronously
+  address: string;
+  signer: EthSigner;
 }
 
 export type TSNClientOptions = {
   endpoint: string;
-  walletProvider: EthProvider;
+  signerInfo: SignerInfo;
 } & Omit<KwilConfig, "kwilProvider">;
 
 export abstract class BaseTSNClient<T extends EnvironmentType> {
   protected kwilClient: Kwil<T> | undefined;
-  protected ethProvider: EthProvider;
+  protected signerInfo: SignerInfo;
 
   protected constructor(options: TSNClientOptions) {
-    this.ethProvider = options.walletProvider;
+    this.signerInfo = options.signerInfo;
   }
 
   /**
@@ -82,7 +83,7 @@ export abstract class BaseTSNClient<T extends EnvironmentType> {
    */
   getKwilSigner(): KwilSigner {
     return new KwilSigner(
-      this.ethProvider.getSigner(),
+      this.signerInfo.signer,
       this.address().getAddress(),
     );
   }
@@ -190,7 +191,7 @@ export abstract class BaseTSNClient<T extends EnvironmentType> {
    * @returns An instance of EthereumAddress.
    */
   address(): EthereumAddress {
-    return new EthereumAddress(this.ethProvider.getAddress());
+    return new EthereumAddress(this.signerInfo.address);
   }
 
   /**

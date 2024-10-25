@@ -13,7 +13,7 @@ export const ErrorStreamNotComposed = "stream is not a composed stream";
 
 export interface TaxonomySet {
   taxonomyItems: TaxonomyItem[];
-  startDate: DateString;
+  startDate?: DateString;
 }
 
 export interface TaxonomyItem {

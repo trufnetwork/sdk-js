@@ -14,6 +14,8 @@ yarn.lock
 build
 dist
 out
+*.tsbuildinfo
+*.tsbuildinfo.json
 
 # env
 .env.*

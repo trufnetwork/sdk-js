@@ -34,9 +34,9 @@ export async function createWalletContext(
 
   const client = new NodeTSNClient({
     endpoint: TEST_ENDPOINT,
-    walletProvider: {
-      getAddress: () => wallet.address,
-      getSigner: () => wallet,
+    signerInfo: {
+      address: wallet.address,
+      signer: wallet,
     },
     chainId,
   });
