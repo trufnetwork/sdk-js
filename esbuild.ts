@@ -22,7 +22,6 @@ const NODE_BUILT_INS = [
 // List of test-related packages to mark as external
 const TEST_EXTERNALS = ["vitest", "chai", "loupe", "@vitest/utils"];
 
-// Add build mode
 const isProd = process.env.NODE_ENV === "production";
 
 async function generateTypes() {
@@ -45,7 +44,7 @@ async function copyJsonFiles() {
   await Promise.all(
     jsonFiles.map(async (file) => {
       const relativePath = path.relative("src", file);
-      const destinations = ["browser", "node", "cjs", "esm"].map((dir) =>
+      const destinations = ["cjs", "esm"].map((dir) =>
         path.join(DIST_DIR, dir, relativePath)
       );
 
@@ -61,14 +60,11 @@ async function copyJsonFiles() {
 
 async function build() {
   try {
-    // default to production
     process.env.NODE_ENV ||= "production";
-
-    // Clean dist directory
+    
     console.log("Cleaning dist directory...");
     await rm(DIST_DIR, { recursive: true, force: true });
-
-    // Generate types
+    
     await generateTypes();
 
     const entryPoints = await glob("src/**/*.{ts,tsx}");
@@ -85,52 +81,29 @@ async function build() {
     // Base build options
     const baseConfig: esbuild.BuildOptions = {
       entryPoints,
-      bundle: true,
+      bundle: false, 
       sourcemap: true,
       minify: isProd,
-      external,
       loader: { ".json": "json" },
       logLevel: "info",
+      outdir: DIST_DIR, 
+      treeShaking: true,
     };
 
-    console.log("Building for Node.js (ESM)...");
+    console.log("Building ESM version...");
     await esbuild.build({
       ...baseConfig,
-      entryPoints: ["src/index.node.ts"],
-      outfile: `${DIST_DIR}/esm/index.js`,
       format: "esm",
-      target: ["node18"],
-      platform: "node",
-    });
-
-    console.log("Building for Node.js (CJS)...");
-    await esbuild.build({
-      ...baseConfig,
-      entryPoints: ["src/index.node.ts"],
-      outfile: `${DIST_DIR}/cjs/index.js`,
-      format: "cjs",
-      target: ["node18"],
-      platform: "node",
-    });
-
-    console.log("Building for Browser (ESM)...");
-    await esbuild.build({
-      ...baseConfig,
-      entryPoints: ["src/index.browser.ts"],
-      outfile: `${DIST_DIR}/esm/index.browser.js`,
-      format: "esm",
+      outdir: `${DIST_DIR}/esm`,
       target: ["es2020"],
-      platform: "browser",
     });
 
-    console.log("Building for Browser (CJS)...");
+    console.log("Building CJS version...");
     await esbuild.build({
       ...baseConfig,
-      entryPoints: ["src/index.browser.ts"],
-      outfile: `${DIST_DIR}/cjs/index.browser.js`,
       format: "cjs",
-      target: ["es2020"],
-      platform: "browser",
+      outdir: `${DIST_DIR}/cjs`,
+      target: ["node18"],
     });
 
     console.log("Copying JSON files...");
