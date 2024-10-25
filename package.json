@@ -11,18 +11,19 @@
   "license": "Apache-2.0",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
+  "types": "./dist/types/index.d.ts",
   "exports": {
-    ".": {
-      "browser": {
-        "types": "./dist/types/index.d.ts",
-        "require": "./dist/cjs/index.browser.js",
-        "import": "./dist/esm/index.browser.js"
-      },
-      "default": {
-        "types": "./dist/types/index.d.ts",
-        "require": "./dist/cjs/index.js",
-        "import": "./dist/esm/index.js"
-      }
+    "node": {
+      "require": "./dist/cjs/index.node.js",
+      "import": "./dist/esm/index.node.js"
+    },
+    "browser": {
+      "require": "./dist/cjs/index.browser.js",
+      "import": "./dist/esm/index.browser.js"
+    },
+    "default": {
+      "require": "./dist/cjs/index.js",
+      "import": "./dist/esm/index.js"
     }
   },
   "sideEffects": false,
