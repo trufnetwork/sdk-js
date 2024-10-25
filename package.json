@@ -1,5 +1,5 @@
 {
-  "name": "tsn-sdk-js",
+  "name": "@truflation/tsn-sdk-js",
   "version": "0.1.0",
   "description": "",
   "type": "module",
@@ -36,14 +36,14 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "monads-io": "4.0.2",
-    "crypto-hash": "3.1.0",
-    "lodash": "4.17.21"
-  },
-  "peerDependencies": {
-    "@kwilteam/kwil-js": "0.7.2"
+    "monads-io": "^4.0.2",
+    "crypto-hash": "^3.1.0",
+    "lodash": "^4.17.21",
+    "@kwilteam/kwil-js": "^0.7.3"
   },
   "devDependencies": {
+    "@types/node": "18.18.1",
+    "glob": "11.0.0",
     "@typescript-eslint/eslint-plugin": "8.11.0",
     "@typescript-eslint/parser": "8.11.0",
     "@types/lodash": "4.17.12",
@@ -63,7 +63,6 @@
     "tsx": "^4.19.1",
     "typescript": "^5.6.3",
     "vite-plugin-plain-text": "1.4.2",
-    "vite": "5.4.9",
     "vitest": "^2.1.3"
   }
 }
