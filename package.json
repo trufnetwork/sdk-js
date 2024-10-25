@@ -5,7 +5,36 @@
   "type": "module",
   "keywords": [],
   "author": "",
+  "files": [
+    "dist"
+  ],
   "license": "Apache-2.0",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "browser": {
+        "import": "./dist/esm/index.browser.js",
+        "require": "./dist/cjs/index.browser.js",
+        "types": "./dist/types/index.d.ts"
+      },
+      "default": {
+        "import": "./dist/esm/index.js",
+        "require": "./dist/cjs/index.js",
+        "types": "./dist/types/index.d.ts"
+      }
+    }
+  },
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsx esbuild.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepublishOnly": "npm run build"
+  },
   "dependencies": {
     "monads-io": "4.0.2",
     "crypto-hash": "3.1.0",
