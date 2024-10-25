@@ -1,6 +1,6 @@
 {
   "name": "@truflation/tsn-sdk-js",
-  "version": "0.0.0-20241025143036-dev",
+  "version": "0.1.0",
   "description": "Truflation Stream Network SDK for JavaScript",
   "type": "module",
   "keywords": [
