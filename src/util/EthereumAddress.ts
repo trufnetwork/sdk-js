@@ -1,3 +1,4 @@
+import { ethers } from "ethers";
 import { Either, left, right } from "monads-io/either";
 
 export class EthereumAddress {
@@ -44,7 +45,7 @@ export class EthereumAddress {
 
   public static fromBytes(bytes: Uint8Array): Either<Error, EthereumAddress> {
     try {
-      return right(new EthereumAddress(Buffer.from(bytes).toString("hex")));
+      return right(new EthereumAddress(ethers.hexlify(bytes)));
     } catch (e) {
       return left(e as Error);
     }
