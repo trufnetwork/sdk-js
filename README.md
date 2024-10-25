@@ -2,45 +2,93 @@
 
 The TSN SDK provides developers with tools to interact with the Truflation Stream Network, a decentralized platform for publishing, composing, and consuming economic data streams.
 
-## Support
-
-This documentation is a work in progress. If you need help, don't hesitate to [open an issue](https://github.com/truflation/tsn-sdk-js/issues).
-
 ## Quick Start
 
 ### Prerequisites
-
 - Node.js 18 or later
 
 ### Installation
-
 ```bash
+npm install @truflation/tsn-sdk-js
 # or your preferred package manager
-pnpm install @truflation/tsn-sdk-js
+```
+
+### Environment-specific Usage
+
+```ts
+// For Node.js applications
+import { NodeTSNClient } from "@truflation/tsn-sdk-js";
+
+// For browser applications
+import { BrowserTSNClient } from "@truflation/tsn-sdk-js";
 ```
 
 ### Example Usage
 
 ```ts
-# TODO
+import { NodeTSNClient, StreamId } from "@truflation/tsn-sdk-js";
+
+// Initialize client
+const client = new NodeTSNClient({
+  endpoint: "https://staging.tsn.truflation.com",
+  signerInfo: {
+    address: wallet.address,
+    signer: wallet, // Any object that implements signMessage
+  },
+  chainId: "tsn-1", // or use NodeTSNClient.getDefaultChainId()
+});
+
+// Deploy and initialize a stream
+const streamId = await StreamId.generate("my-data-stream");
+await client.deployStream(streamId, "primitive", true);
+
+const stream = client.loadPrimitiveStream({
+  streamId,
+  dataProvider: client.address(),
+});
+
+// here simplified, you might need to wait for the tx using client.waitForTx
+await stream.initializeStream();
+
+// Insert data, simplified
+await stream.insertRecords([
+  { dateValue: "2024-01-01", value: "100.5" }
+]);
+
+// Read data
+const data = await stream.getRecord({
+  dateFrom: "2024-01-01",
+  dateTo: "2024-01-01",
+});
 ```
 
-For more comprehensive examples and usage patterns, please refer to the test files in the SDK repository. These tests provide detailed examples of various stream operations and error-handling scenarios.
+For a complete working example:
+- Check our [TSN SDK Demo Repository](https://github.com/truflation/tsn-sdk-demo)
+- Try the [Live Demo on CodeSandbox](https://codesandbox.io/p/devbox/m2r3tt?file=%2Fsrc%2Froutes%2F%2Bpage.svelte)
+
+## Stream Types
+
+TSN supports two main types of streams:
+
+- **Primitive Streams**: Direct data sources from providers
+- **Composed Streams**: Aggregate data from multiple streams using weights
 
 More information about TSN components can be found in the [Go TSN-SDK Documentation](https://github.com/truflation/tsn-sdk/blob/main/docs/readme.md).
 
+## Documentation
+
+- [Getting Started](./docs/getting-started.md)
+- [Core Concepts](./docs/core-concepts.md)
+- [API Reference](./docs/api-reference.md)
+
 ## Staging Network
 
-We have a staging network accessible at https://staging.tsn.truflation.com. You can interact with it to test and experiment with the TSN SDK. Please use it responsibly, as TSN is currently in an experimental phase. Any contributions and feedback are welcome.
+A staging network is available at https://staging.tsn.truflation.com for testing and experimentation.
 
-## Further Reading
+## Support
 
-- [TSN-SDK Documentation](https://github.com/truflation/tsn-sdk/blob/main/docs/readme.md)
-- [Truflation Whitepaper](https://whitepaper.truflation.com/)
-- [Kwil Documentation](https://docs.kwil.com/)
-
-For additional support or questions, please [open an issue](https://github.com/truflation/tsn-sdk-js/issues) or contact our support team.
+For support, please [open an issue](https://github.com/truflation/tsn-sdk-js/issues).
 
 ## License
 
-The TSN-SDK-JS repository is licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE.md) for more details.
+Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE.md) for details.
