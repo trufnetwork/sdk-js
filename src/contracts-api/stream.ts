@@ -84,6 +84,7 @@ export class Stream {
         dbid: this.dbid,
         name: method,
         inputs,
+        description: `TSN SDK - Executing method on stream: ${method}`,
       },
       this.kwilSigner,
     );

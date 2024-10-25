@@ -38,6 +38,7 @@ export async function deployStream(
     const txHash = await input.kwilClient.deploy(
       {
         schema,
+        description: `TSN SDK - Deploying ${input.streamType} stream: ${input.streamId.getId()}`,
       },
       input.kwilSigner,
       input.synchronous,
