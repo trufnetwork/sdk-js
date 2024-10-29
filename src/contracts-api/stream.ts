@@ -36,6 +36,10 @@ export interface StreamRecord {
   value: string;
 }
 
+export interface GetIndexChangeInput extends GetRecordInput {
+  daysInterval: number;
+}
+
 export class Stream {
   protected kwilClient: WebKwil | NodeKwil;
   protected kwilSigner: KwilSigner;
@@ -481,5 +485,34 @@ export class Stream {
           dataProvider: new EthereumAddress(dataProvider),
         };
       });
+  }
+
+  /**
+   * Returns the index change of the stream within the given date range
+   */
+  public async getIndexChange(
+    input: GetIndexChangeInput,
+  ): Promise<StreamRecord[]> {
+    const result = await this.call<{ date_value: string; value: string }[]>(
+      "get_index_change",
+      [
+        ActionInput.fromObject({
+          $date_from: input.dateFrom,
+          $date_to: input.dateTo,
+          $frozen_at: input.frozenAt,
+          $base_date: input.baseDate,
+          $days_interval: input.daysInterval,
+        }),
+      ],
+    );
+
+    return result
+      .mapRight((result) =>
+        result.map((row) => ({
+          dateValue: row.date_value,
+          value: row.value,
+        })),
+      )
+      .throw();
   }
 }

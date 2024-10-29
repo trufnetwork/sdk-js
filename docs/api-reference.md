@@ -11,7 +11,7 @@ const client = new NodeTSNClient({
   endpoint: "https://staging.tsn.truflation.com",
   signerInfo: {
     address: wallet.address,
-    signer: wallet,  // Must implement signMessage (e.g. ethers Wallet)
+    signer: wallet, // Must implement signMessage (e.g. ethers Wallet)
   },
   chainId: "tsn-1",
 });
@@ -32,21 +32,29 @@ const type = await stream.getType(); // Returns StreamType
 const records = await stream.getRecord({
   dateFrom: "2024-01-01",
   dateTo: "2024-01-31",
-  frozenAt: 12345  // Optional block height
+  frozenAt: 12345, // Optional block height
 });
 
 // Get stream index
 const index = await stream.getIndex({
-  dateFrom: "2024-01-01", 
+  dateFrom: "2024-01-01",
   dateTo: "2024-01-31",
-  baseDate: "2023-12-31"
+  baseDate: "2023-12-31",
 });
 
 // Get first record
 const firstRecord = await stream.getFirstRecord({
   afterDate: "2024-01-01",
-  frozenAt: 12345
+  frozenAt: 12345,
 }); // Returns StreamRecord | null
+
+// Calculate year-over-year changes
+const changes = await stream.getIndexChange({
+  dateFrom: "2024-01-01",
+  dateTo: "2024-12-31",
+  daysInterval: 365,
+  baseDate: "2024-01-01",
+}); // Returns StreamRecord[]
 ```
 
 ### Primitive Stream Operations
@@ -56,7 +64,7 @@ const primitiveStream = client.loadPrimitiveStream(streamLocator);
 
 // Insert data
 await primitiveStream.insertRecords([
-  { dateValue: "2024-01-01", value: "100.5" }
+  { dateValue: "2024-01-01", value: "100.5" },
 ]);
 ```
 
@@ -70,15 +78,15 @@ await composedStream.setTaxonomy({
   taxonomyItems: [
     {
       childStream: childStreamLocator,
-      weight: "1.5"
-    }
+      weight: "1.5",
+    },
   ],
-  startDate: "2024-01-01" // Optional
+  startDate: "2024-01-01", // Optional
 });
 
 // Get taxonomy
 const taxonomy = await composedStream.describeTaxonomies({
-  latestVersion: true
+  latestVersion: true,
 });
 ```
 
@@ -118,6 +126,5 @@ await client.destroyStream(streamId, true);
 const allStreams = await client.getAllStreams();
 const ownerStreams = await client.getAllStreams(ownerAddress);
 ```
-
 
 For comprehensive examples of these APIs in use, please check our [integration tests](../tests/integration).
