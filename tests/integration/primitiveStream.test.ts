@@ -79,5 +79,69 @@ describe.sequential(
         }
       },
     );
+
+    testWithDefaultWallet(
+      "should calculate index changes correctly",
+      async ({ defaultClient }) => {
+        // Generate a unique stream ID
+        const streamId = await StreamId.generate("test-primitive-stream");
+
+        try {
+          // Deploy and initialize stream
+          await defaultClient.deployStream(streamId, "primitive", true);
+          const primitiveStream = defaultClient.loadPrimitiveStream({
+            streamId,
+            dataProvider: defaultClient.address(),
+          });
+          const initTx = await primitiveStream.initializeStream();
+          await defaultClient.waitForTx(initTx.data!.tx_hash!);
+
+          // Insert historical records (2022)
+          const historicalRecords = [
+            { dateValue: "2022-01-01", value: "100" },
+            { dateValue: "2022-06-01", value: "120" },
+            { dateValue: "2022-12-01", value: "150" },
+          ];
+          const historicalTx =
+            await primitiveStream.insertRecords(historicalRecords);
+          await defaultClient.waitForTx(historicalTx.data!.tx_hash!);
+
+          // Insert current records (2023)
+          const currentRecords = [
+            { dateValue: "2023-01-01", value: "200" },
+            { dateValue: "2023-06-01", value: "180" },
+            { dateValue: "2023-12-01", value: "240" },
+          ];
+          const currentTx = await primitiveStream.insertRecords(currentRecords);
+          await defaultClient.waitForTx(currentTx.data!.tx_hash!);
+
+          // Calculate year-over-year changes
+          const changes = await primitiveStream.getIndexChange({
+            dateFrom: "2023-01-01",
+            dateTo: "2023-12-31",
+            daysInterval: 365,
+            baseDate: "2022-01-01",
+          });
+
+          // Verify the changes
+          expect(changes.length).toBe(3);
+
+          // 2023-01-01 vs 2022-01-01: ((200 - 100) / 100) * 100 = 100%
+          expect(changes[0].dateValue).toBe("2023-01-01");
+          expect(parseFloat(changes[0].value)).toBeCloseTo(100);
+
+          // 2023-06-01 vs 2022-06-01: ((180 - 120) / 120) * 100 = 50%
+          expect(changes[1].dateValue).toBe("2023-06-01");
+          expect(parseFloat(changes[1].value)).toBeCloseTo(50);
+
+          // 2023-12-01 vs 2022-12-01: ((240 - 150) / 150) * 100 = 60%
+          expect(changes[2].dateValue).toBe("2023-12-01");
+          expect(parseFloat(changes[2].value)).toBeCloseTo(60);
+        } finally {
+          // Cleanup
+          await defaultClient.destroyStream(streamId, true);
+        }
+      },
+    );
   },
 );
