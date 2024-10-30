@@ -65,6 +65,7 @@ const data = await stream.getRecord({
 For a complete working example:
 - Check our [TSN SDK Demo Repository](https://github.com/truflation/tsn-sdk-demo)
 - Try the [Live Demo on CodeSandbox](https://codesandbox.io/p/devbox/m2r3tt?file=%2Fsrc%2Froutes%2F%2Bpage.svelte)
+- Try reading from [a Truflation Stream on CodeSandbox with NodeJS](https://codesandbox.io/p/devbox/rtm7mn?file=%2Findex.ts%3A22%2C11)
 
 ## Stream Types
 
