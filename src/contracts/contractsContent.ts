@@ -1,5 +1,5 @@
-import composedStreamTemplate from "./composed_stream_template.json";
-import primitiveStreamTemplate from "./primitive_stream_template.json";
+import composedStreamTemplate from "./composed_stream_template.json" with { type: "json" };
+import primitiveStreamTemplate from "./primitive_stream_template.json" with { type: "json" };
 
 export { composedStreamTemplate, primitiveStreamTemplate };
 
