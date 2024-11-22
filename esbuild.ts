@@ -1,6 +1,7 @@
 import * as esbuild from "esbuild";
-import { glob } from "glob";
-import { readFile, writeFile, rm, mkdir, copyFile } from "fs/promises";
+import {glob} from "glob";
+import {copyFile, mkdir, readFile, rm} from "fs/promises";
+import {esbuildPluginFilePathExtensions} from "esbuild-plugin-file-path-extensions";
 import path from "path";
 
 const DIST_DIR = "dist";
@@ -61,10 +62,10 @@ async function copyJsonFiles() {
 async function build() {
   try {
     process.env.NODE_ENV ||= "production";
-    
+
     console.log("Cleaning dist directory...");
     await rm(DIST_DIR, { recursive: true, force: true });
-    
+
     await generateTypes();
 
     const entryPoints = await glob("src/**/*.{ts,tsx}");
@@ -81,12 +82,13 @@ async function build() {
     // Base build options
     const baseConfig: esbuild.BuildOptions = {
       entryPoints,
-      bundle: false, 
+      bundle: true,
       sourcemap: true,
       minify: isProd,
       loader: { ".json": "json" },
       logLevel: "info",
-      outdir: DIST_DIR, 
+      outdir: DIST_DIR,
+      plugins: [esbuildPluginFilePathExtensions()],
       treeShaking: true,
     };
 
