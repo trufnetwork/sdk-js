@@ -1,6 +1,6 @@
-# TSN SDK JS
+# TN SDK JS
 
-The TSN SDK provides developers with tools to interact with the Truflation Stream Network, a decentralized platform for publishing, composing, and consuming economic data streams.
+The TN SDK provides developers with tools to interact with the Truf Network, a decentralized platform for publishing, composing, and consuming economic data streams.
 
 ## Quick Start
 
@@ -9,7 +9,7 @@ The TSN SDK provides developers with tools to interact with the Truflation Strea
 
 ### Installation
 ```bash
-npm install @truflation/tsn-sdk-js
+npm install @trufnetwork/truf-node-sdk-js
 # or your preferred package manager
 ```
 
@@ -17,25 +17,25 @@ npm install @truflation/tsn-sdk-js
 
 ```ts
 // For Node.js applications
-import { NodeTSNClient } from "@truflation/tsn-sdk-js";
+import { NodeTNClient } from "@trufnetwork/truf-node-sdk-js";
 
 // For browser applications
-import { BrowserTSNClient } from "@truflation/tsn-sdk-js";
+import { BrowserTNClient } from "@trufnetwork/truf-node-sdk-js";
 ```
 
 ### Example Usage
 
 ```ts
-import { NodeTSNClient, StreamId } from "@truflation/tsn-sdk-js";
+import { NodeTNClient, StreamId } from "@trufnetwork/truf-node-sdk-js";
 
 // Initialize client
-const client = new NodeTSNClient({
+const client = new NodeTNClient({
   endpoint: "https://staging.tsn.truflation.com",
   signerInfo: {
     address: wallet.address,
     signer: wallet, // Any object that implements signMessage
   },
-  chainId: "tsn-1", // or use NodeTSNClient.getDefaultChainId()
+  chainId: "tsn-1", // or use NodeTNClient.getDefaultChainId()
 });
 
 // Deploy and initialize a stream
@@ -63,18 +63,18 @@ const data = await stream.getRecord({
 ```
 
 For a complete working example:
-- Check our [TSN SDK Demo Repository](https://github.com/truflation/tsn-sdk-demo)
+- Check our [TN SDK Demo Repository](https://github.com/truflation/tsn-sdk-demo)
 - Try the [Live Demo on CodeSandbox](https://codesandbox.io/p/devbox/m2r3tt?file=%2Fsrc%2Froutes%2F%2Bpage.svelte)
 - Try reading from [a Truflation Stream on CodeSandbox with NodeJS](https://codesandbox.io/p/devbox/rtm7mn?file=%2Findex.ts%3A22%2C11)
 
 ## Stream Types
 
-TSN supports two main types of streams:
+TN supports two main types of streams:
 
 - **Primitive Streams**: Direct data sources from providers
 - **Composed Streams**: Aggregate data from multiple streams using weights
 
-More information about TSN components can be found in the [Go TSN-SDK Documentation](https://github.com/truflation/tsn-sdk/blob/main/docs/readme.md).
+More information about TN components can be found in the [Js TN-SDK Documentation](https://github.com/trufnetwork/truf-node-sdk-js/blob/main/docs/api-reference.md).
 
 ## Documentation
 
@@ -88,7 +88,7 @@ A staging network is available at https://staging.tsn.truflation.com for testing
 
 ## Support
 
-For support, please [open an issue](https://github.com/truflation/tsn-sdk-js/issues).
+For support, please [open an issue](https://github.com/trufnetwork/truf-node-sdk-js/issues).
 
 ## License
 

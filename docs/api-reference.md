@@ -1,13 +1,13 @@
 # API Reference
 
-For detailed information about TSN concepts and operations, please refer to the [Go SDK Documentation](https://github.com/truflation/tsn-sdk/blob/main/docs/readme.md).
+For detailed information about TN concepts and operations, please refer to the [Js SDK Documentation](https://github.com/trufnetwork/truf-node-sdk-js/blob/main/docs/api-reference.md).
 
 ## Client Initialization
 
 ```typescript
-import { NodeTSNClient, BrowserTSNClient } from "@truflation/tsn-sdk-js";
+import { NodeTNClient, BrowserTNClient } from "@trufnetwork/truf-node-sdk-js";
 
-const client = new NodeTSNClient({
+const client = new NodeTNClient({
   endpoint: "https://staging.tsn.truflation.com",
   signerInfo: {
     address: wallet.address,
@@ -17,7 +17,7 @@ const client = new NodeTSNClient({
 });
 
 // Get chain ID automatically
-const chainId = await NodeTSNClient.getDefaultChainId(endpoint);
+const chainId = await NodeTNClient.getDefaultChainId(endpoint);
 ```
 
 ## Stream Operations

@@ -23,7 +23,7 @@ export interface DestroyStreamOutput {
 }
 
 /**
- * Destroys a stream from TSN.
+ * Destroys a stream from TN.
  * @param input - The input parameters for destroying the stream.
  * @returns The transaction receipt of the destruction.
  */

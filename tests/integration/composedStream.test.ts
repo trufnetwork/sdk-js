@@ -1,5 +1,5 @@
 import { describe, expect } from "vitest";
-import NodeTSNClient from "../../src/client/nodeClient";
+import NodeTNClient from "../../src/client/nodeClient";
 import { StreamId } from "../../src/util/StreamId";
 import { testWithDefaultWallet } from "./utils";
 
@@ -145,7 +145,7 @@ describe.sequential(
 
 // Helper function to deploy and initialize a primitive stream with data
 async function deployPrimitiveStreamWithData(
-  client: NodeTSNClient,
+  client: NodeTNClient,
   streamId: StreamId,
   data: { dateValue: string; value: string }[],
 ) {

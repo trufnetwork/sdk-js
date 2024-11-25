@@ -1,5 +1,5 @@
 // Core client types
-export type { TSNClientOptions } from "./client/client";
+export type { TNClientOptions } from "./client/client";
 export type { SignerInfo as EthProvider } from "./client/client";
 
 // Stream types and interfaces

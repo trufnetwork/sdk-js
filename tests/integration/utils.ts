@@ -1,5 +1,5 @@
 import { ethers } from "ethers";
-import { NodeTSNClient } from "../../src/client/nodeClient";
+import { NodeTNClient } from "../../src/client/nodeClient";
 import { test } from "vitest";
 import { GenericResponse } from "@kwilteam/kwil-js/dist/core/resreq";
 import { TxReceipt } from "@kwilteam/kwil-js/dist/core/tx";
@@ -12,7 +12,7 @@ export const testWithDefaultWallet = createTestContexts({
 
 export interface WalletContext {
   wallet: ethers.Wallet;
-  client: NodeTSNClient;
+  client: NodeTNClient;
 }
 
 type Fixtures<T extends Record<string, any>> = Parameters<
@@ -28,11 +28,11 @@ export async function createWalletContext(
   privateKey: string,
 ): Promise<WalletContext> {
   const wallet = new ethers.Wallet(privateKey);
-  const chainId = await NodeTSNClient.getDefaultChainId(TEST_ENDPOINT);
+  const chainId = await NodeTNClient.getDefaultChainId(TEST_ENDPOINT);
 
   if (!chainId) throw new Error("Chain id not found");
 
-  const client = new NodeTSNClient({
+  const client = new NodeTNClient({
     endpoint: TEST_ENDPOINT,
     signerInfo: {
       address: wallet.address,
@@ -53,7 +53,7 @@ export function createTestContexts<T extends string>(roles: Record<T, string>) {
   type ContextType = {
     [K in T as `${K}Wallet`]: ethers.Wallet;
   } & {
-    [K in T as `${K}Client`]: NodeTSNClient;
+    [K in T as `${K}Client`]: NodeTNClient;
   };
 
   const testExtension = {} as Fixtures<ContextType>;
@@ -84,7 +84,7 @@ export function createTestContexts<T extends string>(roles: Record<T, string>) {
 
 export async function waitForTxSuccess(
   tx: GenericResponse<TxReceipt>,
-  client: NodeTSNClient,
+  client: NodeTNClient,
 ) {
   if (!tx.data?.tx_hash) {
     throw new Error("Tx hash not found");

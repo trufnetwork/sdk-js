@@ -23,21 +23,21 @@ export interface SignerInfo {
   signer: EthSigner;
 }
 
-export type TSNClientOptions = {
+export type TNClientOptions = {
   endpoint: string;
   signerInfo: SignerInfo;
 } & Omit<KwilConfig, "kwilProvider">;
 
-export abstract class BaseTSNClient<T extends EnvironmentType> {
+export abstract class BaseTNClient<T extends EnvironmentType> {
   protected kwilClient: Kwil<T> | undefined;
   protected signerInfo: SignerInfo;
 
-  protected constructor(options: TSNClientOptions) {
+  protected constructor(options: TNClientOptions) {
     this.signerInfo = options.signerInfo;
   }
 
   /**
-   * Waits for a transaction to be mined by TSN.
+   * Waits for a transaction to be mined by TN.
    * @param txHash - The transaction hash to wait for.
    * @param timeout - The timeout in milliseconds.
    * @returns A promise that resolves to the transaction info receipt.
@@ -195,7 +195,7 @@ export abstract class BaseTSNClient<T extends EnvironmentType> {
   }
 
   /**
-   * Returns all streams from the TSN network.
+   * Returns all streams from the TN network.
    * @param owner - The owner of the streams. If not provided, all streams will be returned.
    * @returns A promise that resolves to a list of stream locators.
    */
@@ -204,7 +204,7 @@ export abstract class BaseTSNClient<T extends EnvironmentType> {
   }
 
   /**
-   * Get the default chain id for a provider. Use with caution, as this decreases the security of the TSN.
+   * Get the default chain id for a provider. Use with caution, as this decreases the security of the TN.
    * @param provider - The provider URL.
    * @returns A promise that resolves to the chain ID.
    */
