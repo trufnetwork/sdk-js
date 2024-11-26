@@ -86,6 +86,18 @@ More information about TN components can be found in the [Js TN-SDK Documentatio
 
 A staging network is available at https://staging.tsn.truflation.com for testing and experimentation.
 
+## Running with Deno
+
+This package works with Deno when using the `--allow-net` permission flag:
+
+```ts
+import { ... } from "npm:@trufnetwork/sdk-js"
+```
+
+### Deno Environment Permissions
+
+By default, some dependencies requires environment permissions. If you need to run without environment permissions, please see [this GitHub issue](https://github.com/denoland/deno/issues/20898#issuecomment-2500396620) for workarounds.
+
 ## Support
 
 For support, please [open an issue](https://github.com/trufnetwork/sdk-js/issues).
