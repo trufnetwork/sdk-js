@@ -1,12 +1,12 @@
 name: Feature Request
-description: Suggest a new feature or change for tsn-sdk-js.
+description: Suggest a new feature or change for sdk-js.
 title: "Feature Request: "
 labels: ["enhancement"]
 body:
     - type: markdown
       attributes:
           value: |
-              Thank you for taking the time to suggest a feature or change. This form is for suggesting **features or changes to tsn-sdk-js**.
+              Thank you for taking the time to suggest a feature or change. This form is for suggesting **features or changes to sdk-js**.
 
               Feel free to discuss or mull over potential features.
     - type: textarea

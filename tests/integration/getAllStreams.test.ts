@@ -2,7 +2,7 @@ import { describe, expect } from "vitest";
 import { StreamId } from "../../src/util/StreamId";
 import { StreamType } from "../../src/contracts-api/contractValues";
 import { testWithDefaultWallet, waitForTxSuccess } from "./utils";
-import NodeTSNClient from "../../src/client/nodeClient";
+import NodeTNClient from "../../src/client/nodeClient";
 
 describe.sequential("Get All Streams", { timeout: 90000 }, () => {
   testWithDefaultWallet.skipIf(process.env.CI)(
@@ -104,7 +104,7 @@ describe.sequential("Get All Streams", { timeout: 90000 }, () => {
 
 // Helper function to create and initialize a stream
 async function createAndInitStream(
-  client: NodeTSNClient,
+  client: NodeTNClient,
   streamId: StreamId,
   type: StreamType,
 ) {

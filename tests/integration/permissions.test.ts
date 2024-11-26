@@ -13,13 +13,13 @@ const PERMISSION_ROLES = {
 } as const;
 
 // Create permission-specific test context
-const tsnTest = createTestContexts(PERMISSION_ROLES);
+const tnTest = createTestContexts(PERMISSION_ROLES);
 
 describe.sequential("Permissions", { timeout: 90000 }, () => {
   // Skip in CI, because it needs a local node
-  tsnTest.skipIf(process.env.CI);
+  tnTest.skipIf(process.env.CI);
 
-  tsnTest(
+  tnTest(
     "should manage primitive stream permissions",
     async ({ ownerClient, readerClient, readerWallet }) => {
       // Generate a unique stream ID
@@ -104,7 +104,7 @@ describe.sequential("Permissions", { timeout: 90000 }, () => {
     },
   );
 
-  tsnTest(
+  tnTest(
     "should manage composed stream permissions",
     async ({ ownerClient, readerClient, readerWallet }) => {
       // Generate stream IDs for both primitive and composed streams

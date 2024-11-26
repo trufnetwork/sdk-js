@@ -1,9 +1,9 @@
 import { EnvironmentType } from "@kwilteam/kwil-js/dist/core/enums";
 import { WebKwil } from "@kwilteam/kwil-js";
-import { BaseTSNClient, TSNClientOptions } from "./client";
+import { BaseTNClient, TNClientOptions } from "./client";
 
-export class BrowserTSNClient extends BaseTSNClient<EnvironmentType.BROWSER> {
-  constructor(options: TSNClientOptions) {
+export class BrowserTNClient extends BaseTNClient<EnvironmentType.BROWSER> {
+  constructor(options: TNClientOptions) {
     super(options);
     this.kwilClient = new WebKwil({
       ...options,
@@ -12,4 +12,4 @@ export class BrowserTSNClient extends BaseTSNClient<EnvironmentType.BROWSER> {
   }
 }
 
-export default BrowserTSNClient;
+export default BrowserTNClient;
