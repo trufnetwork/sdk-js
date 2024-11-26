@@ -1,11 +1,11 @@
 # API Reference
 
-For detailed information about TN concepts and operations, please refer to the [Js SDK Documentation](https://github.com/trufnetwork/truf-node-sdk-js/blob/main/docs/api-reference.md).
+For detailed information about TN concepts and operations, please refer to the [Js SDK Documentation](https://github.com/trufnetwork/sdk-js/blob/main/docs/api-reference.md).
 
 ## Client Initialization
 
 ```typescript
-import { NodeTNClient, BrowserTNClient } from "@trufnetwork/truf-node-sdk-js";
+import { NodeTNClient, BrowserTNClient } from "@trufnetwork/sdk-js";
 
 const client = new NodeTNClient({
   endpoint: "https://staging.tsn.truflation.com",

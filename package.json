@@ -1,5 +1,5 @@
 {
-  "name": "@trufnetwork/truf-node-sdk-js",
+  "name": "@trufnetwork/sdk-js",
   "version": "0.1.0",
   "description": "Truf Network SDK for JavaScript",
   "type": "module",
@@ -44,7 +44,7 @@
   },
   "dependencies": {
     "@kwilteam/kwil-js": "^0.7.3",
-    "@truflation/tsn-sdk-js": "github:trufnetwork/truf-node-sdk-js",
+    "@truflation/tsn-sdk-js": "github:trufnetwork/sdk-js",
     "crypto-hash": "^3.1.0",
     "lodash": "^4.17.21",
     "monads-io": "^4.0.2"

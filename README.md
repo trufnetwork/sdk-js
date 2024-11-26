@@ -9,7 +9,7 @@ The TN SDK provides developers with tools to interact with the Truf Network, a d
 
 ### Installation
 ```bash
-npm install @trufnetwork/truf-node-sdk-js
+npm install @trufnetwork/sdk-js
 # or your preferred package manager
 ```
 
@@ -17,16 +17,16 @@ npm install @trufnetwork/truf-node-sdk-js
 
 ```ts
 // For Node.js applications
-import { NodeTNClient } from "@trufnetwork/truf-node-sdk-js";
+import { NodeTNClient } from "@trufnetwork/sdk-js";
 
 // For browser applications
-import { BrowserTNClient } from "@trufnetwork/truf-node-sdk-js";
+import { BrowserTNClient } from "@trufnetwork/sdk-js";
 ```
 
 ### Example Usage
 
 ```ts
-import { NodeTNClient, StreamId } from "@trufnetwork/truf-node-sdk-js";
+import { NodeTNClient, StreamId } from "@trufnetwork/sdk-js";
 
 // Initialize client
 const client = new NodeTNClient({
@@ -74,7 +74,7 @@ TN supports two main types of streams:
 - **Primitive Streams**: Direct data sources from providers
 - **Composed Streams**: Aggregate data from multiple streams using weights
 
-More information about TN components can be found in the [Js TN-SDK Documentation](https://github.com/trufnetwork/truf-node-sdk-js/blob/main/docs/api-reference.md).
+More information about TN components can be found in the [Js TN-SDK Documentation](https://github.com/trufnetwork/sdk-js/blob/main/docs/api-reference.md).
 
 ## Documentation
 
@@ -88,7 +88,7 @@ A staging network is available at https://staging.tsn.truflation.com for testing
 
 ## Support
 
-For support, please [open an issue](https://github.com/trufnetwork/truf-node-sdk-js/issues).
+For support, please [open an issue](https://github.com/trufnetwork/sdk-js/issues).
 
 ## License
 

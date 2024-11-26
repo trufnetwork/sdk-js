@@ -6,17 +6,17 @@
 ## Installation
 
 ```bash
-npm install @trufnetwork/truf-node-sdk-js
+npm install @trufnetwork/sdk-js
 # or
-pnpm install @trufnetwork/truf-node-sdk-js
+pnpm install @trufnetwork/sdk-js
 # or 
-yarn add @trufnetwork/truf-node-sdk-js
+yarn add @trufnetwork/sdk-js
 ```
 
 ## Quick Start
 
 ```typescript
-import { NodeTNClient, StreamId } from "@trufnetwork/truf-node-sdk-js";
+import { NodeTNClient, StreamId } from "@trufnetwork/sdk-js";
 import { Wallet } from "ethers";
 
 // Initialize client
@@ -61,10 +61,10 @@ The SDK provides optimized clients for different environments:
 
 ```typescript
 // For Node.js
-import { NodeTNClient } from "@trufnetwork/truf-node-sdk-js";
+import { NodeTNClient } from "@trufnetwork/sdk-js";
 
 // For browsers
-import { BrowserTNClient } from "@trufnetwork/truf-node-sdk-js"; 
+import { BrowserTNClient } from "@trufnetwork/sdk-js"; 
 ```
 
 ## Next Steps
@@ -75,4 +75,4 @@ import { BrowserTNClient } from "@trufnetwork/truf-node-sdk-js";
 
 ## Support
 
-For support and issues, please visit our [GitHub repository](https://github.com/trufnetwork/truf-node-sdk-js/issues).
+For support and issues, please visit our [GitHub repository](https://github.com/trufnetwork/sdk-js/issues).

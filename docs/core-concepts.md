@@ -8,14 +8,14 @@ TN supports two types of streams:
 - **Composed Streams**: Aggregate multiple streams with configurable weights
 
 ```typescript
-import { StreamType } from "@trufnetwork/truf-node-sdk-js";
+import { StreamType } from "@trufnetwork/sdk-js";
 
 // Available stream types
 StreamType.Primitive  // Single data source
 StreamType.Composed   // Aggregates multiple streams with weights
 ```
 
-For detailed information about stream types and their use cases, see the [Js SDK Documentation](https://github.com/trufnetwork/truf-node-sdk-js/blob/main/README.md).
+For detailed information about stream types and their use cases, see the [Js SDK Documentation](https://github.com/trufnetwork/sdk-js/blob/main/README.md).
 
 ## Error Handling
 
@@ -52,7 +52,7 @@ const streamId = await StreamId.generate("my-unique-name");
 Streams support granular permissions for both reading and composing:
 
 ```typescript
-import { visibility } from "@trufnetwork/truf-node-sdk-js";
+import { visibility } from "@trufnetwork/sdk-js";
 
 // Set visibility
 await stream.setReadVisibility(visibility.private);
@@ -81,5 +81,5 @@ if (tx.data?.tx_hash) {
 ## Further Reading
 
 - [Integration Tests](../tests/integration) - Usage examples
-- [Js SDK Documentation](https://github.com/trufnetwork/truf-node-sdk-js/blob/main/README.md) - Detailed TN concepts
+- [Js SDK Documentation](https://github.com/trufnetwork/sdk-js/blob/main/README.md) - Detailed TN concepts
 - [monads-io Documentation](https://github.com/AlexXanderGrib/monads-io) - Error handling patterns

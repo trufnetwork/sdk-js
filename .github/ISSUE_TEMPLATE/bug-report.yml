@@ -1,19 +1,19 @@
 name: Bug Report
-description: Something with truf-node-sdk-js is not working as expected.
+description: Something with sdk-js is not working as expected.
 title: "Bug: "
 labels: ["bug"]
 body:
     - type: markdown
       attributes:
           value: |
-              Thank you for taking the time to report an issue. This form is for reporting **bugs in truf-node-sdk-js**.
+              Thank you for taking the time to report an issue. This form is for reporting **bugs in sdk-js**.
 
               When submitting logs, please submit them as text and not as a screenshot.
     - type: input
       id: version
       attributes:
           label: Version / Commit
-          description: Please include the release version or commit hash of truf-node-sdk-js you are using. Write `unknown` if you are unsure.
+          description: Please include the release version or commit hash of sdk-js you are using. Write `unknown` if you are unsure.
           placeholder: e.g. v0.1.0 or 1234567890abcdef
       validations:
           required: true
@@ -38,7 +38,7 @@ body:
       attributes:
           label: Expected Behavior
           description: Please describe what you expected to happen.
-          placeholder: e.g. I expected truf-node-sdk-js to do X when I did Y
+          placeholder: e.g. I expected sdk-js to do X when I did Y
       validations:
           required: true
     - type: textarea
@@ -46,7 +46,7 @@ body:
       attributes:
           label: Actual Behavior
           description: Please describe what actually happened.
-          placeholder: e.g. truf-node-sdk-js did Z instead of X when I did Y
+          placeholder: e.g. sdk-js did Z instead of X when I did Y
       validations:
           required: true
     - type: textarea
