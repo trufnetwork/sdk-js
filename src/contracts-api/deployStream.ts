@@ -5,7 +5,7 @@ import { CompiledKuneiform } from "@kwilteam/kwil-js/dist/core/payload";
 import {
   composedStreamTemplate,
   primitiveStreamTemplate,
-} from "../contracts/contractsContent.js";
+} from "../contracts/contractsContent";
 import { GenericResponse } from "@kwilteam/kwil-js/dist/core/resreq";
 import { KwilSigner } from "@kwilteam/kwil-js";
 import { StreamId } from "../util/StreamId";

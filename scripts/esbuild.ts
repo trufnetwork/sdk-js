@@ -1,8 +1,10 @@
 import * as esbuild from "esbuild";
-import {glob} from "glob";
-import {copyFile, mkdir, readFile, rm} from "fs/promises";
-import {esbuildPluginFilePathExtensions} from "esbuild-plugin-file-path-extensions";
+import { Metafile } from "esbuild";
+import { readFileSync, writeFileSync } from "fs";
+import { copyFile, mkdir, readFile, rm } from "fs/promises";
+import { glob } from "glob";
 import path from "path";
+import { esbuildPluginFilePathExtensions } from "./esbuild-plugin-file-path-extensions";
 
 const DIST_DIR = "dist";
 
@@ -88,23 +90,31 @@ async function build() {
       loader: { ".json": "json" },
       logLevel: "info",
       outdir: DIST_DIR,
-      plugins: [esbuildPluginFilePathExtensions()],
+      external,
+      plugins: [
+        esbuildPluginFilePathExtensions(),
+      ],
       treeShaking: true,
     };
 
     console.log("Building ESM version...");
-    await esbuild.build({
+    const esmResult = await esbuild.build({
       ...baseConfig,
       format: "esm",
       outdir: `${DIST_DIR}/esm`,
+      outExtension: { ".js": ".mjs" },
       target: ["es2020"],
+      metafile: true,
     });
+    addWithAttributeToJson(esmResult.metafile);
+
 
     console.log("Building CJS version...");
     await esbuild.build({
       ...baseConfig,
       format: "cjs",
       outdir: `${DIST_DIR}/cjs`,
+      outExtension: { ".js": ".cjs" },
       target: ["node18"],
     });
 
@@ -115,5 +125,31 @@ async function build() {
     throw error;
   }
 }
+
+const addWithAttributeToJson = (result: Metafile) => {
+  // to support Deno, we must include the type attribute in the import
+
+  // - read each path
+  // - read imports
+  // - if the import path ends with .json
+  // - then we add with { type: "json" } to the import with regex
+  Object.entries(result.outputs).forEach(([filePath, output]) => {
+    output.imports.forEach((importObj) => {
+      if (importObj.path.endsWith(".json")) {
+        const contents = readFileSync(path.join(filePath), "utf8");
+        const lines = contents.split("\n");
+        const newLines = lines.map((line) => {
+          // if it ends with `from ".+\.json";`,
+          // we replace the last char by ` with { type: "json" };`
+          if (line.endsWith('.json";')) {
+            return line.slice(0, -1) + ' with { type: "json" };';
+          }
+          return line;
+        });
+        writeFileSync(path.join(filePath), newLines.join("\n"));
+      }
+    });
+  });
+};
 
 build();
