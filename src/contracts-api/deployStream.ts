@@ -5,7 +5,7 @@ import { CompiledKuneiform } from "@kwilteam/kwil-js/dist/core/payload";
 import {
   composedStreamTemplate,
   primitiveStreamTemplate,
-} from "../contracts/contractsContent.js";
+} from "../contracts/contractsContent";
 import { GenericResponse } from "@kwilteam/kwil-js/dist/core/resreq";
 import { KwilSigner } from "@kwilteam/kwil-js";
 import { StreamId } from "../util/StreamId";
@@ -23,7 +23,7 @@ export interface DeployStreamOutput {
 }
 
 /**
- * Deploys a stream to TSN.
+ * Deploys a stream to TN.
  * @param input - The input parameters for deploying the stream.
  * @returns The transaction hash of the deployment.
  */
@@ -38,7 +38,7 @@ export async function deployStream(
     const txHash = await input.kwilClient.deploy(
       {
         schema,
-        description: `TSN SDK - Deploying ${input.streamType} stream: ${input.streamId.getId()}`,
+        description: `TN SDK - Deploying ${input.streamType} stream: ${input.streamId.getId()}`,
       },
       input.kwilSigner,
       input.synchronous,

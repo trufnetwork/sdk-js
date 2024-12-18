@@ -6,7 +6,7 @@ import { StreamId } from "../util/StreamId";
 import { Database } from "@kwilteam/kwil-js/dist/core/database";
 
 /**
- * List all streams from the TSN network.
+ * List all streams from the TN network.
  * @param kwilClient - The Kwil client.
  * @param owner - The owner of the streams. If not provided, all streams will be returned.
  * @returns A list of stream locators.

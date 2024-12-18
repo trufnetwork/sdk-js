@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ethers } from "ethers";
-import { NodeTSNClient } from "./nodeClient";
+import { NodeTNClient } from "./nodeClient";
 
 describe.sequential("Client", { timeout: 30000 }, () => {
   // Skip in CI, because it needs a local node
@@ -10,13 +10,13 @@ describe.sequential("Client", { timeout: 30000 }, () => {
     "0x0000000000000000000000000000000000000000000000000000000000000001",
   );
   it("should create a client", async () => {
-    const chainId = await NodeTSNClient.getDefaultChainId(
+    const chainId = await NodeTNClient.getDefaultChainId(
       "http://localhost:8484",
     );
     if (!chainId) {
       throw new Error("Chain id not found");
     }
-    const client = new NodeTSNClient({
+    const client = new NodeTNClient({
       endpoint: "http://localhost:8484",
       signerInfo: {
         address: wallet.address,
