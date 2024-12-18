@@ -57,6 +57,20 @@ describe.sequential(
           expect(records[0].value).toBe("1.000000000000000000");
           expect(records[0].dateValue).toBe("2020-01-01");
 
+          // Use Custom Procedure with the same name "get_record"
+          const customRecords = await primitiveStream.customGetProcedure(
+            "get_record",
+            {
+              dateFrom: "2020-01-01",
+              dateTo: "2021-01-01",
+            },
+          );
+
+          // Verify record content from the custom procedure
+          expect(customRecords.length).toBe(1);
+          expect(customRecords[0].value).toBe("1.000000000000000000");
+          expect(customRecords[0].dateValue).toBe("2020-01-01");
+
           // Query index
           const index = await primitiveStream.getIndex({
             dateFrom: "2020-01-01",
