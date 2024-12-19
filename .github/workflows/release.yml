@@ -1,0 +1,48 @@
+name: Manual Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version number (e.g., v0.2.1). If not provided, it will be auto-incremented."
+        required: false
+        default: ""
+
+jobs:
+  create_release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Determine Version
+        id: version
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # If user provided a version, use it
+          if [ "${{ github.event.inputs.version }}" != "" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          # Fetch the latest release tag
+          LATEST_TAG=$(gh release view --json tagName --jq .tagName)
+          # Parse the version string: v<major>.<minor>.<patch>
+          # Assuming tags follow semantic versioning pattern like v0.2.0
+          MAJOR=$(echo $LATEST_TAG | sed 's/v\([0-9]*\)\..*/\1/')
+          MINOR=$(echo $LATEST_TAG | sed 's/v[0-9]*\.\([0-9]*\).*/\1/')
+          PATCH=$(echo $LATEST_TAG | sed 's/v[0-9]*\.[0-9]*\.\([0-9]*\).*/\1/')
+          # Increment the patch number by 1
+          PATCH=$((PATCH+1))
+          NEW_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ github.ref_name }}
+        run: |
+          gh release create ${{ steps.version.outputs.version }} \
+              --repo="$GITHUB_REPOSITORY" \
+              --title="${{ steps.version.outputs.version }}" \
+              --generate-notes
