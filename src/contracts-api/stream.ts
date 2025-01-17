@@ -20,19 +20,19 @@ import {
 } from "./contractValues";
 
 export interface GetRecordInput {
-  dateFrom?: DateString;
-  dateTo?: DateString;
+  dateFrom?: DateString | number;
+  dateTo?: DateString | number;
   frozenAt?: number;
-  baseDate?: DateString;
+  baseDate?: DateString | number;
 }
 
 export interface GetFirstRecordInput {
-  afterDate?: DateString;
-  frozenAt?: DateString;
+  afterDate?: DateString | number;
+  frozenAt?: DateString | number;
 }
 
 export interface StreamRecord {
-  dateValue: DateString;
+  dateValue: DateString | number;
   value: string;
 }
 

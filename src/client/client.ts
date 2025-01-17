@@ -105,12 +105,14 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
    * @param streamId - The ID of the stream to deploy.
    * @param streamType - The type of the stream.
    * @param synchronous - Whether the deployment should be synchronous.
+   * @param contractVersion
    * @returns A promise that resolves to a generic response containing the transaction receipt.
    */
   async deployStream(
     streamId: StreamId,
     streamType: StreamType,
     synchronous?: boolean,
+    contractVersion?: number
   ): Promise<GenericResponse<TxReceipt>> {
     return await deployStream({
       streamId,
@@ -118,6 +120,7 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
       synchronous,
       kwilClient: this.getKwilClient(),
       kwilSigner: this.getKwilSigner(),
+      contractVersion: contractVersion
     });
   }
 

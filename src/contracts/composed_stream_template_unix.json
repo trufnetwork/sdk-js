@@ -1,0 +1,2122 @@
+{
+  "name": "composed_stream_db_name",
+  "owner": "",
+  "extensions": null,
+  "tables": [
+    {
+      "name": "taxonomies",
+      "columns": [
+        {
+          "name": "taxonomy_id",
+          "type": {
+            "name": "uuid",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          },
+          "attributes": [
+            {
+              "type": "PRIMARY_KEY",
+              "value": ""
+            },
+            {
+              "type": "NOT_NULL",
+              "value": ""
+            }
+          ]
+        },
+        {
+          "name": "child_stream_id",
+          "type": {
+            "name": "text",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          },
+          "attributes": [
+            {
+              "type": "NOT_NULL",
+              "value": ""
+            }
+          ]
+        },
+        {
+          "name": "child_data_provider",
+          "type": {
+            "name": "text",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          },
+          "attributes": [
+            {
+              "type": "NOT_NULL",
+              "value": ""
+            }
+          ]
+        },
+        {
+          "name": "weight",
+          "type": {
+            "name": "decimal",
+            "is_array": false,
+            "metadata": [
+              36,
+              18
+            ]
+          },
+          "attributes": [
+            {
+              "type": "NOT_NULL",
+              "value": ""
+            }
+          ]
+        },
+        {
+          "name": "created_at",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          },
+          "attributes": [
+            {
+              "type": "NOT_NULL",
+              "value": ""
+            }
+          ]
+        },
+        {
+          "name": "disabled_at",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          },
+          "attributes": null
+        },
+        {
+          "name": "version",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          },
+          "attributes": [
+            {
+              "type": "NOT_NULL",
+              "value": ""
+            }
+          ]
+        },
+        {
+          "name": "start_date",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          },
+          "attributes": null
+        }
+      ],
+      "indexes": null,
+      "foreign_keys": null
+    },
+    {
+      "name": "metadata",
+      "columns": [
+        {
+          "name": "row_id",
+          "type": {
+            "name": "uuid",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          },
+          "attributes": [
+            {
+              "type": "PRIMARY_KEY",
+              "value": ""
+            },
+            {
+              "type": "NOT_NULL",
+              "value": ""
+            }
+          ]
+        },
+        {
+          "name": "metadata_key",
+          "type": {
+            "name": "text",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          },
+          "attributes": [
+            {
+              "type": "NOT_NULL",
+              "value": ""
+            }
+          ]
+        },
+        {
+          "name": "value_i",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          },
+          "attributes": null
+        },
+        {
+          "name": "value_f",
+          "type": {
+            "name": "decimal",
+            "is_array": false,
+            "metadata": [
+              36,
+              18
+            ]
+          },
+          "attributes": null
+        },
+        {
+          "name": "value_b",
+          "type": {
+            "name": "bool",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          },
+          "attributes": null
+        },
+        {
+          "name": "value_s",
+          "type": {
+            "name": "text",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          },
+          "attributes": null
+        },
+        {
+          "name": "value_ref",
+          "type": {
+            "name": "text",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          },
+          "attributes": null
+        },
+        {
+          "name": "created_at",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          },
+          "attributes": [
+            {
+              "type": "NOT_NULL",
+              "value": ""
+            }
+          ]
+        },
+        {
+          "name": "disabled_at",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          },
+          "attributes": null
+        }
+      ],
+      "indexes": [
+        {
+          "name": "key_idx",
+          "columns": [
+            "metadata_key"
+          ],
+          "type": "BTREE"
+        },
+        {
+          "name": "ref_idx",
+          "columns": [
+            "value_ref"
+          ],
+          "type": "BTREE"
+        },
+        {
+          "name": "created_idx",
+          "columns": [
+            "created_at"
+          ],
+          "type": "BTREE"
+        }
+      ],
+      "foreign_keys": null
+    }
+  ],
+  "actions": null,
+  "procedures": [
+    {
+      "name": "stream_exists",
+      "parameters": [
+        {
+          "name": "$data_provider",
+          "type": {
+            "name": "text",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "name": "$stream_id",
+          "type": {
+            "name": "text",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "public": true,
+      "modifiers": [
+        "VIEW"
+      ],
+      "body": "$dbid text := get_dbid($data_provider, $stream_id);\n\n    for $row in SELECT * FROM get_metadata('type', true, null) {\n        return true;\n    }\n\n    return false;",
+      "return_types": {
+        "is_table": false,
+        "fields": [
+          {
+            "name": "result",
+            "type": {
+              "name": "bool",
+              "is_array": false,
+              "metadata": [
+                0,
+                0
+              ]
+            }
+          }
+        ]
+      },
+      "annotations": null
+    },
+    {
+      "name": "get_dbid",
+      "parameters": [
+        {
+          "name": "$data_provider",
+          "type": {
+            "name": "text",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "name": "$stream_id",
+          "type": {
+            "name": "text",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "public": false,
+      "modifiers": [
+        "VIEW"
+      ],
+      "body": "$starts_with_0x bool := false;\n    for $row in SELECT $data_provider LIKE '0x%' as a {\n        $starts_with_0x := $row.a;\n    }\n\n    $data_provider_without_0x text;\n\n    if $starts_with_0x == true {\n        $data_provider_without_0x := substring($data_provider, 3);\n    } else {\n        $data_provider_without_0x := $data_provider;\n    }\n\n    return generate_dbid($stream_id, decode($data_provider_without_0x, 'hex'));",
+      "return_types": {
+        "is_table": false,
+        "fields": [
+          {
+            "name": "result",
+            "type": {
+              "name": "text",
+              "is_array": false,
+              "metadata": [
+                0,
+                0
+              ]
+            }
+          }
+        ]
+      },
+      "annotations": null
+    },
+    {
+      "name": "get_raw_record",
+      "parameters": [
+        {
+          "name": "$date_from",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "name": "$date_to",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "name": "$frozen_at",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "name": "$child_data_providers",
+          "type": {
+            "name": "text",
+            "is_array": true,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "name": "$child_stream_ids",
+          "type": {
+            "name": "text",
+            "is_array": true,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "public": false,
+      "modifiers": [
+        "VIEW"
+      ],
+      "body": "if is_wallet_allowed_to_read(@caller) == false {\n        error('wallet not allowed to read');\n    }\n    // check if the stream is allowed to compose\n    is_stream_allowed_to_compose(@foreign_caller);\n\n    // check if the child_data_providers and child_stream_id are the same length\n    if array_length($child_data_providers) != array_length($child_stream_ids) {\n        error('child_data_providers and child_stream_id must be the same length');\n    }\n\n    if array_length($child_data_providers) \u003e 0 {\n        // arrays are 1-indexed, so we match that\n        for $taxonomy_index in 1..array_length($child_data_providers) {\n            $dbid text := get_dbid($child_data_providers[$taxonomy_index], $child_stream_ids[$taxonomy_index]);\n            for $row3 in SELECT * FROM ext_get_record[$dbid, 'get_record']($date_from, $date_to, $frozen_at) {\n                return next $row3.date_value, $row3.value, $taxonomy_index;\n            }\n        }\n    }",
+      "return_types": {
+        "is_table": true,
+        "fields": [
+          {
+            "name": "date_value",
+            "type": {
+              "name": "int",
+              "is_array": false,
+              "metadata": [
+                0,
+                0
+              ]
+            }
+          },
+          {
+            "name": "value",
+            "type": {
+              "name": "decimal",
+              "is_array": false,
+              "metadata": [
+                36,
+                18
+              ]
+            }
+          },
+          {
+            "name": "taxonomy_index",
+            "type": {
+              "name": "int",
+              "is_array": false,
+              "metadata": [
+                0,
+                0
+              ]
+            }
+          }
+        ]
+      },
+      "annotations": null
+    },
+    {
+      "name": "get_raw_index",
+      "parameters": [
+        {
+          "name": "$date_from",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "name": "$date_to",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "name": "$frozen_at",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "name": "$child_data_providers",
+          "type": {
+            "name": "text",
+            "is_array": true,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "name": "$child_stream_ids",
+          "type": {
+            "name": "text",
+            "is_array": true,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "name": "$base_date",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "public": false,
+      "modifiers": [
+        "VIEW"
+      ],
+      "body": "if is_wallet_allowed_to_read(@caller) == false {\n        error('wallet not allowed to read');\n    }\n    // check if the stream is allowed to compose\n    is_stream_allowed_to_compose(@foreign_caller);\n\n    // check if the child_data_providers and child_stream_id are the same length\n    if array_length($child_data_providers) != array_length($child_stream_ids) {\n        error('child_data_providers and child_stream_id must be the same length');\n    }\n\n    if array_length($child_data_providers) \u003e 0 {\n        // arrays are 1-indexed, so we match that\n        for $taxonomy_index in 1..array_length($child_data_providers) {\n            $dbid text := get_dbid($child_data_providers[$taxonomy_index], $child_stream_ids[$taxonomy_index]);\n            for $row in SELECT * FROM ext_get_index[$dbid, 'get_index']($date_from, $date_to, $frozen_at, $base_date) {\n                return next $row.date_value, $row.value, $taxonomy_index;\n            }\n        }\n    }",
+      "return_types": {
+        "is_table": true,
+        "fields": [
+          {
+            "name": "date_value",
+            "type": {
+              "name": "int",
+              "is_array": false,
+              "metadata": [
+                0,
+                0
+              ]
+            }
+          },
+          {
+            "name": "value",
+            "type": {
+              "name": "decimal",
+              "is_array": false,
+              "metadata": [
+                36,
+                18
+              ]
+            }
+          },
+          {
+            "name": "taxonomy_index",
+            "type": {
+              "name": "int",
+              "is_array": false,
+              "metadata": [
+                0,
+                0
+              ]
+            }
+          }
+        ]
+      },
+      "annotations": null
+    },
+    {
+      "name": "get_record_filled",
+      "parameters": [
+        {
+          "name": "$date_from",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "name": "$date_to",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "name": "$frozen_at",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "public": false,
+      "modifiers": [
+        "VIEW"
+      ],
+      "body": "$base_taxonomy_list int[];\n\n    // Initialize taxonomy variables\n    $taxonomy_count int := 0;\n    $last_values decimal(36,18)[];\n    $child_data_providers text[];\n    $child_stream_id text[];\n\n    // Fetch taxonomy details\n    for $row in SELECT * FROM describe_taxonomies(true) {\n        $taxonomy_count := $taxonomy_count + 1;\n        $base_taxonomy_list := array_append($base_taxonomy_list, $taxonomy_count);\n        $last_values := array_append($last_values, null::decimal(36,18));\n        $child_data_providers := array_append($child_data_providers, $row.child_data_provider);\n        $child_stream_id := array_append($child_stream_id, $row.child_stream_id);\n    }\n\n    $unemitted_taxonomies_for_date int[] := $base_taxonomy_list;\n    $removed_elements_count int := 0;\n    $prev_date int := 0;\n    $current_date int := 0;\n\n   // what could make this process easier:\n   // - use a map to store the last values, so we can easily check if a value is null\n   // - better manipulation of tables as objects, then we could modify a table to\n   //   fill forward without needing to return immediately on each loop\n\n    // Fetch raw records and emit values with dynamic weights\n    for $row_raw in SELECT * FROM get_raw_record($date_from, $date_to, $frozen_at, $child_data_providers, $child_stream_id) ORDER BY date_value, taxonomy_index {\n        $current_date := $row_raw.date_value;\n\n        // Fetch the dynamic weight based on the current date\n        $dynamic_weight decimal(36,18) := get_dynamic_weight($child_stream_id[$row_raw.taxonomy_index], $current_date);\n\n        // Emit filled values for previous date if date has changed\n        if $current_date != $prev_date {\n            if $prev_date != 0 {\n                for $unemitted_taxonomy in $unemitted_taxonomies_for_date {\n                    // TODO: remove this when we have slices or include if we have just index assignment\n                    // if $unemitted_taxonomy is distinct from null {\n\n                    if $last_values[$unemitted_taxonomy] is distinct from null {\n                        // Use the stored dynamic weight from the previous date\n                        $dynamic_weight_prev := get_dynamic_weight($child_stream_id[$unemitted_taxonomy], $prev_date);\n                        return next $prev_date, $last_values[$unemitted_taxonomy] * $dynamic_weight_prev, $dynamic_weight_prev;\n                    }\n                }\n                // Clear unemitted taxonomies for the new date\n                $unemitted_taxonomies_for_date := $base_taxonomy_list;\n                $removed_elements_count := 0;\n            }\n        }\n\n        // TODO: uncomment when we have index assignment\n        // $last_values[$row_raw.taxonomy_index] := $row_raw.value;\n\n        // Update the last values for the current date\n        $last_values := array_update_element($last_values, $row_raw.taxonomy_index, $row_raw.value);\n\n        // Emit current value with the dynamic weight\n        return next $current_date, $row_raw.value * $dynamic_weight, $dynamic_weight;\n\n        // Remove emitted taxonomy from the unemitted list\n        // we need to subtract the removed_elements_count because the array is shrinking\n        // TODO: we can improve it when we either can remove elements, or with array element assignment\n        $unemitted_taxonomies_for_date := remove_array_element($unemitted_taxonomies_for_date, $row_raw.taxonomy_index - $removed_elements_count);\n        $removed_elements_count := $removed_elements_count + 1;\n        // remove elements is not performant without slices. Then let's make the elements null for now\n        // $unemitted_taxonomies_for_date[$row_raw.taxonomy_index] := null;\n\n        $prev_date := $current_date;\n    }\n\n    // Emit filled values for the last date\n    if $prev_date != 0 {\n        if $taxonomy_count \u003e 0 {\n            for $unemitted_taxonomy2 in $unemitted_taxonomies_for_date {\n                if $last_values[$unemitted_taxonomy2] is distinct from null {\n                    // Fetch the correct dynamic weight for the last date\n                    $dynamic_weight_last := get_dynamic_weight($child_stream_id[$unemitted_taxonomy2], $prev_date);\n                    return next $prev_date, $last_values[$unemitted_taxonomy2] * $dynamic_weight_last, $dynamic_weight_last;\n                }\n            }\n        }\n    }",
+      "return_types": {
+        "is_table": true,
+        "fields": [
+          {
+            "name": "date_value",
+            "type": {
+              "name": "int",
+              "is_array": false,
+              "metadata": [
+                0,
+                0
+              ]
+            }
+          },
+          {
+            "name": "value_with_weight",
+            "type": {
+              "name": "decimal",
+              "is_array": false,
+              "metadata": [
+                36,
+                18
+              ]
+            }
+          },
+          {
+            "name": "weight",
+            "type": {
+              "name": "decimal",
+              "is_array": false,
+              "metadata": [
+                36,
+                18
+              ]
+            }
+          }
+        ]
+      },
+      "annotations": null
+    },
+    {
+      "name": "get_index_filled",
+      "parameters": [
+        {
+          "name": "$date_from",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "name": "$date_to",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "name": "$frozen_at",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "name": "$base_date",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "public": false,
+      "modifiers": [
+        "VIEW"
+      ],
+      "body": "$base_taxonomy_list int[];\n\n    // Initialize taxonomy variables\n    $taxonomy_count int := 0;\n    $last_values decimal(36,18)[];\n    $child_data_providers text[];\n    $child_stream_id text[];\n\n    // Fetch taxonomy details\n    for $row in SELECT * FROM describe_taxonomies(true) {\n        $taxonomy_count := $taxonomy_count + 1;\n        $base_taxonomy_list := array_append($base_taxonomy_list, $taxonomy_count);\n        $last_values := array_append($last_values, null::decimal(36,18));\n        $child_data_providers := array_append($child_data_providers, $row.child_data_provider);\n        $child_stream_id := array_append($child_stream_id, $row.child_stream_id);\n    }\n\n    $unemitted_taxonomies_for_date int[] := $base_taxonomy_list;\n    $removed_elements_count int := 0;\n    $prev_date int := 0;\n    $current_date int := 0;\n\n    // what could make this process easier:\n    // - use a map to store the last values, so we can easily check if a value is null\n    // - better manipulation of tables as objects, then we could modify a table to\n    //   fill forward without needing to return immediately on each loop\n\n    for $row_raw in SELECT * FROM get_raw_index($date_from, $date_to, $frozen_at, $child_data_providers, $child_stream_id, $base_date) ORDER BY date_value, taxonomy_index {\n        $current_date := $row_raw.date_value;\n\n        // Fetch the dynamic weight based on the current date\n        $dynamic_weight decimal(36,18) := get_dynamic_weight($child_stream_id[$row_raw.taxonomy_index], $current_date);\n\n        // Emit filled values for the previous date if the date has changed\n        if $current_date != $prev_date {\n            if $prev_date != 0 {\n                for $unemitted_taxonomy in $unemitted_taxonomies_for_date {\n                    if $last_values[$unemitted_taxonomy] is distinct from null {\n                        // TODO: remove this when we have slices or include if we have just index assignment\n                        // if $unemitted_taxonomy is distinct from null {\n\n                        // Use the stored dynamic weight from the previous date\n                        $dynamic_weight_prev := get_dynamic_weight($child_stream_id[$unemitted_taxonomy], $prev_date);\n                        return next $prev_date, $last_values[$unemitted_taxonomy] * $dynamic_weight_prev, $dynamic_weight_prev;\n                    }\n                }\n            }\n            // Clear unemitted taxonomies for the new date\n            $unemitted_taxonomies_for_date := $base_taxonomy_list;\n            $removed_elements_count := 0;\n        }\n\n        // TODO: uncomment when we have index assignment\n        // $last_values[$row_raw.taxonomy_index] := $row_raw.value;\n\n        // Update the last values for the current date\n        $last_values := array_update_element($last_values, $row_raw.taxonomy_index, $row_raw.value);\n\n        // Emit the current value with the dynamic weight\n        return next $current_date, $row_raw.value * $dynamic_weight, $dynamic_weight;\n\n        // Remove emitted taxonomy from the unemitted list\n        // TODO: we can improve it when we either can remove elements, or with array element assignment\n        $unemitted_taxonomies_for_date := remove_array_element($unemitted_taxonomies_for_date, $row_raw.taxonomy_index - $removed_elements_count);\n        $removed_elements_count := $removed_elements_count + 1;\n\n        // remove elements is not performant without slices. Then let's make the elements null for now\n        // $unemitted_taxonomies_for_date[$row_raw.taxonomy_index] := null;\n\n        $prev_date := $current_date;\n    }\n\n    // Emit filled values for the last date\n    if $prev_date != 0 {\n        if $taxonomy_count \u003e 0 {\n            for $unemitted_taxonomy2 in $unemitted_taxonomies_for_date {\n                if $last_values[$unemitted_taxonomy2] is distinct from null {\n                    // Fetch the correct dynamic weight for the last date\n                    $dynamic_weight_last := get_dynamic_weight($child_stream_id[$unemitted_taxonomy2], $prev_date);\n                    return next $prev_date, $last_values[$unemitted_taxonomy2] * $dynamic_weight_last, $dynamic_weight_last;\n                }\n            }\n        }\n    }",
+      "return_types": {
+        "is_table": true,
+        "fields": [
+          {
+            "name": "date_value",
+            "type": {
+              "name": "int",
+              "is_array": false,
+              "metadata": [
+                0,
+                0
+              ]
+            }
+          },
+          {
+            "name": "value_with_weight",
+            "type": {
+              "name": "decimal",
+              "is_array": false,
+              "metadata": [
+                36,
+                18
+              ]
+            }
+          },
+          {
+            "name": "weight",
+            "type": {
+              "name": "decimal",
+              "is_array": false,
+              "metadata": [
+                36,
+                18
+              ]
+            }
+          }
+        ]
+      },
+      "annotations": null
+    },
+    {
+      "name": "get_record",
+      "parameters": [
+        {
+          "name": "$date_from",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "name": "$date_to",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "name": "$frozen_at",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "public": true,
+      "modifiers": [
+        "VIEW"
+      ],
+      "body": "$in_range bool := false;\n    $last_date int;\n    $last_value decimal(36,18);\n    // here, we sum all of the records that were found by aggregating on the date_valie\n    for $row in SELECT date_value, total_value_with_weight / total_weight as value FROM\n        (SELECT\n            date_value,\n            SUM(value_with_weight)::decimal(36,18) AS total_value_with_weight,\n            SUM(weight)::decimal(36,18) AS total_weight\n        FROM get_record_filled($date_from, $date_to, $frozen_at) group by date_value) as r {\n        // when we arrive in the range, we start emitting. If there was a previous value, we emit it\n        if $in_range == false {\n            if $row.date_value \u003e= $date_from {\n                $in_range := true;\n                if ($last_date is distinct from null) AND $row.date_value != $date_from {\n                    return next $last_date, $last_value;\n                }\n            }\n\n            $last_date := $row.date_value;\n            $last_value := $row.value;\n        }\n        // we check again, because it might just have entered the range\n        if $in_range == true {\n            return next $row.date_value, $row.value;\n        }\n    }\n\n    // if we finished the loop and we never entered the range, we emit the last value\n    if $in_range == false AND $last_date is distinct from null {\n        return next $last_date, $last_value;\n    }",
+      "return_types": {
+        "is_table": true,
+        "fields": [
+          {
+            "name": "date_value",
+            "type": {
+              "name": "int",
+              "is_array": false,
+              "metadata": [
+                0,
+                0
+              ]
+            }
+          },
+          {
+            "name": "value",
+            "type": {
+              "name": "decimal",
+              "is_array": false,
+              "metadata": [
+                36,
+                18
+              ]
+            }
+          }
+        ]
+      },
+      "annotations": null
+    },
+    {
+      "name": "get_index",
+      "parameters": [
+        {
+          "name": "$date_from",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "name": "$date_to",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "name": "$frozen_at",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "name": "$base_date",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "public": true,
+      "modifiers": [
+        "VIEW"
+      ],
+      "body": "$in_range bool := false;\n    $last_date int;\n    $last_value decimal(36,18);\n    $effective_base_date int := $base_date;\n\n    if $effective_base_date is null OR $effective_base_date == 0 {\n        for $v_row in SELECT * FROM get_metadata('default_base_date', true, null) ORDER BY created_at DESC LIMIT 1 {\n            $effective_base_date := $v_row.value_i;\n        }\n    }\n\n    // here, we sum all of the indexes that were found by aggregating on the date_value\n    for $row in SELECT date_value, total_value_with_weight / total_weight as value FROM\n        (SELECT\n            date_value,\n            SUM(value_with_weight)::decimal(36,18) AS total_value_with_weight,\n            SUM(weight)::decimal(36,18) AS total_weight\n        FROM get_index_filled($date_from, $date_to, $frozen_at, $effective_base_date) group by date_value) as r {\n        // when we arrive in the range, we start emitting. If there was a previous value, we emit it\n        if $in_range == false {\n            if $row.date_value \u003e= $date_from {\n                $in_range := true;\n                if ($last_date is distinct from null) AND $row.date_value != $date_from {\n                    return next $last_date, $last_value;\n                }\n            }\n\n            $last_date := $row.date_value;\n            $last_value := $row.value;\n        }\n        // we check again, because it might just have entered the range\n        if $in_range == true {\n            return next $row.date_value, $row.value;\n        }\n    }\n\n    // if we finished the loop and we never entered the range, we emit the last value\n    if $in_range == false AND $last_date is distinct from null {\n        return next $last_date, $last_value;\n    }",
+      "return_types": {
+        "is_table": true,
+        "fields": [
+          {
+            "name": "date_value",
+            "type": {
+              "name": "int",
+              "is_array": false,
+              "metadata": [
+                0,
+                0
+              ]
+            }
+          },
+          {
+            "name": "value",
+            "type": {
+              "name": "decimal",
+              "is_array": false,
+              "metadata": [
+                36,
+                18
+              ]
+            }
+          }
+        ]
+      },
+      "annotations": null
+    },
+    {
+      "name": "get_first_record",
+      "parameters": [
+        {
+          "name": "$after_date",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "name": "$frozen_at",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "public": true,
+      "modifiers": [
+        "VIEW"
+      ],
+      "body": "if is_wallet_allowed_to_read(@caller) == false {\n        error('wallet not allowed to read');\n    }\n\n    // check compose access\n    is_stream_allowed_to_compose(@foreign_caller);\n\n    // let's coalesce null with ''\n    // then, if it's empty, it will always be the first value\n    if $after_date is null {\n        $after_date := 0;\n    }\n\n    // 1. figure the earliest date possible after the after_date\n   $earliest_date int := 0;\n   for $taxonomy_row in SELECT * FROM describe_taxonomies(true) {\n        $dbid := get_dbid($taxonomy_row.child_data_provider, $taxonomy_row.child_stream_id);\n        for $record_row in SELECT * FROM ext_get_first_record[$dbid, 'get_first_record']($after_date, $frozen_at) {\n            if $earliest_date == 0 OR $record_row.date_value \u003c $earliest_date {\n                $earliest_date := $record_row.date_value;\n            }\n        }\n   }\n\n   // 2. get_record with the earliest date if it exists\n   if $earliest_date != 0 {\n       for $row in SELECT date_value, value FROM get_record($earliest_date, $earliest_date, $frozen_at) {\n            return next $row.date_value, $row.value;\n       }\n   }",
+      "return_types": {
+        "is_table": true,
+        "fields": [
+          {
+            "name": "date_value",
+            "type": {
+              "name": "int",
+              "is_array": false,
+              "metadata": [
+                0,
+                0
+              ]
+            }
+          },
+          {
+            "name": "value",
+            "type": {
+              "name": "decimal",
+              "is_array": false,
+              "metadata": [
+                36,
+                18
+              ]
+            }
+          }
+        ]
+      },
+      "annotations": null
+    },
+    {
+      "name": "is_initiated",
+      "parameters": null,
+      "public": false,
+      "modifiers": [
+        "VIEW"
+      ],
+      "body": "for $row in SELECT * FROM metadata WHERE metadata_key = 'type' LIMIT 1 {\n        return true;\n    }\n\n    return false;",
+      "return_types": {
+        "is_table": false,
+        "fields": [
+          {
+            "name": "result",
+            "type": {
+              "name": "bool",
+              "is_array": false,
+              "metadata": [
+                0,
+                0
+              ]
+            }
+          }
+        ]
+      },
+      "annotations": null
+    },
+    {
+      "name": "is_stream_owner",
+      "parameters": [
+        {
+          "name": "$wallet",
+          "type": {
+            "name": "text",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "public": true,
+      "modifiers": [
+        "VIEW"
+      ],
+      "body": "for $row in SELECT * FROM metadata WHERE metadata_key = 'stream_owner' AND value_ref = LOWER($wallet) LIMIT 1 {\n        return true;\n    }\n    return false;",
+      "return_types": {
+        "is_table": false,
+        "fields": [
+          {
+            "name": "result",
+            "type": {
+              "name": "bool",
+              "is_array": false,
+              "metadata": [
+                0,
+                0
+              ]
+            }
+          }
+        ]
+      },
+      "annotations": null
+    },
+    {
+      "name": "is_wallet_allowed_to_read",
+      "parameters": [
+        {
+          "name": "$wallet",
+          "type": {
+            "name": "text",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "public": true,
+      "modifiers": [
+        "VIEW"
+      ],
+      "body": "$visibility int := 0;\n    for $v_row in SELECT * FROM get_metadata('read_visibility', true, null) {\n        $visibility := $v_row.value_i;\n    }\n\n    if $visibility == 0 {\n        return true;\n    }\n\n    // if it's the owner, it's permitted\n    if is_stream_owner($wallet) {\n        return true;\n    }\n\n    // if there's metadata allow_read_wallet -\u003e \u003cwallet\u003e, then its permitted\n    for $row in SELECT * FROM get_metadata('allow_read_wallet', false, $wallet) {\n        return true;\n    }\n\n    return false;",
+      "return_types": {
+        "is_table": false,
+        "fields": [
+          {
+            "name": "value",
+            "type": {
+              "name": "bool",
+              "is_array": false,
+              "metadata": [
+                0,
+                0
+              ]
+            }
+          }
+        ]
+      },
+      "annotations": null
+    },
+    {
+      "name": "stream_owner_only",
+      "parameters": null,
+      "public": false,
+      "modifiers": [
+        "VIEW"
+      ],
+      "body": "if is_stream_owner(@caller) == false  {\n        error('Stream owner only procedure');\n    }",
+      "return_types": null,
+      "annotations": null
+    },
+    {
+      "name": "init",
+      "parameters": null,
+      "public": true,
+      "modifiers": [
+        "OWNER"
+      ],
+      "body": "if is_initiated() {\n        error('this contract was already initialized');\n    }\n\n    // check if caller is empty\n    // this happens can happen in tests, but we should also protect for that on production\n    if @caller == '' {\n        error('caller is empty');\n    }\n\n    $current_block int := @height;\n\n    // uuid's namespaces are any random generated uuid from https://www.uuidtools.com/v5\n    // but each usage should be different to maintain determinism, so we reuse the previous result\n    $current_uuid uuid := uuid_generate_v5('41fea9f0-179f-11ef-8838-325096b39f47'::uuid, @txid);\n\n    // type = composed\n    $current_uuid :=  uuid_generate_v5($current_uuid, @txid);\n    INSERT INTO metadata (row_id, metadata_key, value_s, created_at)\n        VALUES ($current_uuid, 'type', 'composed', $current_block);\n\n    // stream_owner = @caller\n    $current_uuid :=  uuid_generate_v5($current_uuid, @txid);\n    INSERT INTO metadata (row_id, metadata_key, value_ref, created_at)\n        VALUES ($current_uuid, 'stream_owner', LOWER(@caller), 1);\n\n    // compose_visibility = 0 (public)\n    $current_uuid :=  uuid_generate_v5($current_uuid, @txid);\n    INSERT INTO metadata (row_id, metadata_key, value_i, created_at)\n        VALUES ($current_uuid, 'compose_visibility', 0, $current_block);\n\n    // read_visibility = 0 (public)\n    $current_uuid :=  uuid_generate_v5($current_uuid, @txid);\n    INSERT INTO metadata (row_id, metadata_key, value_i, created_at)\n        VALUES ($current_uuid, 'read_visibility', 0, $current_block);\n\n    $readonly_keys text[] := [\n        'type',\n        'stream_owner',\n        'readonly_key',\n        'taxonomy_version'\n    ];\n\n    for $key in $readonly_keys {\n        $current_uuid :=  uuid_generate_v5($current_uuid, @txid);\n        INSERT INTO metadata (row_id, metadata_key, value_s, created_at)\n            VALUES ($current_uuid, 'readonly_key', $key, $current_block);\n    }",
+      "return_types": null,
+      "annotations": null
+    },
+    {
+      "name": "insert_metadata",
+      "parameters": [
+        {
+          "name": "$key",
+          "type": {
+            "name": "text",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "name": "$value",
+          "type": {
+            "name": "text",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "name": "$val_type",
+          "type": {
+            "name": "text",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "public": true,
+      "modifiers": null,
+      "body": "$value_i int;\n    $value_s text;\n    $value_f decimal(36,18);\n    $value_b bool;\n    $value_ref text;\n\n    if $val_type == 'int' {\n        $value_i := $value::int;\n    } elseif $val_type == 'string' {\n        $value_s := $value;\n    } elseif $val_type == 'bool' {\n        $value_b := $value::bool;\n    } elseif $val_type == 'ref' {\n        $value_ref := $value;\n    } elseif $val_type == 'float' {\n        $value_f := $value::decimal(36,18);\n    } else {\n        error(format('unknown type used \"%s\". valid types = \"float\" | \"bool\" | \"int\" | \"ref\" | \"string\"', $val_type));\n    }\n\n    stream_owner_only();\n\n    if is_initiated() == false {\n        error('contract must be initiated');\n    }\n\n    // check if it's read-only\n    for $row in SELECT * FROM metadata WHERE metadata_key = 'readonly_key' AND value_s = $key LIMIT 1 {\n        error('Cannot insert metadata for read-only key');\n    }\n\n    // we create one deterministic uuid for each metadata record\n    // we can't use just @txid because a single transaction can insert multiple metadata records.\n    // the result will be idempotency here too.\n    $uuid_key := @txid || $key || $value;\n\n    $uuid uuid := uuid_generate_v5('1361df5d-0230-47b3-b2c1-37950cf51fe9'::uuid, $uuid_key);\n    $current_block int := @height;\n\n    // insert data\n    INSERT INTO metadata (row_id, metadata_key, value_i, value_f, value_s, value_b, value_ref, created_at)\n        VALUES ($uuid, $key, $value_i, $value_f, $value_s, $value_b, LOWER($value_ref), $current_block);",
+      "return_types": null,
+      "annotations": null
+    },
+    {
+      "name": "get_metadata",
+      "parameters": [
+        {
+          "name": "$key",
+          "type": {
+            "name": "text",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "name": "$only_latest",
+          "type": {
+            "name": "bool",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "name": "$ref",
+          "type": {
+            "name": "text",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "public": true,
+      "modifiers": [
+        "VIEW"
+      ],
+      "body": "if $only_latest == true {\n            if $ref is distinct from null {\n                return SELECT\n                              row_id,\n                              null::int as value_i,\n                              null::decimal(36,18) as value_f,\n                              null::bool as value_b,\n                              null::text as value_s,\n                              value_ref,\n                              created_at\n                FROM metadata\n                WHERE metadata_key = $key AND disabled_at IS NULL AND value_ref = LOWER($ref)\n                ORDER BY created_at DESC\n                LIMIT 1;\n            } else {\n                return SELECT\n                              row_id,\n                              value_i,\n                              value_f,\n                              value_b,\n                              value_s,\n                              value_ref,\n                              created_at\n                FROM metadata\n                WHERE metadata_key = $key AND disabled_at IS NULL\n                ORDER BY created_at DESC\n                LIMIT 1;\n            }\n        } else {\n           // SHOULD BE THE EXACT CODE AS ABOVE, BUT WITHOUT LIMIT\n           if $ref is distinct from null {\n               return SELECT\n                             row_id,\n                             null::int as value_i,\n                             null::decimal(36,18) as value_f,\n                             null::bool as value_b,\n                             null::text as value_s,\n                             value_ref,\n                             created_at\n                FROM metadata\n                WHERE metadata_key = $key AND disabled_at IS NULL AND value_ref = LOWER($ref)\n                ORDER BY created_at DESC;\n           } else {\n               return SELECT\n                             row_id,\n                             value_i,\n                             value_f,\n                             value_b,\n                             value_s,\n                             value_ref,\n                             created_at\n               FROM metadata\n               WHERE metadata_key = $key AND disabled_at IS NULL\n               ORDER BY created_at DESC;\n           }\n        }",
+      "return_types": {
+        "is_table": true,
+        "fields": [
+          {
+            "name": "row_id",
+            "type": {
+              "name": "uuid",
+              "is_array": false,
+              "metadata": [
+                0,
+                0
+              ]
+            }
+          },
+          {
+            "name": "value_i",
+            "type": {
+              "name": "int",
+              "is_array": false,
+              "metadata": [
+                0,
+                0
+              ]
+            }
+          },
+          {
+            "name": "value_f",
+            "type": {
+              "name": "decimal",
+              "is_array": false,
+              "metadata": [
+                36,
+                18
+              ]
+            }
+          },
+          {
+            "name": "value_b",
+            "type": {
+              "name": "bool",
+              "is_array": false,
+              "metadata": [
+                0,
+                0
+              ]
+            }
+          },
+          {
+            "name": "value_s",
+            "type": {
+              "name": "text",
+              "is_array": false,
+              "metadata": [
+                0,
+                0
+              ]
+            }
+          },
+          {
+            "name": "value_ref",
+            "type": {
+              "name": "text",
+              "is_array": false,
+              "metadata": [
+                0,
+                0
+              ]
+            }
+          },
+          {
+            "name": "created_at",
+            "type": {
+              "name": "int",
+              "is_array": false,
+              "metadata": [
+                0,
+                0
+              ]
+            }
+          }
+        ]
+      },
+      "annotations": null
+    },
+    {
+      "name": "disable_metadata",
+      "parameters": [
+        {
+          "name": "$row_id",
+          "type": {
+            "name": "uuid",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "public": true,
+      "modifiers": null,
+      "body": "stream_owner_only();\n\n    $current_block int := @height;\n\n    $found bool := false;\n\n    // Check if the metadata is not read-only\n    for $metadata_row in\n    SELECT metadata_key\n    FROM metadata\n    WHERE row_id = $row_id AND disabled_at IS NULL\n    LIMIT 1 {\n        $found := true;\n        $row_key text := $metadata_row.metadata_key;\n\n        for $readonly_row in SELECT row_id FROM metadata WHERE metadata_key = 'readonly_key' AND value_s = $row_key LIMIT 1 {\n            error('Cannot disable read-only metadata');\n        }\n\n        UPDATE metadata SET disabled_at = $current_block\n        WHERE row_id = $row_id;\n    }\n\n    if $found == false {\n        error('metadata record not found');\n    }",
+      "return_types": null,
+      "annotations": null
+    },
+    {
+      "name": "transfer_stream_ownership",
+      "parameters": [
+        {
+          "name": "$new_owner",
+          "type": {
+            "name": "text",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "public": true,
+      "modifiers": null,
+      "body": "stream_owner_only();\n\n    // fail if not a valid address\n    check_eth_address($new_owner);\n\n    UPDATE metadata SET value_ref = LOWER($new_owner)\n    WHERE metadata_key = 'stream_owner';",
+      "return_types": null,
+      "annotations": null
+    },
+    {
+      "name": "check_eth_address",
+      "parameters": [
+        {
+          "name": "$address",
+          "type": {
+            "name": "text",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "public": false,
+      "modifiers": null,
+      "body": "if (length($address) != 42) {\n        error('invalid address length');\n    }\n\n    // check if starts with 0x\n    for $row in SELECT $address LIKE '0x%' as a {\n        if $row.a == false {\n            error('address does not start with 0x');\n        }\n    }",
+      "return_types": null,
+      "annotations": null
+    },
+    {
+      "name": "get_current_version",
+      "parameters": [
+        {
+          "name": "$show_disabled",
+          "type": {
+            "name": "bool",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "public": false,
+      "modifiers": [
+        "VIEW"
+      ],
+      "body": "if $show_disabled == false {\n         for $row in SELECT version FROM taxonomies WHERE disabled_at IS NULL ORDER BY version DESC LIMIT 1 {\n             return $row.version;\n         }\n    } else {\n        for $row2 in SELECT version FROM taxonomies ORDER BY version DESC LIMIT 1 {\n            return $row2.version;\n        }\n    }\n\n    return 0;",
+      "return_types": {
+        "is_table": false,
+        "fields": [
+          {
+            "name": "result",
+            "type": {
+              "name": "int",
+              "is_array": false,
+              "metadata": [
+                0,
+                0
+              ]
+            }
+          }
+        ]
+      },
+      "annotations": null
+    },
+    {
+      "name": "set_taxonomy",
+      "parameters": [
+        {
+          "name": "$data_providers",
+          "type": {
+            "name": "text",
+            "is_array": true,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "name": "$stream_ids",
+          "type": {
+            "name": "text",
+            "is_array": true,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "name": "$weights",
+          "type": {
+            "name": "decimal",
+            "is_array": true,
+            "metadata": [
+              36,
+              18
+            ]
+          }
+        },
+        {
+          "name": "$start_date",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "public": true,
+      "modifiers": null,
+      "body": "stream_owner_only();\n\n    $next_version int := get_current_version(true) + 1;\n    $block_height int := @height;\n    $current_uuid uuid := uuid_generate_v5('e92064da-19c5-11ef-9bc0-325096b39f47'::uuid, @txid);\n\n    $length int := array_length($data_providers);\n\n    // check lengths\n    if $length != array_length($stream_ids) {\n        error('data_providers and stream_ids must have the same length');\n    }\n    if $length != array_length($weights) {\n        error('data_providers and weights must have the same length');\n    }\n\n    for $i in 1..$length {\n        $current_uuid :=  uuid_generate_v5($current_uuid, @txid);\n\n        INSERT INTO taxonomies (taxonomy_id, child_stream_id, child_data_provider, weight, created_at, version, start_date)\n            VALUES ($current_uuid, $stream_ids[$i], $data_providers[$i], $weights[$i], $block_height, $next_version, $start_date);\n    }",
+      "return_types": null,
+      "annotations": null
+    },
+    {
+      "name": "describe_taxonomies",
+      "parameters": [
+        {
+          "name": "$latest_version",
+          "type": {
+            "name": "bool",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "public": true,
+      "modifiers": [
+        "VIEW"
+      ],
+      "body": "if $latest_version == true {\n            // just the latest enabled version should be returned\n            return SELECT\n                child_stream_id,\n                child_data_provider,\n                weight,\n                created_at,\n                version,\n                start_date\n            FROM taxonomies\n            WHERE version = get_current_version(false) AND disabled_at IS NULL\n            ORDER BY created_at DESC;\n        } else {\n            return SELECT\n                child_stream_id,\n                child_data_provider,\n                weight,\n                created_at,\n                version,\n                start_date\n            FROM taxonomies\n            WHERE disabled_at IS NULL\n            ORDER BY version DESC;\n        }",
+      "return_types": {
+        "is_table": true,
+        "fields": [
+          {
+            "name": "child_stream_id",
+            "type": {
+              "name": "text",
+              "is_array": false,
+              "metadata": [
+                0,
+                0
+              ]
+            }
+          },
+          {
+            "name": "child_data_provider",
+            "type": {
+              "name": "text",
+              "is_array": false,
+              "metadata": [
+                0,
+                0
+              ]
+            }
+          },
+          {
+            "name": "weight",
+            "type": {
+              "name": "decimal",
+              "is_array": false,
+              "metadata": [
+                36,
+                18
+              ]
+            }
+          },
+          {
+            "name": "created_at",
+            "type": {
+              "name": "int",
+              "is_array": false,
+              "metadata": [
+                0,
+                0
+              ]
+            }
+          },
+          {
+            "name": "version",
+            "type": {
+              "name": "int",
+              "is_array": false,
+              "metadata": [
+                0,
+                0
+              ]
+            }
+          },
+          {
+            "name": "start_date",
+            "type": {
+              "name": "int",
+              "is_array": false,
+              "metadata": [
+                0,
+                0
+              ]
+            }
+          }
+        ]
+      },
+      "annotations": null
+    },
+    {
+      "name": "disable_taxonomy",
+      "parameters": [
+        {
+          "name": "$version",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "public": true,
+      "modifiers": null,
+      "body": "stream_owner_only();\n\n    $current_block int := @height;\n\n    $found bool := false;\n\n    // Check if the taxonomies with the given version exist and disable them\n    for $row in SELECT child_stream_id FROM taxonomies WHERE version = $version AND disabled_at IS NULL {\n        $found := true;\n        UPDATE taxonomies SET disabled_at = $current_block\n        WHERE version = $version AND disabled_at IS NULL;\n    }\n\n    if $found == false {\n        error('No taxonomies found for the given version');\n    }",
+      "return_types": null,
+      "annotations": null
+    },
+    {
+      "name": "is_stream_allowed_to_compose",
+      "parameters": [
+        {
+          "name": "$foreign_caller",
+          "type": {
+            "name": "text",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "public": true,
+      "modifiers": [
+        "VIEW"
+      ],
+      "body": "if $foreign_caller == '' {\n        return true;\n    }\n\n    // if public, anyone can always read\n    // If there's no visibility metadata, it's public.\n    $visibility int := 0;\n    for $v_row in SELECT * FROM get_metadata('compose_visibility', true, null) {\n        $visibility := $v_row.value_i;\n    }\n\n    if $visibility == 0 {\n        return true;\n    }\n\n    // if there's metadata allow_compose_stream -\u003e \u003cforeign_caller\u003e, then its permitted\n    for $row in SELECT * FROM get_metadata('allow_compose_stream', true, $foreign_caller) LIMIT 1 {\n        return true;\n    }\n\n    error('Stream not allowed to compose');",
+      "return_types": {
+        "is_table": false,
+        "fields": [
+          {
+            "name": "value",
+            "type": {
+              "name": "bool",
+              "is_array": false,
+              "metadata": [
+                0,
+                0
+              ]
+            }
+          }
+        ]
+      },
+      "annotations": null
+    },
+    {
+      "name": "get_index_change",
+      "parameters": [
+        {
+          "name": "$date_from",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "name": "$date_to",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "name": "$frozen_at",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "name": "$base_date",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "name": "$days_interval",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "public": true,
+      "modifiers": [
+        "VIEW"
+      ],
+      "body": "if $frozen_at == null {\n        $frozen_at := 0;\n    }\n\n    if $days_interval == null {\n        error('days_interval is required');\n    }\n\n    $current_values decimal(36,18)[];\n    // example: [01-2001, 05-2001, 09-2001, 10-2001]\n    $current_dates int[];\n    // example: [01-2000, 05-2000, 09-2000, 10-2000]\n    $expected_prev_dates int[];\n\n    for $row_current in SELECT * FROM get_index($date_from, $date_to, $frozen_at, $base_date) {\n        $prev_date := $row_current.date_value - ($days_interval * 86400);\n        $expected_prev_dates := array_append($expected_prev_dates, $prev_date);\n        $current_values := array_append($current_values, $row_current.value);\n        $current_dates := array_append($current_dates, $row_current.date_value);\n    }\n\n    // example: 01-2000]\n    $earliest_prev_date := $expected_prev_dates[1];\n    // example: 09-2000\n    $latest_prev_date := $expected_prev_dates[array_length($expected_prev_dates)];\n\n    // real previous values doesn't match the same length as expected previous dates\n    // because the interval can have much more values than the expected dates\n    $real_prev_values decimal(36,18)[];\n    $real_prev_dates int[];\n\n    // now we query the prev dates\n    for $row_prev in SELECT * FROM get_index($earliest_prev_date, $latest_prev_date, $frozen_at, $base_date) {\n        $real_prev_values := array_append($real_prev_values, $row_prev.value);\n        $real_prev_dates := array_append($real_prev_dates, $row_prev.date_value);\n    }\n\n    // now we calculate the matching dates for the real prev values\n    $result_prev_dates int[];\n    $result_prev_values decimal(36,18)[];\n\n    $real_prev_date_idx int := 1;\n\n    // for each expected prev date, we find the matching real prev date\n    if array_length($expected_prev_dates) \u003e 0 {\n        for $expected_prev_date_idx in 1..array_length($expected_prev_dates) {\n            // we start from the last index of real prev dates. we don't need to check previous values\n            for $selector in $real_prev_date_idx..array_length($real_prev_dates) {\n                // if next real prev date is greater than expected prev date (or null), then we need to use the current real value\n                if $real_prev_dates[$selector + 1] \u003e $expected_prev_dates[$expected_prev_date_idx] OR $real_prev_dates[$selector + 1] IS NULL {\n                    // if the current real prev date is already greater than expected prev date\n                    // we use NULL. We're probably before the first real prev date here\n                    if $real_prev_dates[$selector] \u003e $expected_prev_dates[$expected_prev_date_idx] {\n                        $result_prev_dates := array_append($result_prev_dates, null::int);\n                        $result_prev_values := array_append($result_prev_values, null::decimal(36,18));\n                    } else {\n                    $result_prev_dates := array_append($result_prev_dates, $real_prev_dates[$selector]);\n                    $result_prev_values := array_append($result_prev_values, $real_prev_values[$selector]);\n                    }\n                    // we already appended one for current $real_prev_date_idx, then we need to go to next\n                    $real_prev_date_idx := $selector;\n                    break;\n                }\n            }\n        }\n    }\n\n    // check if we have the same number of values and dates\n    if array_length($current_dates) != array_length($result_prev_dates) {\n        error('we have different number of dates and values');\n    }\n    if array_length($current_values) != array_length($result_prev_values) {\n        error('we have different number of dates and values');\n    }\n\n    // calculate the index change\n    if array_length($result_prev_dates) \u003e 0 {\n        for $row_result in 1..array_length($result_prev_dates) {\n            // if the expected_prev_date is null, then we don't have a real prev date\n            if $result_prev_dates[$row_result] IS DISTINCT FROM NULL {\n                return next $current_dates[$row_result], ($current_values[$row_result] - $result_prev_values[$row_result]) * 100.00::decimal(36,18) / $result_prev_values[$row_result];\n            }\n        }\n    }",
+      "return_types": {
+        "is_table": true,
+        "fields": [
+          {
+            "name": "date_value",
+            "type": {
+              "name": "int",
+              "is_array": false,
+              "metadata": [
+                0,
+                0
+              ]
+            }
+          },
+          {
+            "name": "value",
+            "type": {
+              "name": "decimal",
+              "is_array": false,
+              "metadata": [
+                36,
+                18
+              ]
+            }
+          }
+        ]
+      },
+      "annotations": null
+    },
+    {
+      "name": "emit_values_if",
+      "parameters": [
+        {
+          "name": "$condition",
+          "type": {
+            "name": "bool",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "name": "$date_value",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "name": "$values",
+          "type": {
+            "name": "decimal",
+            "is_array": true,
+            "metadata": [
+              36,
+              18
+            ]
+          }
+        },
+        {
+          "name": "$weights",
+          "type": {
+            "name": "decimal",
+            "is_array": true,
+            "metadata": [
+              36,
+              18
+            ]
+          }
+        }
+      ],
+      "public": false,
+      "modifiers": [
+        "VIEW"
+      ],
+      "body": "if $condition == true {\n        if array_length($values) \u003e 0 {\n            for $i in 1..array_length($values) {\n                return next $date_value, $values[$i], $weights[$i];\n            }\n        }\n    }",
+      "return_types": {
+        "is_table": true,
+        "fields": [
+          {
+            "name": "date_value",
+            "type": {
+              "name": "int",
+              "is_array": false,
+              "metadata": [
+                0,
+                0
+              ]
+            }
+          },
+          {
+            "name": "value",
+            "type": {
+              "name": "decimal",
+              "is_array": false,
+              "metadata": [
+                36,
+                18
+              ]
+            }
+          },
+          {
+            "name": "weight",
+            "type": {
+              "name": "decimal",
+              "is_array": false,
+              "metadata": [
+                36,
+                18
+              ]
+            }
+          }
+        ]
+      },
+      "annotations": null
+    },
+    {
+      "name": "remove_array_element",
+      "parameters": [
+        {
+          "name": "$array",
+          "type": {
+            "name": "int",
+            "is_array": true,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "name": "$index",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "public": false,
+      "modifiers": [
+        "VIEW"
+      ],
+      "body": "$new_array int[];\n    for $i in 1..array_length($array) {\n        if $i != $index {\n            $new_array := array_append($new_array, $array[$i]);\n        }\n    }\n\n    return $new_array;",
+      "return_types": {
+        "is_table": false,
+        "fields": [
+          {
+            "name": "result",
+            "type": {
+              "name": "int",
+              "is_array": true,
+              "metadata": [
+                0,
+                0
+              ]
+            }
+          }
+        ]
+      },
+      "annotations": null
+    },
+    {
+      "name": "array_update_element",
+      "parameters": [
+        {
+          "name": "$array",
+          "type": {
+            "name": "decimal",
+            "is_array": true,
+            "metadata": [
+              36,
+              18
+            ]
+          }
+        },
+        {
+          "name": "$index",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "name": "$value",
+          "type": {
+            "name": "decimal",
+            "is_array": false,
+            "metadata": [
+              36,
+              18
+            ]
+          }
+        }
+      ],
+      "public": false,
+      "modifiers": [
+        "VIEW"
+      ],
+      "body": "$new_array decimal(36,18)[];\n    for $i in 1..array_length($array) {\n        if $i == $index {\n            $new_array := array_append($new_array, $value);\n        } else {\n            $new_array := array_append($new_array, $array[$i]);\n        }\n    }\n    return $new_array;",
+      "return_types": {
+        "is_table": false,
+        "fields": [
+          {
+            "name": "result",
+            "type": {
+              "name": "decimal",
+              "is_array": true,
+              "metadata": [
+                36,
+                18
+              ]
+            }
+          }
+        ]
+      },
+      "annotations": null
+    },
+    {
+      "name": "get_dynamic_weight",
+      "parameters": [
+        {
+          "name": "$stream_id",
+          "type": {
+            "name": "text",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "name": "$date_value",
+          "type": {
+            "name": "int",
+            "is_array": false,
+            "metadata": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "public": false,
+      "modifiers": [
+        "VIEW"
+      ],
+      "body": "for $row in SELECT weight\n    FROM taxonomies\n    WHERE child_stream_id = $stream_id\n    AND (start_date IS NULL OR start_date = 0 OR start_date \u003c= $date_value)\n    ORDER BY start_date DESC\n    LIMIT 1 {\n        return $row.weight;\n    }\n\n    // If no weight is found, we return the earliest weight available, this to ensure that we always have a weight\n    // for the given date even if it's before the first weight's start_date\n    // Would be better if COALESCE was supported\n    for $row2 in SELECT weight\n    FROM taxonomies\n    WHERE child_stream_id = $stream_id\n    ORDER BY start_date ASC\n    LIMIT 1 {\n        return $row2.weight;\n    }",
+      "return_types": {
+        "is_table": false,
+        "fields": [
+          {
+            "name": "weight",
+            "type": {
+              "name": "decimal",
+              "is_array": false,
+              "metadata": [
+                36,
+                18
+              ]
+            }
+          }
+        ]
+      },
+      "annotations": null
+    }
+  ],
+  "foreign_calls": [
+    {
+      "name": "ext_get_record",
+      "parameters": [
+        {
+          "name": "int",
+          "is_array": false,
+          "metadata": [
+            0,
+            0
+          ]
+        },
+        {
+          "name": "int",
+          "is_array": false,
+          "metadata": [
+            0,
+            0
+          ]
+        },
+        {
+          "name": "int",
+          "is_array": false,
+          "metadata": [
+            0,
+            0
+          ]
+        }
+      ],
+      "return_types": {
+        "is_table": true,
+        "fields": [
+          {
+            "name": "date_value",
+            "type": {
+              "name": "int",
+              "is_array": false,
+              "metadata": [
+                0,
+                0
+              ]
+            }
+          },
+          {
+            "name": "value",
+            "type": {
+              "name": "decimal",
+              "is_array": false,
+              "metadata": [
+                36,
+                18
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "ext_get_index",
+      "parameters": [
+        {
+          "name": "int",
+          "is_array": false,
+          "metadata": [
+            0,
+            0
+          ]
+        },
+        {
+          "name": "int",
+          "is_array": false,
+          "metadata": [
+            0,
+            0
+          ]
+        },
+        {
+          "name": "int",
+          "is_array": false,
+          "metadata": [
+            0,
+            0
+          ]
+        },
+        {
+          "name": "int",
+          "is_array": false,
+          "metadata": [
+            0,
+            0
+          ]
+        }
+      ],
+      "return_types": {
+        "is_table": true,
+        "fields": [
+          {
+            "name": "date_value",
+            "type": {
+              "name": "int",
+              "is_array": false,
+              "metadata": [
+                0,
+                0
+              ]
+            }
+          },
+          {
+            "name": "value",
+            "type": {
+              "name": "decimal",
+              "is_array": false,
+              "metadata": [
+                36,
+                18
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "ext_get_first_record",
+      "parameters": [
+        {
+          "name": "int",
+          "is_array": false,
+          "metadata": [
+            0,
+            0
+          ]
+        },
+        {
+          "name": "int",
+          "is_array": false,
+          "metadata": [
+            0,
+            0
+          ]
+        }
+      ],
+      "return_types": {
+        "is_table": true,
+        "fields": [
+          {
+            "name": "date_value",
+            "type": {
+              "name": "int",
+              "is_array": false,
+              "metadata": [
+                0,
+                0
+              ]
+            }
+          },
+          {
+            "name": "value",
+            "type": {
+              "name": "decimal",
+              "is_array": false,
+              "metadata": [
+                36,
+                18
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

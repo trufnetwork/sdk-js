@@ -5,6 +5,8 @@ import { CompiledKuneiform } from "@kwilteam/kwil-js/dist/core/payload";
 import {
   composedStreamTemplate,
   primitiveStreamTemplate,
+  composedStreamTemplateUnix,
+  primitiveStreamTemplateUnix
 } from "../contracts/contractsContent";
 import { GenericResponse } from "@kwilteam/kwil-js/dist/core/resreq";
 import { KwilSigner } from "@kwilteam/kwil-js";
@@ -16,6 +18,7 @@ export interface DeployStreamInput {
   kwilClient: Kwil<any>;
   kwilSigner: KwilSigner;
   synchronous?: boolean;
+  contractVersion?: number;
 }
 
 export interface DeployStreamOutput {
@@ -31,7 +34,7 @@ export async function deployStream(
   input: DeployStreamInput,
 ): Promise<GenericResponse<TxReceipt>> {
   try {
-    const schema = await getContract(input.streamType);
+    const schema = await getContract(input.streamType, input.contractVersion);
 
     schema.name = input.streamId.getId();
 
@@ -53,14 +56,15 @@ export async function deployStream(
 /**
  * Returns the contract content based on the stream type.
  * @param streamType - The type of the stream.
+ * @param contractVersion
  * @returns The contract content as a Uint8Array.
  */
-async function getContract(streamType: StreamType): Promise<CompiledKuneiform> {
+async function getContract(streamType: StreamType, contractVersion?: number): Promise<CompiledKuneiform> {
   switch (streamType) {
     case StreamType.Composed:
-      return composedStreamTemplate;
+      return contractVersion === 2 ? composedStreamTemplateUnix : composedStreamTemplate;
     case StreamType.Primitive:
-      return primitiveStreamTemplate;
+      return contractVersion === 2 ? primitiveStreamTemplateUnix : primitiveStreamTemplate;
     default:
       throw new Error(`Unknown stream type: ${streamType}`);
   }
