@@ -84,7 +84,7 @@ export class PrimitiveStream extends Stream {
   }
 }
 export interface InsertRecordInput {
-  dateValue: string;
+  dateValue: string | number;
   // value is a string to support arbitrary precision
   value: string;
 }

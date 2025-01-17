@@ -13,7 +13,7 @@ export const ErrorStreamNotComposed = "stream is not a composed stream";
 
 export interface TaxonomySet {
   taxonomyItems: TaxonomyItem[];
-  startDate?: DateString;
+  startDate: DateString | number;
 }
 
 export interface TaxonomyItem {
@@ -82,7 +82,7 @@ export class ComposedStream extends Stream {
       weight: string;
       created_at: number;
       version: number;
-      start_date: string;
+      start_date: string | number;
     }[];
 
     const result = await this.call<TaxonomyResult>("describe_taxonomies", [
@@ -93,7 +93,7 @@ export class ComposedStream extends Stream {
       .mapRight((records) => {
         const taxonomyItems: Map<DateString, TaxonomyItem[]> = records.reduce(
           (acc, record) => {
-            const currentArray = acc.get(record.start_date) || [];
+            const currentArray = acc.get(<string>record.start_date) || [];
             currentArray.push({
               childStream: {
                 streamId: StreamId.fromString(record.child_stream_id).throw(),
@@ -103,13 +103,13 @@ export class ComposedStream extends Stream {
               },
               weight: record.weight,
             });
-            acc.set(record.start_date, currentArray);
+            acc.set(<string>record.start_date, currentArray);
             return acc;
           },
           new Map<DateString, TaxonomyItem[]>(),
         );
 
-        let startDate: DateString | undefined;
+        let startDate: string | number;
         if (records.length > 0 && records[0].start_date) {
           startDate = records[0].start_date;
         }
