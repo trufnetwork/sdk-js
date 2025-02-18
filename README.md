@@ -27,6 +27,10 @@ import { BrowserTNClient } from "@trufnetwork/sdk-js";
 
 ```ts
 import { NodeTNClient, StreamId } from "@trufnetwork/sdk-js";
+import { Wallet } from "ethers";
+
+// Create a wallet
+const wallet = new Wallet("0000000000000000000000000000000000000000000000000000000000000001");
 
 // Initialize client
 const client = new NodeTNClient({
@@ -35,7 +39,7 @@ const client = new NodeTNClient({
     address: wallet.address,
     signer: wallet, // Any object that implements signMessage
   },
-  chainId: "tsn-1", // or use NodeTNClient.getDefaultChainId()
+  chainId: "truflation-staging-2024-11-22", // or use NodeTNClient.getDefaultChainId()
 });
 
 // Deploy and initialize a stream
@@ -66,6 +70,7 @@ For a complete working example:
 - Check our [TN SDK Demo Repository](https://github.com/truflation/tsn-sdk-demo)
 - Try the [Live Demo on CodeSandbox](https://codesandbox.io/p/devbox/m2r3tt?file=%2Fsrc%2Froutes%2F%2Bpage.svelte)
 - Try reading from [a Truflation Stream on CodeSandbox with NodeJS](https://codesandbox.io/p/devbox/rtm7mn?file=%2Findex.ts%3A22%2C11)
+- [**NEW**] Check out the [TN SDK JS Example Directory](./examples). It contains examples for stream deployment, stream initialization, data insertion, data retrieval, and stream destruction.
 
 ## Stream Types
 
