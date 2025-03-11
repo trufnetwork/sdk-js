@@ -1,5 +1,5 @@
 # TN SDK JS
-
+ 
 The TN SDK provides developers with tools to interact with the Truf Network, a decentralized platform for publishing, composing, and consuming economic data streams.
 
 ## Quick Start
