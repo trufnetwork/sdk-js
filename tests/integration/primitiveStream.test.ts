@@ -87,6 +87,20 @@ describe.sequential(
           expect(firstRecord).not.toBeNull();
           expect(firstRecord?.value).toBe("1.000000000000000000");
           expect(firstRecord?.dateValue).toBe("2020-01-01");
+
+          // Query using custom procedure with args with the same name "get_record"
+          const customRecordsWithArgs = await primitiveStream.customProcedureWithArgs(
+              "get_record",
+              {
+                $date_from: "2020-01-01",
+                $date_to: "2021-01-01",
+                $frozen_at: null,
+              },
+          );
+          // Verify record content from the custom procedure
+          expect(customRecordsWithArgs.length).toBe(1);
+          expect(customRecordsWithArgs[0].value).toBe("1.000000000000000000");
+          expect(customRecordsWithArgs[0].dateValue).toBe("2020-01-01");
         } finally {
           // Cleanup: destroy the stream after test
           await defaultClient.destroyStream(streamId, true);

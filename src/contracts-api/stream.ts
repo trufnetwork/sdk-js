@@ -546,4 +546,34 @@ export class Stream {
       )
       .throw();
   }
+
+
+  /**
+   * A custom method that accepts the procedure name and custom input of type Record<string, any>
+   * Returns the result of the procedure in the same format as StreamRecord
+   * I.e. a custom procedure named "get_custom_index" that returns a list of date_value and value
+   * can be called with customProcedureWithArgs("get_custom_index", { $customArg1: "value1", $customArg2: "value2" })
+   * where $customArg1 and $customArg2 are the arguments of the procedure
+   * @param procedure
+   * @param args
+   */
+  public async customProcedureWithArgs(
+    procedure: string,
+    args: Record<string, any>,
+  ){
+    const result = await this.call<{ date_value: string; value: string }[]>(
+      procedure,
+      [
+        ActionInput.fromObject(args),
+      ],
+    );
+    return result
+      .mapRight((result) =>
+        result.map((row) => ({
+          dateValue: row.date_value,
+          value: row.value,
+        })),
+      )
+      .throw();
+  }
 }
