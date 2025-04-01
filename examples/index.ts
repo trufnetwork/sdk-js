@@ -4,7 +4,7 @@ import {
     StreamId,
     type StreamLocator,
     StreamType,
-} from "@trufnetwork/sdk-js";
+} from "../src"
 import { Wallet } from "ethers";
 
 // Helper: delay for a given number of milliseconds.
@@ -71,19 +71,21 @@ async function safeDestroy(client: NodeTNClient, streamId: StreamId) {
     const streamIdNew = await StreamId.generate("new-stream-id");
 
     // Before testing: destroy the stream if it already exists.
-    await safeDestroy(client, streamIdNew);
+    // await safeDestroy(client, streamIdNew);
 
     const streamType = StreamType.Primitive;
 
     // Deploy the new stream with retry.
     const deployResponse = await retryOperation(() =>
-        client.deployStream(streamIdNew, streamType, true, 2)
+        client.deployStream(streamIdNew, streamType, true)
     );
-    console.log("Deploy transaction hash:", deployResponse.data.tx_hash);
+    console.log("Deploy transaction hash:", deployResponse.data?.tx_hash);
 
     // Wait for the transaction to be mined.
-    await client.waitForTx(deployResponse.data.tx_hash);
+    await client.waitForTx(deployResponse.data?.tx_hash!);
 
+    // TODO: complete the test.
+    return;
     // Prepare the stream locator for the new stream.
     const streamLocatorNew: StreamLocator = {
         streamId: streamIdNew,

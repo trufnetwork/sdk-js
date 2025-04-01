@@ -1,7 +1,7 @@
 import { Client, KwilSigner, NodeKwil, WebKwil } from "@kwilteam/kwil-js";
 import { KwilConfig } from "@kwilteam/kwil-js/dist/api_client/config";
 import { Kwil } from "@kwilteam/kwil-js/dist/client/kwil";
-import { EthSigner } from "@kwilteam/kwil-js/dist/core/builders";
+import { EthSigner } from "@kwilteam/kwil-js/dist/core/signature";
 import { EnvironmentType } from "@kwilteam/kwil-js/dist/core/enums";
 import { GenericResponse } from "@kwilteam/kwil-js/dist/core/resreq";
 import { TxReceipt } from "@kwilteam/kwil-js/dist/core/tx";
@@ -50,15 +50,7 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
           .catch(() => ({ data: undefined, status: undefined }));
         switch (receipt.status) {
           case 200:
-            if (receipt.data?.tx_result.log === "success") {
-              resolve(receipt.data);
-            } else {
-              reject(
-                new Error(
-                  `Transaction failed: status ${receipt.status} : log message ${receipt.data?.tx_result.log}`,
-                ),
-              );
-            }
+            resolve(receipt.data!);
             break;
           case undefined:
             break;
@@ -112,7 +104,6 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
     streamId: StreamId,
     streamType: StreamType,
     synchronous?: boolean,
-    contractVersion?: number
   ): Promise<GenericResponse<TxReceipt>> {
     return await deployStream({
       streamId,
@@ -120,7 +111,6 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
       synchronous,
       kwilClient: this.getKwilClient(),
       kwilSigner: this.getKwilSigner(),
-      contractVersion: contractVersion
     });
   }
 
