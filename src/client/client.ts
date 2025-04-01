@@ -134,24 +134,21 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
 
   /**
    * Loads an already deployed stream, permitting its API usage.
-   * @param stream - The locator of the stream to load.
    * @returns An instance of IStream.
    */
-  loadStream(stream: StreamLocator): Stream {
+  loadStream(): Stream {
     return new Stream(
       this.getKwilClient() as WebKwil | NodeKwil,
       this.getKwilSigner(),
-      stream,
     );
   }
 
   /**
    * Loads a primitive stream.
-   * @param stream - The locator of the primitive stream to load.
    * @returns An instance of IPrimitiveStream.
    */
-  loadPrimitiveStream(stream: StreamLocator): PrimitiveStream {
-    return PrimitiveStream.fromStream(this.loadStream(stream));
+  loadPrimitiveStream(): PrimitiveStream {
+    return PrimitiveStream.fromStream(this.loadStream());
   }
 
   /**

@@ -1,5 +1,5 @@
 import { KwilSigner, NodeKwil, WebKwil } from "@kwilteam/kwil-js";
-import { ActionInput } from "@kwilteam/kwil-js/dist/core/action";
+import {ActionInput, NamedParams} from "@kwilteam/kwil-js/dist/core/action";
 import { Database } from "@kwilteam/kwil-js/dist/core/database";
 import { GenericResponse } from "@kwilteam/kwil-js/dist/core/resreq";
 import { TxReceipt } from "@kwilteam/kwil-js/dist/core/tx";
@@ -43,37 +43,12 @@ export interface GetIndexChangeInput extends GetRecordInput {
 export class Stream {
   protected kwilClient: WebKwil | NodeKwil;
   protected kwilSigner: KwilSigner;
-  protected locator: StreamLocator;
-  protected dbid: string;
-  protected schema?: Database;
-  protected deployed: boolean = false;
-  protected initialized: boolean = false;
   constructor(
     kwilClient: WebKwil | NodeKwil,
     kwilSigner: KwilSigner,
-    locator: StreamLocator,
   ) {
     this.kwilClient = kwilClient;
     this.kwilSigner = kwilSigner;
-    this.locator = locator;
-    this.dbid = generateDBID(
-      locator.dataProvider.getAddress(),
-      locator.streamId.getId(),
-    );
-  }
-
-  /**
-   * Loads the schema for this stream from the network.
-   * Throws if the stream is not deployed.
-   */
-  public async loadSchema(): Promise<void> {
-    const response = await this.kwilClient.getSchema(this.dbid);
-    if (response.status !== 200 || !response.data) {
-      throw new Error(
-        `Failed to load schema for stream ${this.locator.streamId.getId()}`,
-      );
-    }
-    this.schema = response.data;
   }
 
   /**
@@ -81,28 +56,16 @@ export class Stream {
    */
   protected async execute(
     method: string,
-    inputs: ActionInput[],
+    inputs: NamedParams[],
   ): Promise<GenericResponse<TxReceipt>> {
-    return this.kwilClient.execute(
-      {
-        dbid: this.dbid,
-        name: method,
-        inputs,
-        description: `TN SDK - Executing method on stream: ${method}`,
-      },
-      this.kwilSigner,
-    );
-  }
-
-  /**
-   * Executes a method on the stream after checking if it's initialized
-   */
-  protected async checkedExecute(
-    method: string,
-    inputs: ActionInput[],
-  ): Promise<GenericResponse<TxReceipt>> {
-    await this.checkInitialized();
-    return this.execute(method, inputs);
+    return this.kwilClient.execute({
+          namespace: "main",
+          name: method,
+          inputs,
+          description: `TN SDK - Executing method on stream: ${method}`,
+        },
+        this.kwilSigner,
+        );
   }
 
   /**
@@ -126,49 +89,6 @@ export class Stream {
     }
 
     return Either.right(result.data?.result as T);
-  }
-
-  /**
-   * Checks if the stream is initialized
-   */
-  protected async checkInitialized(expectedType?: StreamType): Promise<void> {
-    if (this.initialized) {
-      return;
-    }
-
-    this.checkDeployed();
-
-    // check if is initialized by trying to get its type
-    const type = await this.getType();
-
-    // check if type is valid
-    const expectedTypes = expectedType
-      ? [expectedType]
-      : [StreamType.Primitive, StreamType.Composed];
-    if (!expectedTypes.includes(type)) {
-      throw new Error(`Invalid stream type: ${type}`);
-    }
-
-    this.initialized = true;
-  }
-
-  /**
-   * Checks if the stream is deployed
-   */
-  protected async checkDeployed(): Promise<void> {
-    if (this.deployed) {
-      return;
-    }
-    await this.loadSchema();
-    this.deployed = true;
-  }
-
-  /**
-   * Initializes the stream
-   */
-  public async initializeStream(): Promise<GenericResponse<TxReceipt>> {
-    // shouldn't use checkedExecute, because it's not initialized yet
-    return this.execute("init", []);
   }
 
   /**
