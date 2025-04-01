@@ -43,6 +43,6 @@ export async function deleteStream(
         input.kwilSigner,
         input.synchronous,
         )} catch (error) {
-    throw new Error(`Failed to destroy stream: ${error}`);
+    throw new Error(`Failed to delete stream: ${error}`);
   }
 }
