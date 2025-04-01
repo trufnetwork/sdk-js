@@ -38,7 +38,7 @@ describe.sequential(
           if (!initTx.data?.tx_hash) {
             throw new Error("Init tx hash not found");
           }
-          await defaultClient.waitForTx(initTx.data.tx_hash);
+          await defaultClient.waitForTx(initTx.data?.tx_hash!);
 
           // Insert a record
           const insertTx = await primitiveStream.insertRecords([
@@ -47,7 +47,7 @@ describe.sequential(
           if (!insertTx.data?.tx_hash) {
             throw new Error("Insert tx hash not found");
           }
-          await defaultClient.waitForTx(insertTx.data.tx_hash);
+          await defaultClient.waitForTx(insertTx.data?.tx_hash!);
 
           // Query records
           const records = await primitiveStream.getRecord({
@@ -106,10 +106,10 @@ describe.sequential(
           expect(customRecordsWithArgs[0].dateValue).toBe("2020-01-01");
         } finally {
           // Cleanup: destroy the stream after test
-          // TODO: complete the test.
-          return;
-
-          await defaultClient.destroyStream(streamId, true);
+          await defaultClient.destroyStream({
+            streamId,
+            dataProvider: defaultClient.address(),
+          }, true);
         }
       }, 60000,
     );
@@ -176,7 +176,10 @@ describe.sequential(
           expect(parseFloat(changes[2].value)).toBeCloseTo(60);
         } finally {
           // Cleanup
-          await defaultClient.destroyStream(streamId, true);
+          await defaultClient.destroyStream({
+            streamId,
+            dataProvider: defaultClient.address(),
+          }, true);
         }
       }, 60000,
     );
@@ -191,7 +194,10 @@ describe.sequential(
           const streamId = await StreamId.generate("test-primitive-stream-v2");
 
           // Destroy the stream if it already exists
-          await defaultClient.destroyStream(streamId, true).catch(() => {});
+          await defaultClient.destroyStream({
+            streamId,
+            dataProvider: defaultClient.address(),
+          }, true).catch(() => {});
 
           try {
             // Deploy a primitive stream
@@ -213,7 +219,7 @@ describe.sequential(
             if (!initTx.data?.tx_hash) {
               throw new Error("Init tx hash not found");
             }
-            await defaultClient.waitForTx(initTx.data.tx_hash);
+            await defaultClient.waitForTx(initTx.data?.tx_hash!);
 
             // Insert a record
             const insertTx = await primitiveStream.insertRecords([
@@ -222,7 +228,7 @@ describe.sequential(
             if (!insertTx.data?.tx_hash) {
               throw new Error("Insert tx hash not found");
             }
-            await defaultClient.waitForTx(insertTx.data.tx_hash);
+            await defaultClient.waitForTx(insertTx.data?.tx_hash!);
 
             // Query records
             const records = await primitiveStream.getRecord({
@@ -267,7 +273,10 @@ describe.sequential(
             expect(firstRecord?.dateValue).toBe(1);
           } finally {
             // Cleanup: destroy the stream after test
-            await defaultClient.destroyStream(streamId, true);
+            await defaultClient.destroyStream({
+              streamId,
+              dataProvider: defaultClient.address(),
+            }, true);
           }
         }, 60000,
     );
