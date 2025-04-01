@@ -32,9 +32,8 @@ export class ComposedStream extends Stream {
   constructor(
     kwilClient: WebKwil | NodeKwil,
     kwilSigner: KwilSigner,
-    locator: StreamLocator,
   ) {
-    super(kwilClient, kwilSigner, locator);
+    super(kwilClient, kwilSigner);
   }
 
   /**
@@ -165,7 +164,6 @@ export class ComposedStream extends Stream {
     return new ComposedStream(
       stream["kwilClient"],
       stream["kwilSigner"],
-      stream["locator"],
     );
   }
 }

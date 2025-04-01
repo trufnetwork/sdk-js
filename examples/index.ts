@@ -107,7 +107,7 @@ async function safeDestroy(client: NodeTNClient, streamId: StreamId) {
     const insertResponse = await retryOperation(() =>
         streamApiNew.insertRecords([
             {
-                dateValue: currentTimeUnix,
+                eventTime: currentTimeUnix,
                 value: "1000",
             },
         ])
