@@ -6,7 +6,6 @@ export class EthereumAddress {
   private readonly correctlyCreated: boolean = false;
 
   constructor(address: string) {
-    address = address.toLowerCase();
     if (!address.startsWith("0x")) {
       address = "0x" + address;
     }

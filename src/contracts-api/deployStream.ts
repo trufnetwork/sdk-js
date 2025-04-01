@@ -44,20 +44,3 @@ export async function deployStream(
     throw new Error(`Failed to deploy stream: ${error}`);
   }
 }
-
-/**
- * Returns the contract content based on the stream type.
- * @param streamType - The type of the stream.
- * @param contractVersion
- * @returns The contract content as a Uint8Array.
- */
-async function getContract(streamType: StreamType, contractVersion?: number): Promise<CompiledKuneiform> {
-  switch (streamType) {
-    case StreamType.Composed:
-      return contractVersion === 2 ? composedStreamTemplateUnix : composedStreamTemplate;
-    case StreamType.Primitive:
-      return contractVersion === 2 ? primitiveStreamTemplateUnix : primitiveStreamTemplate;
-    default:
-      throw new Error(`Unknown stream type: ${streamType}`);
-  }
-}

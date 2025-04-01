@@ -8,7 +8,7 @@ import { TxReceipt } from "@kwilteam/kwil-js/dist/core/tx";
 import { TxInfoReceipt } from "@kwilteam/kwil-js/dist/core/txQuery";
 import { ComposedStream } from "../contracts-api/composedStream";
 import { deployStream } from "../contracts-api/deployStream";
-import { destroyStream } from "../contracts-api/destroyStream";
+import { deleteStream } from "../contracts-api/deleteStream";
 import { PrimitiveStream } from "../contracts-api/primitiveStream";
 import { Stream } from "../contracts-api/stream";
 import { StreamType } from "../contracts-api/contractValues";
@@ -116,16 +116,16 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
 
   /**
    * Destroys a stream.
-   * @param streamId - The ID of the stream to destroy.
+   * @param stream - The StreamLocator of the stream to destroy.
    * @param synchronous - Whether the destruction should be synchronous.
    * @returns A promise that resolves to a generic response containing the transaction receipt.
    */
   async destroyStream(
-    streamId: StreamId,
+    stream: StreamLocator,
     synchronous?: boolean,
   ): Promise<GenericResponse<TxReceipt>> {
-    return await destroyStream({
-      streamId,
+    return await deleteStream({
+      stream,
       synchronous,
       kwilClient: this.getKwilClient(),
       kwilSigner: this.getKwilSigner(),
