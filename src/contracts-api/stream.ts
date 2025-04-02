@@ -1,6 +1,5 @@
-import { KwilSigner, NodeKwil, WebKwil } from "@kwilteam/kwil-js";
+import {KwilSigner, NodeKwil, Types, WebKwil} from "@kwilteam/kwil-js";
 import {ActionInput, NamedParams} from "@kwilteam/kwil-js/dist/core/action";
-import { Database } from "@kwilteam/kwil-js/dist/core/database";
 import { GenericResponse } from "@kwilteam/kwil-js/dist/core/resreq";
 import { TxReceipt } from "@kwilteam/kwil-js/dist/core/tx";
 import { generateDBID } from "@kwilteam/kwil-js/dist/utils/dbid";
@@ -18,26 +17,30 @@ import {
   MetadataValueTypeForKey,
   StreamType,
 } from "./contractValues";
+import ActionBody = Types.ActionBody;
+import {ValueType} from "@kwilteam/kwil-js/dist/utils/types";
 
 export interface GetRecordInput {
-  dateFrom?: DateString | number;
-  dateTo?: DateString | number;
+  stream: StreamLocator;
+  from?: number;
+  to?: number;
   frozenAt?: number;
-  baseDate?: DateString | number;
+  baseTime?: DateString | number;
 }
 
 export interface GetFirstRecordInput {
-  afterDate?: DateString | number;
-  frozenAt?: DateString | number;
+  stream: StreamLocator;
+  after?: number;
+  frozenAt?: number;
 }
 
 export interface StreamRecord {
-  dateValue: DateString | number;
+  eventTime: number;
   value: string;
 }
 
 export interface GetIndexChangeInput extends GetRecordInput {
-  daysInterval: number;
+  timeInterval: number;
 }
 
 export class Stream {
@@ -54,7 +57,7 @@ export class Stream {
   /**
    * Executes a method on the stream
    */
-  protected async execute(
+  protected async executeWithNamedParams(
     method: string,
     inputs: NamedParams[],
   ): Promise<GenericResponse<TxReceipt>> {
@@ -68,18 +71,27 @@ export class Stream {
         );
   }
 
+    /**
+     * Executes a method on the stream
+     */
+    protected async executeWithActionBody(
+        inputs: ActionBody,
+    ): Promise<GenericResponse<TxReceipt>> {
+        return this.kwilClient.execute(inputs, this.kwilSigner);
+    }
+
   /**
    * Calls a method on the stream
    */
   protected async call<T>(
     method: string,
-    inputs: ActionInput[],
+    inputs: NamedParams,
   ): Promise<Either<number, T>> {
     const result = await this.kwilClient.call(
       {
-        dbid: this.dbid,
+        namespace: "main",
         name: method,
-        inputs,
+        inputs: inputs,
       },
       this.kwilSigner,
     );
@@ -95,22 +107,20 @@ export class Stream {
    * Returns the records of the stream within the given date range
    */
   public async getRecord(input: GetRecordInput): Promise<StreamRecord[]> {
-    // TODO: change value to string when kwil-js is updated
-    const result = await this.call<{ date_value: string; value: string }[]>(
-      "get_record",
-      [
-        ActionInput.fromObject({
-          $date_from: input.dateFrom,
-          $date_to: input.dateTo,
+    const result = await this.call<{ event_time: number; value: string }[]>(
+        "get_record",
+        {
+          $data_provider: input.stream.dataProvider.getAddress(),
+          $stream_id: input.stream.streamId.getId(),
+          $from: input.from,
+          $to: input.to,
           $frozen_at: input.frozenAt,
-          $base_date: input.baseDate,
-        }),
-      ],
+        }
     );
     return result
       .mapRight((result) =>
         result.map((row) => ({
-          dateValue: row.date_value,
+          eventTime: row.event_time,
           value: row.value,
         })),
       )
@@ -121,21 +131,21 @@ export class Stream {
    * Returns the index of the stream within the given date range
    */
   public async getIndex(input: GetRecordInput): Promise<StreamRecord[]> {
-    const result = await this.call<{ date_value: string; value: string }[]>(
+    const result = await this.call<{ event_time: number; value: string }[]>(
       "get_index",
-      [
-        ActionInput.fromObject({
-          $date_from: input.dateFrom,
-          $date_to: input.dateTo,
+        {
+          $data_provider: input.stream.dataProvider.getAddress(),
+          $stream_id: input.stream.streamId.getId(),
+          $from: input.from,
+          $to: input.to,
           $frozen_at: input.frozenAt,
-          $base_date: input.baseDate,
-        }),
-      ],
+          $base_time: input.baseTime,
+        }
     );
     return result
       .mapRight((result) =>
         result.map((row) => ({
-          dateValue: row.date_value,
+          eventTime: row.event_time,
           value: row.value,
         })),
       )
@@ -173,14 +183,14 @@ export class Stream {
   public async getFirstRecord(
     input: GetFirstRecordInput,
   ): Promise<StreamRecord | null> {
-    const result = await this.call<{ date_value: string; value: string }[]>(
+    const result = await this.call<{ event_time: number; value: string }[]>(
       "get_first_record",
-      [
-        ActionInput.fromObject({
-          $after_date: input.afterDate,
-          $frozen_at: input.frozenAt,
-        }),
-      ],
+        {
+            $data_provider: input.stream.dataProvider.getAddress(),
+            $stream_id: input.stream.streamId.getId(),
+            $after: input.after,
+            $frozen_at: input.frozenAt,
+        }
     );
 
     return result
@@ -188,7 +198,7 @@ export class Stream {
       .mapRight((result) =>
         result
           .map((result) => ({
-            dateValue: result.date_value,
+            eventTime: result.event_time,
             value: result.value,
           }))
           .unwrapOr(null),
@@ -200,7 +210,7 @@ export class Stream {
     key: K,
     value: MetadataValueTypeForKey<K>,
   ): Promise<GenericResponse<TxReceipt>> {
-    return await this.execute("insert_metadata", [
+    return await this.executeWithNamedParams("insert_metadata", [
       ActionInput.fromObject({
         $key: key,
         $value: value,
@@ -372,7 +382,7 @@ export class Stream {
   protected async disableMetadata(
     rowId: string,
   ): Promise<GenericResponse<TxReceipt>> {
-    return await this.execute("disable_metadata", [
+    return await this.executeWithNamedParams("disable_metadata", [
       ActionInput.fromObject({
         $row_id: rowId,
       }),
@@ -413,23 +423,23 @@ export class Stream {
   public async getIndexChange(
     input: GetIndexChangeInput,
   ): Promise<StreamRecord[]> {
-    const result = await this.call<{ date_value: string; value: string }[]>(
-      "get_index_change",
-      [
-        ActionInput.fromObject({
-          $date_from: input.dateFrom,
-          $date_to: input.dateTo,
+    const result = await this.call<{ event_time: number; value: string }[]>(
+      "get_index_change", 
+        {
+          $data_provider: input.stream.dataProvider.getAddress(),
+          $stream_id: input.stream.streamId.getId(),
+          $from: input.from,
+          $to: input.to,
           $frozen_at: input.frozenAt,
-          $base_date: input.baseDate,
-          $days_interval: input.daysInterval,
-        }),
-      ],
+          $base_time: input.baseTime,
+          $time_interval: input.timeInterval,
+        }
     );
 
     return result
       .mapRight((result) =>
         result.map((row) => ({
-          dateValue: row.date_value,
+          eventTime: row.event_time,
           value: row.value,
         })),
       )
@@ -446,21 +456,20 @@ export class Stream {
     procedure: string,
     input: GetRecordInput,
   ): Promise<StreamRecord[]> {
-    const result = await this.call<{ date_value: string; value: string }[]>(
+    const result = await this.call<{ event_time: number; value: string }[]>(
       procedure,
-      [
-        ActionInput.fromObject({
-          $date_from: input.dateFrom,
-          $date_to: input.dateTo,
-          $frozen_at: input.frozenAt,
-          $base_date: input.baseDate,
-        }),
-      ],
+        {
+          $data_provider: input.stream.dataProvider.getAddress(),
+          $stream_id: input.stream.streamId.getId(),
+          $from: input.from,
+          $to: input.to,
+          $frozen_at: input.frozenAt
+        }
     );
     return result
       .mapRight((result) =>
         result.map((row) => ({
-          dateValue: row.date_value,
+          eventTime: row.event_time,
           value: row.value,
         })),
       )
@@ -479,18 +488,16 @@ export class Stream {
    */
   public async customProcedureWithArgs(
     procedure: string,
-    args: Record<string, any>,
+    args: Record<string, ValueType | ValueType[]>,
   ){
-    const result = await this.call<{ date_value: string; value: string }[]>(
-      procedure,
-      [
-        ActionInput.fromObject(args),
-      ],
+      const result = await this.call<{ event_time: number; value: string }[]>(
+          procedure,
+          args
     );
     return result
       .mapRight((result) =>
         result.map((row) => ({
-          dateValue: row.date_value,
+          eventTime: row.event_time,
           value: row.value,
         })),
       )

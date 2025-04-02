@@ -50,7 +50,14 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
           .catch(() => ({ data: undefined, status: undefined }));
         switch (receipt.status) {
           case 200:
-            resolve(receipt.data!);
+            if (receipt.data?.tx_result?.log !== undefined && receipt.data?.tx_result?.log.includes("ERROR")) {
+              reject(
+                  new Error(
+                      `Transaction failed: status ${receipt.status} : log message ${receipt.data?.tx_result.log}`,
+                  ))
+            } else {
+              resolve(receipt.data!);
+            }
             break;
           case undefined:
             break;
