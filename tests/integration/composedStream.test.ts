@@ -108,8 +108,8 @@ describe.sequential(
 
           // Query records after the taxonomy start date
           const records = await composedStream.getRecord({
-            from: "2020-02-01",
-            to: "2020-02-02",
+            from: new Date("2020-02-01").getTime() / 1000,
+            to: new Date("2020-02-02").getTime() / 1000,
           });
 
           // Verify records
