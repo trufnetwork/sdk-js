@@ -50,8 +50,8 @@ describe.sequential("Permissions", { timeout: 90000 }, () => {
 
         // Test public read access
         const publicRecords = await readerPrimitiveStream.getRecord({
-          dateFrom: "2024-01-01",
-          dateTo: "2024-01-01",
+          from: "2024-01-01",
+          to: "2024-01-01",
         });
         expect(publicRecords.length).toBe(1);
         expect(publicRecords[0].value).toBe("100.000000000000000000");
@@ -62,16 +62,16 @@ describe.sequential("Permissions", { timeout: 90000 }, () => {
 
         // Verify owner can still read
         const ownerRecords = await primitiveStream.getRecord({
-          dateFrom: "2024-01-01",
-          dateTo: "2024-01-01",
+          from: "2024-01-01",
+          to: "2024-01-01",
         });
         expect(ownerRecords.length).toBe(1);
 
         // Verify reader cannot read when private
         await expect(
           readerPrimitiveStream.getRecord({
-            dateFrom: "2024-01-01",
-            dateTo: "2024-01-01",
+            from: "2024-01-01",
+            to: "2024-01-01",
           }),
         ).rejects.toThrow();
 
@@ -82,8 +82,8 @@ describe.sequential("Permissions", { timeout: 90000 }, () => {
 
         // Verify reader can now read
         const allowedRecords = await readerPrimitiveStream.getRecord({
-          dateFrom: "2024-01-01",
-          dateTo: "2024-01-01",
+          from: "2024-01-01",
+          to: "2024-01-01",
         });
         expect(allowedRecords.length).toBe(1);
 
@@ -94,8 +94,8 @@ describe.sequential("Permissions", { timeout: 90000 }, () => {
         // Verify reader cannot read after being disabled
         await expect(
           readerPrimitiveStream.getRecord({
-            dateFrom: "2024-01-01",
-            dateTo: "2024-01-01",
+            from: "2024-01-01",
+            to: "2024-01-01",
           }),
         ).rejects.toThrow();
       } finally {
@@ -158,8 +158,8 @@ describe.sequential("Permissions", { timeout: 90000 }, () => {
 
         // Test public access
         const publicRecords = await readerComposedStream.getRecord({
-          dateFrom: "2024-01-01",
-          dateTo: "2024-01-01",
+          from: "2024-01-01",
+          to: "2024-01-01",
         });
         expect(publicRecords.length).toBe(1);
 
@@ -170,8 +170,8 @@ describe.sequential("Permissions", { timeout: 90000 }, () => {
         // Verify composed stream fails when child is private
         await expect(
           readerComposedStream.getRecord({
-            dateFrom: "2024-01-01",
-            dateTo: "2024-01-01",
+            from: "2024-01-01",
+            to: "2024-01-01",
           }),
         ).rejects.toThrow();
 
@@ -183,8 +183,8 @@ describe.sequential("Permissions", { timeout: 90000 }, () => {
 
         // Verify composed stream works when allowed
         const allowedRecords = await readerComposedStream.getRecord({
-          dateFrom: "2024-01-01",
-          dateTo: "2024-01-01",
+          from: "2024-01-01",
+          to: "2024-01-01",
         });
         expect(allowedRecords.length).toBe(1);
 
@@ -195,8 +195,8 @@ describe.sequential("Permissions", { timeout: 90000 }, () => {
         // Verify reader cannot access private composed stream
         await expect(
           readerComposedStream.getRecord({
-            dateFrom: "2024-01-01",
-            dateTo: "2024-01-01",
+            from: "2024-01-01",
+            to: "2024-01-01",
           }),
         ).rejects.toThrow();
 
@@ -207,8 +207,8 @@ describe.sequential("Permissions", { timeout: 90000 }, () => {
 
         // Verify reader can access when allowed
         const finalRecords = await readerComposedStream.getRecord({
-          dateFrom: "2024-01-01",
-          dateTo: "2024-01-01",
+          from: "2024-01-01",
+          to: "2024-01-01",
         });
         expect(finalRecords.length).toBe(1);
       } finally {

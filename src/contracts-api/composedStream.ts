@@ -64,7 +64,7 @@ export class ComposedStream extends Stream {
     inputs: ActionInput[],
   ): Promise<GenericResponse<TxReceipt>> {
     await this.checkValidComposedStream();
-    return this.execute(method, inputs);
+    return this.executeWithNamedParams(method, inputs);
   }
 
   /**

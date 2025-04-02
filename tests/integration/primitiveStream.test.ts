@@ -25,9 +25,6 @@ describe.sequential(
           );
           expect(deployReceipt.status).toBe(200);
 
-          // TODO: complete the test.
-          return;
-
           // Load the deployed stream
           const primitiveStream = defaultClient.loadPrimitiveStream();
 
@@ -46,64 +43,80 @@ describe.sequential(
           }
           await defaultClient.waitForTx(insertTx.data?.tx_hash!);
 
-          // TODO: complete the test.
-          return;
-
           // Query records
           const records = await primitiveStream.getRecord({
-            dateFrom: "2020-01-01",
-            dateTo: "2021-01-01",
+              stream: {
+                  streamId,
+                  dataProvider: defaultClient.address(),
+              },
+              from: new Date("2020-01-01").getTime() / 1000,
+              to: new Date("2021-01-01").getTime() / 1000,
           });
 
           // Verify record content
           expect(records.length).toBe(1);
           expect(records[0].value).toBe("1.000000000000000000");
-          expect(records[0].dateValue).toBe("2020-01-01");
+          expect(Number(records[0].eventTime)).toBe(new Date("2020-01-01").getTime() / 1000);
 
           // Use Custom Procedure with the same name "get_record"
           const customRecords = await primitiveStream.customGetProcedure(
             "get_record",
             {
-              dateFrom: "2020-01-01",
-              dateTo: "2021-01-01",
+                stream: {
+                    streamId,
+                    dataProvider: defaultClient.address(),
+                },
+                from: new Date("2020-01-01").getTime() / 1000,
+                to: new Date("2021-01-01").getTime() / 1000,
             },
           );
 
           // Verify record content from the custom procedure
           expect(customRecords.length).toBe(1);
           expect(customRecords[0].value).toBe("1.000000000000000000");
-          expect(customRecords[0].dateValue).toBe("2020-01-01");
+          expect(Number(customRecords[0].eventTime)).toBe(new Date("2020-01-01").getTime() / 1000);
 
           // Query index
           const index = await primitiveStream.getIndex({
-            dateFrom: "2020-01-01",
-            dateTo: "2021-01-01",
+              stream: {
+                streamId,
+                dataProvider: defaultClient.address(),
+            },
+              from: new Date("2020-01-01").getTime() / 1000,
+              to: new Date("2021-01-01").getTime() / 1000,
           });
 
           // Verify index content
           expect(index.length).toBe(1);
           expect(index[0].value).toBe("100.000000000000000000");
-          expect(index[0].dateValue).toBe("2020-01-01");
+          expect(Number(index[0].eventTime)).toBe(new Date("2020-01-01").getTime() / 1000);
 
           // Query first record
-          const firstRecord = await primitiveStream.getFirstRecord({});
+          const firstRecord = await primitiveStream.getFirstRecord({
+            stream: {
+              streamId,
+              dataProvider: defaultClient.address(),
+            },
+          });
           expect(firstRecord).not.toBeNull();
           expect(firstRecord?.value).toBe("1.000000000000000000");
-          expect(firstRecord?.dateValue).toBe("2020-01-01");
+          expect(Number(firstRecord?.eventTime)).toBe(new Date("2020-01-01").getTime() / 1000);
 
           // Query using custom procedure with args with the same name "get_record"
           const customRecordsWithArgs = await primitiveStream.customProcedureWithArgs(
               "get_record",
               {
-                $date_from: "2020-01-01",
-                $date_to: "2021-01-01",
-                $frozen_at: null,
+                  $data_provider: defaultClient.address().getAddress(),
+                  $stream_id: streamId.getId(),
+                  $from: new Date("2020-01-01").getTime() / 1000,
+                  $to: new Date("2021-01-01").getTime() / 1000,
+                  $frozen_at: null,
               },
           );
           // Verify record content from the custom procedure
           expect(customRecordsWithArgs.length).toBe(1);
           expect(customRecordsWithArgs[0].value).toBe("1.000000000000000000");
-          expect(customRecordsWithArgs[0].dateValue).toBe("2020-01-01");
+          expect(Number(customRecordsWithArgs[0].eventTime)).toBe(new Date("2020-01-01").getTime() / 1000);
         } finally {
           // Cleanup: destroy the stream after test
           await defaultClient.destroyStream({
@@ -117,9 +130,6 @@ describe.sequential(
     testWithDefaultWallet(
       "should calculate index changes correctly",
       async ({ defaultClient }) => {
-        // TODO: complete the test.
-        return;
-
         // Generate a unique stream ID
         const streamId = await StreamId.generate("test-primitive-stream");
 
@@ -147,30 +157,31 @@ describe.sequential(
           const currentTx = await primitiveStream.insertRecords(currentRecords);
           await defaultClient.waitForTx(currentTx.data!.tx_hash!);
 
-          // TODO: complete the test.
-          return;
-
           // Calculate year-over-year changes
           const changes = await primitiveStream.getIndexChange({
-            dateFrom: "2023-01-01",
-            dateTo: "2023-12-31",
-            daysInterval: 365,
-            baseDate: "2022-01-01",
+              stream: {
+                  streamId,
+                  dataProvider: defaultClient.address(),
+              },
+              from: new Date("2023-01-01").getTime() / 1000,
+              to: new Date("2023-12-31").getTime() / 1000,
+              timeInterval: 365 * 24 * 60 * 60,
+              baseTime: new Date("2022-01-01").getTime() / 1000,
           });
 
           // Verify the changes
           expect(changes.length).toBe(3);
 
           // 2023-01-01 vs 2022-01-01: ((200 - 100) / 100) * 100 = 100%
-          expect(changes[0].dateValue).toBe("2023-01-01");
+          expect(Number(changes[0].eventTime)).toBe(new Date("2023-01-01").getTime() / 1000);
           expect(parseFloat(changes[0].value)).toBeCloseTo(100);
 
           // 2023-06-01 vs 2022-06-01: ((180 - 120) / 120) * 100 = 50%
-          expect(changes[1].dateValue).toBe("2023-06-01");
+          expect(Number(changes[1].eventTime)).toBe(new Date("2023-06-01").getTime() / 1000);
           expect(parseFloat(changes[1].value)).toBeCloseTo(50);
 
           // 2023-12-01 vs 2022-12-01: ((240 - 150) / 150) * 100 = 60%
-          expect(changes[2].dateValue).toBe("2023-12-01");
+          expect(Number(changes[2].eventTime)).toBe(new Date("2023-12-01").getTime() / 1000);
           expect(parseFloat(changes[2].value)).toBeCloseTo(60);
         } finally {
           // Cleanup
@@ -185,9 +196,6 @@ describe.sequential(
     testWithDefaultWallet(
         "should deploy, initialize, write to, and read from a primitive stream version 2",
         async ({ defaultClient }) => {
-          // TODO: complete the test.
-          return;
-
           // Generate a unique stream ID
           const streamId = await StreamId.generate("test-primitive-stream-v2");
 
@@ -218,50 +226,64 @@ describe.sequential(
             }
             await defaultClient.waitForTx(insertTx.data?.tx_hash!);
 
-            // TODO: complete the test.
-            return;
-
             // Query records
             const records = await primitiveStream.getRecord({
-              dateFrom: 1,
-              dateTo: 1,
+              stream: {
+                  streamId,
+                  dataProvider: defaultClient.address(),
+              },
+              from: 1,
+              to: 1,
             });
 
             // Verify record content
             expect(records.length).toBe(1);
             expect(records[0].value).toBe("1.000000000000000000");
-            expect(records[0].dateValue).toBe(1);
+            expect(Number(records[0].eventTime)).toBe(1);
 
             // Use Custom Procedure with the same name "get_record"
             const customRecords = await primitiveStream.customGetProcedure(
                 "get_record",
                 {
-                  dateFrom: 1,
-                  dateTo: 1,
+                    stream: {
+                        streamId,
+                        dataProvider: defaultClient.address(),
+                    },
+                    from: 1,
+                    to: 1,
                 },
             );
 
             // Verify record content from the custom procedure
             expect(customRecords.length).toBe(1);
             expect(customRecords[0].value).toBe("1.000000000000000000");
-            expect(customRecords[0].dateValue).toBe(1);
+            expect(Number(customRecords[0].eventTime)).toBe(1);
 
             // Query index
             const index = await primitiveStream.getIndex({
-              dateFrom: 1,
-              dateTo: 1,
+              stream: {
+                  streamId,
+                  dataProvider: defaultClient.address(),
+              },
+              from: 1,
+              to: 1,
             });
 
             // Verify index content
             expect(index.length).toBe(1);
             expect(index[0].value).toBe("100.000000000000000000");
-            expect(index[0].dateValue).toBe(1);
+            expect(Number(index[0].eventTime)).toBe(1);
 
             // Query first record
-            const firstRecord = await primitiveStream.getFirstRecord({});
+            const firstRecord = await primitiveStream.getFirstRecord({
+                stream: {
+                    streamId,
+                    dataProvider: defaultClient.address(),
+                }
+            });
             expect(firstRecord).not.toBeNull();
             expect(firstRecord?.value).toBe("1.000000000000000000");
-            expect(firstRecord?.dateValue).toBe(1);
+            expect(Number(firstRecord?.eventTime)).toBe(1);
           } finally {
             // Cleanup: destroy the stream after test
             await defaultClient.destroyStream({

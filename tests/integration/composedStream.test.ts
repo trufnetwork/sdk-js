@@ -108,8 +108,8 @@ describe.sequential(
 
           // Query records after the taxonomy start date
           const records = await composedStream.getRecord({
-            dateFrom: "2020-02-01",
-            dateTo: "2020-02-02",
+            from: "2020-02-01",
+            to: "2020-02-02",
           });
 
           // Verify records
@@ -122,9 +122,9 @@ describe.sequential(
 
           // Query index values
           const index = await composedStream.getIndex({
-            dateFrom: "2020-01-30",
-            dateTo: "2020-02-01",
-            baseDate: "2020-01-30",
+            from: "2020-01-30",
+            to: "2020-02-01",
+            baseTime: "2020-01-30",
           });
 
           // Verify index values
@@ -245,8 +245,8 @@ describe.sequential(
 
             // Query records after the taxonomy start date
             const records = await composedStream.getRecord({
-              dateFrom: 4,
-              dateTo: 5,
+              from: 4,
+              to: 5,
             });
 
             // Verify records
@@ -259,9 +259,9 @@ describe.sequential(
 
             // Query index values
             const index = await composedStream.getIndex({
-              dateFrom: 3,
-              dateTo: 4,
-              baseDate: 3,
+              from: 3,
+              to: 4,
+              baseTime: 3,
             });
 
             // Verify index values

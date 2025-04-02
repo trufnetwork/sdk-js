@@ -1,10 +1,10 @@
-import {KwilSigner, NodeKwil, WebKwil} from "@kwilteam/kwil-js";
-import {ActionInput, NamedParams} from "@kwilteam/kwil-js/dist/core/action";
+import {KwilSigner, NodeKwil, Utils, WebKwil} from "@kwilteam/kwil-js";
 import {GenericResponse} from "@kwilteam/kwil-js/dist/core/resreq";
 import {TxReceipt} from "@kwilteam/kwil-js/dist/core/tx";
 import {StreamType} from "./contractValues";
 import {Stream} from "./stream";
 import {StreamLocator} from "../types/stream";
+import DataType = Utils.DataType;
 
 const ErrorStreamNotPrimitive = "stream is not a primitive stream";
 
@@ -38,12 +38,22 @@ export class PrimitiveStream extends Stream {
   public async insertRecord(
       input: InsertRecordInput,
   ): Promise<GenericResponse<TxReceipt>> {
-    return await this.execute("insert_record", [{
-      $data_provider: input.stream.dataProvider.getAddress(),
-      $stream_id: input.stream.streamId.getId(),
-      $event_time: input.eventTime,
-      $value: input.value
-    }]);
+    return await this.executeWithActionBody({
+          namespace: 'main',
+          name: 'insert_record',
+          inputs: [{
+            $data_provider: input.stream.dataProvider.getAddress(),
+            $stream_id: input.stream.streamId.getId(),
+            $event_time: input.eventTime,
+            $value: input.value
+          }],
+          types: {
+            $data_provider: DataType.Text,
+            $stream_id: DataType.Text,
+            $event_time: DataType.Int,
+            $value: DataType.Numeric(36, 18)
+          }
+    })
   }
 
     /**
@@ -54,13 +64,23 @@ export class PrimitiveStream extends Stream {
     public async insertRecords(
         inputs: InsertRecordInput[],
     ): Promise<GenericResponse<TxReceipt>> {
-        return await this.execute("insert_records", inputs.map((input) => ({
+      return await this.executeWithActionBody({
+        namespace: 'main',
+        name: 'insert_records',
+        inputs: inputs.map((input) => ({
           $data_provider: input.stream.dataProvider.getAddress(),
           $stream_id: input.stream.streamId.getId(),
           $event_time: input.eventTime,
-          $value: input.value,
-        })));
-  }
+          $value: input.value
+        })),
+        types: {
+          $data_provider: DataType.TextArray,
+          $stream_id: DataType.TextArray,
+          $event_time: DataType.IntArray,
+          $value: DataType.NumericArray(36, 18)
+        }
+      })
+    }
 
   /**
    * Creates a PrimitiveStream from a base Stream
