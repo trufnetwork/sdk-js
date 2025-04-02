@@ -50,8 +50,8 @@ describe.sequential("Permissions", { timeout: 90000 }, () => {
 
         // Test public read access
         const publicRecords = await readerPrimitiveStream.getRecord({
-          from: "2024-01-01",
-          to: "2024-01-01",
+          from: new Date("2024-01-01").getTime() / 1000,
+          to: new Date("2024-01-01").getTime() / 1000,
         });
         expect(publicRecords.length).toBe(1);
         expect(publicRecords[0].value).toBe("100.000000000000000000");
