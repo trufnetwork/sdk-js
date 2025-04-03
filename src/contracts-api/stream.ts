@@ -76,8 +76,9 @@ export class Stream {
      */
     protected async executeWithActionBody(
         inputs: ActionBody,
+        synchronous: boolean = false,
     ): Promise<GenericResponse<TxReceipt>> {
-        return this.kwilClient.execute(inputs, this.kwilSigner);
+        return this.kwilClient.execute(inputs, this.kwilSigner, synchronous);
     }
 
   /**

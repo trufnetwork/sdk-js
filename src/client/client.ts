@@ -160,15 +160,10 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
 
   /**
    * Loads a composed stream.
-   * @param stream - The locator of the composed stream to load.
    * @returns An instance of IComposedStream.
    */
-  loadComposedStream(stream: StreamLocator): ComposedStream {
-    return new ComposedStream(
-      this.getKwilClient() as WebKwil | NodeKwil,
-      this.getKwilSigner(),
-      stream,
-    );
+  loadComposedStream(): ComposedStream {
+    return ComposedStream.fromStream(this.loadStream());
   }
 
   /**
