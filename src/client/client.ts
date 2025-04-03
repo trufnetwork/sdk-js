@@ -15,7 +15,7 @@ import { StreamType } from "../contracts-api/contractValues";
 import { StreamLocator } from "../types/stream";
 import { EthereumAddress } from "../util/EthereumAddress";
 import { StreamId } from "../util/StreamId";
-import { listAllStreams } from "./listAllStreams";
+import { listStreams } from "./listStreams";
 
 export interface SignerInfo {
   // we need to have the address upfront to create the KwilSigner, instead of relying on the signer to return it asynchronously
@@ -27,6 +27,13 @@ export type TNClientOptions = {
   endpoint: string;
   signerInfo: SignerInfo;
 } & Omit<KwilConfig, "kwilProvider">;
+
+export interface ListStreamsInput {
+    dataProvider?: string;
+    limit?: number;
+    offset?: number;
+    orderBy?: string;
+}
 
 export abstract class BaseTNClient<T extends EnvironmentType> {
   protected kwilClient: Kwil<T> | undefined;
@@ -188,11 +195,11 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
 
   /**
    * Returns all streams from the TN network.
-   * @param owner - The owner of the streams. If not provided, all streams will be returned.
+   * @param input - The input parameters for listing streams.
    * @returns A promise that resolves to a list of stream locators.
    */
-  async getAllStreams(owner?: EthereumAddress): Promise<StreamLocator[]> {
-    return listAllStreams(this.getKwilClient(), owner);
+  async getListStreams(input: ListStreamsInput): Promise<StreamLocator[]> {
+    return listStreams(this.getKwilClient() as WebKwil | NodeKwil,this.getKwilSigner(),input);
   }
 
   /**
