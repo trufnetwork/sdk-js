@@ -154,7 +154,7 @@ describe.sequential(
             { stream: { streamId, dataProvider: defaultClient.address() }, eventTime: new Date("2023-06-01").getTime() / 1000, value: "180" },
             { stream: { streamId, dataProvider: defaultClient.address() }, eventTime: new Date("2023-12-01").getTime() / 1000, value: "240" },
           ];
-          const currentTx = await primitiveStream.insertRecords(currentRecords);
+          const currentTx = await primitiveStream.insertRecords(currentRecords, true);
           await defaultClient.waitForTx(currentTx.data!.tx_hash!);
 
           // Calculate year-over-year changes

@@ -59,10 +59,12 @@ export class PrimitiveStream extends Stream {
     /**
      * Inserts records into the stream
      * @param inputs Array of records to insert
+     * @param synchronous If true, the transaction will be executed synchronously
      * @returns Transaction receipt
      */
     public async insertRecords(
         inputs: InsertRecordInput[],
+        synchronous?: boolean,
     ): Promise<GenericResponse<TxReceipt>> {
       return await this.executeWithActionBody({
         namespace: 'main',
@@ -79,7 +81,7 @@ export class PrimitiveStream extends Stream {
           $event_time: DataType.IntArray,
           $value: DataType.NumericArray(36, 18)
         }
-      })
+      }, synchronous)
     }
 
   /**
