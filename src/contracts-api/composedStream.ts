@@ -1,5 +1,4 @@
-import { KwilSigner, NodeKwil, WebKwil } from "@kwilteam/kwil-js";
-import { ActionInput } from "@kwilteam/kwil-js/dist/core/action";
+import {KwilSigner, NodeKwil, Utils, WebKwil} from "@kwilteam/kwil-js";
 import { GenericResponse } from "@kwilteam/kwil-js/dist/core/resreq";
 import { TxReceipt } from "@kwilteam/kwil-js/dist/core/tx";
 import { DateString } from "../types/other";
@@ -8,12 +7,14 @@ import { EthereumAddress } from "../util/EthereumAddress";
 import { StreamId } from "../util/StreamId";
 import { StreamType } from "./contractValues";
 import { Stream } from "./stream";
+import DataType = Utils.DataType;
 
 export const ErrorStreamNotComposed = "stream is not a composed stream";
 
 export interface TaxonomySet {
+  stream: StreamLocator;
   taxonomyItems: TaxonomyItem[];
-  startDate: DateString | number;
+  startDate: number;
 }
 
 export interface TaxonomyItem {
@@ -22,10 +23,11 @@ export interface TaxonomyItem {
 }
 
 export interface DescribeTaxonomiesParams {
+  stream: StreamLocator;
   /**
    * if true, will return the latest version of the taxonomy only
    */
-  latestVersion: boolean;
+  latestGroupSequence: boolean;
 }
 
 export class ComposedStream extends Stream {
@@ -43,28 +45,11 @@ export class ComposedStream extends Stream {
    * - of type composed
    */
   private async checkValidComposedStream(): Promise<void> {
-    // First check if initialized
-    await this.checkInitialized(StreamType.Composed);
-
     // Then check if is composed
     const streamType = await this.getType();
     if (streamType !== StreamType.Composed) {
       throw new Error(ErrorStreamNotComposed);
     }
-  }
-
-  /**
-   * Executes a method after checking if the stream is a valid composed stream
-   * @param method The method name to execute
-   * @param inputs The inputs for the action
-   * @returns A generic response containing the transaction receipt
-   */
-  private async checkedComposedExecute(
-    method: string,
-    inputs: ActionInput[],
-  ): Promise<GenericResponse<TxReceipt>> {
-    await this.checkValidComposedStream();
-    return this.executeWithNamedParams(method, inputs);
   }
 
   /**
@@ -76,23 +61,32 @@ export class ComposedStream extends Stream {
     params: DescribeTaxonomiesParams,
   ): Promise<TaxonomySet[]> {
     type TaxonomyResult = {
-      child_stream_id: string;
+      data_provider: string;
+      stream_id: string;
       child_data_provider: string;
+      child_stream_id: string;
       weight: string;
       created_at: number;
-      version: number;
-      start_date: string | number;
+      group_sequence: number;
+      start_date: number;
     }[];
 
-    const result = await this.call<TaxonomyResult>("describe_taxonomies", [
-      ActionInput.fromObject({ $latest_version: params.latestVersion }),
-    ]);
+    const result = await this.call<TaxonomyResult>(
+        "describe_taxonomies",
+        {
+            $data_provider: params.stream.dataProvider.getAddress(),
+            $stream_id: params.stream.streamId.getId(),
+            $latest_group_sequence: params.latestGroupSequence,
+        },
+    );
+
+
 
     return result
       .mapRight((records) => {
         const taxonomyItems: Map<DateString, TaxonomyItem[]> = records.reduce(
           (acc, record) => {
-            const currentArray = acc.get(<string>record.start_date) || [];
+            const currentArray = acc.get(record.start_date.toString()) || [];
             currentArray.push({
               childStream: {
                 streamId: StreamId.fromString(record.child_stream_id).throw(),
@@ -102,21 +96,22 @@ export class ComposedStream extends Stream {
               },
               weight: record.weight,
             });
-            acc.set(<string>record.start_date, currentArray);
+            acc.set(record.start_date.toString(), currentArray);
             return acc;
           },
           new Map<DateString, TaxonomyItem[]>(),
         );
 
-        let startDate: string | number;
-        if (records.length > 0 && records[0].start_date) {
-          startDate = records[0].start_date;
-        }
-
         return Array.from(taxonomyItems.entries()).map(
           ([startDate, taxonomyItems]) => ({
-            startDate,
+            stream: {
+              streamId: StreamId.fromString(records[0].stream_id).throw(),
+              dataProvider: EthereumAddress.fromString(
+                records[0].data_provider,
+              ).throw(),
+            },
             taxonomyItems,
+            startDate: Number(startDate)
           }),
         );
       })
@@ -131,28 +126,38 @@ export class ComposedStream extends Stream {
   public async setTaxonomy(
     taxonomy: TaxonomySet,
   ): Promise<GenericResponse<TxReceipt>> {
-    const dataProviders: string[] = [];
-    const streamIds: string[] = [];
+    const childDataProviders: string[] = [];
+    const childStreamIds: string[] = [];
     const weights: string[] = [];
-    const startDate = taxonomy.startDate;
 
     for (const item of taxonomy.taxonomyItems) {
-      const dataProviderHex = item.childStream.dataProvider
-        .getAddress()
-        .slice(2); // Remove 0x prefix
-      dataProviders.push(dataProviderHex);
-      streamIds.push(item.childStream.streamId.getId());
+      childDataProviders.push(item.childStream.dataProvider
+          .getAddress());
+      childStreamIds.push(item.childStream.streamId.getId());
       weights.push(item.weight.toString());
     }
 
-    return this.checkedComposedExecute("set_taxonomy", [
-      ActionInput.fromObject({
-        $data_providers: dataProviders,
-        $stream_ids: streamIds,
-        $weights: weights,
-        $start_date: startDate,
-      }),
-    ]);
+    return await this.executeWithActionBody({
+        namespace: "main",
+        name: "insert_taxonomy",
+        inputs: [
+          {
+            $data_provider: taxonomy.stream.dataProvider.getAddress(),
+            $stream_id: taxonomy.stream.streamId.getId(),
+            $child_data_providers: childDataProviders,
+            $child_stream_ids: childStreamIds,
+            $weights: weights,
+            $start_date: taxonomy.startDate
+          },
+        ],
+        types: {
+          $data_provider: DataType.Text,
+          $stream_id: DataType.Text,
+          $child_data_providers: DataType.TextArray,
+          $child_stream_ids: DataType.TextArray,
+          $weights: DataType.NumericArray(36,18),
+          $start_date: DataType.Int
+        }});
   }
 
   /**

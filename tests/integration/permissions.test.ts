@@ -62,8 +62,8 @@ describe.sequential("Permissions", { timeout: 90000 }, () => {
 
         // Verify owner can still read
         const ownerRecords = await primitiveStream.getRecord({
-          from: "2024-01-01",
-          to: "2024-01-01",
+          from: new Date("2024-01-01").getTime() / 1000,
+          to: new Date("2024-01-01").getTime() / 1000,
         });
         expect(ownerRecords.length).toBe(1);
 
