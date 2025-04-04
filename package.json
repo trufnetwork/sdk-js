@@ -45,7 +45,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "prepublishOnly": "npm run build",
     "tag:dev": "pnpm version 0.0.0-dev-$(date +%Y%m%d%H%M%S) --no-git-tag-version",
-    "publish:dev": "pnpm publish --tag dev --no-git-checks"
+    "publish:dev": "pnpm publish --tag dev --no-git-checks",
+    "test": "vitest"
   },
   "dependencies": {
     "@kwilteam/kwil-js": "^0.9.4",

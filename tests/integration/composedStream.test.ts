@@ -63,7 +63,7 @@ describe.sequential(
           expect(deployReceipt.status).toBe(200);
 
           // Load the composed stream
-          const composedStream = defaultClient.loadComposedStream();
+          const composedStream = defaultClient.loadComposedAction();
 
           // Set taxonomy with weights
           // Child A weight: 1, Child B weight: 2
@@ -201,7 +201,7 @@ describe.sequential(
             expect(deployReceipt.status).toBe(200);
 
             // Load the composed stream
-            const composedStream = defaultClient.loadComposedStream();
+            const composedStream = defaultClient.loadComposedAction();
 
             // Set taxonomy with weights
             // Child A weight: 1, Child B weight: 2
@@ -301,7 +301,7 @@ async function deployPrimitiveStreamWithData(
   expect(deployReceipt.status).toBe(200);
 
   // Load the stream
-  const primitiveStream = client.loadPrimitiveStream();
+  const primitiveStream = client.loadPrimitiveAction();
 
   // Insert records
   const insertTx = await primitiveStream.insertRecords(data, true)

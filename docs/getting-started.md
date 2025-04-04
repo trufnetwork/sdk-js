@@ -36,7 +36,7 @@ const client = new NodeTNClient({
 const streamId = await StreamId.generate("my-stream");
 await client.deployStream(streamId, "primitive", true);
 
-const stream = client.loadPrimitiveStream({
+const stream = client.loadPrimitiveAction({
   streamId,
   dataProvider: client.address(),
 });

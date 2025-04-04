@@ -1,8 +1,8 @@
-import {KwilSigner, NodeKwil, Types, WebKwil} from "@kwilteam/kwil-js";
-import {ActionInput, NamedParams} from "@kwilteam/kwil-js/dist/core/action";
+import {KwilSigner, NodeKwil, WebKwil} from "@kwilteam/kwil-js";
+import { ActionBody } from '@kwilteam/kwil-js/dist/core/action';
+import {NamedParams} from "@kwilteam/kwil-js/dist/core/action";
 import { GenericResponse } from "@kwilteam/kwil-js/dist/core/resreq";
 import { TxReceipt } from "@kwilteam/kwil-js/dist/core/tx";
-import { generateDBID } from "@kwilteam/kwil-js/dist/utils/dbid";
 import { Either } from "monads-io";
 import { DateString } from "../types/other";
 import { StreamLocator } from "../types/stream";
@@ -17,7 +17,6 @@ import {
   MetadataValueTypeForKey,
   StreamType,
 } from "./contractValues";
-import ActionBody = Types.ActionBody;
 import {ValueType} from "@kwilteam/kwil-js/dist/utils/types";
 
 export interface GetRecordInput {
@@ -43,7 +42,7 @@ export interface GetIndexChangeInput extends GetRecordInput {
   timeInterval: number;
 }
 
-export class Stream {
+export class Action {
   protected kwilClient: WebKwil | NodeKwil;
   protected kwilSigner: KwilSigner;
   constructor(
@@ -156,8 +155,12 @@ export class Stream {
   /**
    * Returns the type of the stream
    */
-  public async getType(): Promise<StreamType> {
-    const result = await this.getMetadata(MetadataKey.TypeKey, true);
+  public async getType(
+      stream: StreamLocator,
+  ): Promise<StreamType> {
+    const result = await this.getMetadata(
+        stream,
+        MetadataKey.TypeKey);
 
     if (!result) {
       throw new Error("Failed to get stream type");
@@ -208,22 +211,28 @@ export class Stream {
   }
 
   protected async setMetadata<K extends MetadataKey>(
+    stream: StreamLocator,
     key: K,
     value: MetadataValueTypeForKey<K>,
   ): Promise<GenericResponse<TxReceipt>> {
-    return await this.executeWithNamedParams("insert_metadata", [
-      ActionInput.fromObject({
+    return await this.executeWithNamedParams("insert_metadata", [{
+        $data_provider: stream.dataProvider.getAddress(),
+        $stream_id: stream.streamId.getId(),
         $key: key,
         $value: value,
         $val_type: MetadataKeyValueMap[key],
-      }),
+        },
     ]);
   }
 
   protected async getMetadata<K extends MetadataKey>(
+    stream: StreamLocator,
     key: K,
-    onlyLatest: boolean = true,
+    // onlyLatest: boolean = true,
     filteredRef?: string,
+    limit?: number,
+    offset?: number,
+    orderBy?: string,
   ): Promise<
     { rowId: string; value: MetadataValueTypeForKey<K>; createdAt: number }[]
   > {
@@ -237,13 +246,16 @@ export class Stream {
         value_ref: string;
         created_at: number;
       }[]
-    >("get_metadata", [
-      ActionInput.fromObject({
+    >("get_metadata", {
+        $data_provider: stream.dataProvider.getAddress(),
+        $stream_id: stream.streamId.getId(),
         $key: key,
-        $only_latest: onlyLatest,
         $ref: filteredRef,
-      }),
-    ]);
+        $limit: limit,
+        $offset: offset,
+        $order_by: orderBy,
+        },
+    );
     return result
       .mapRight((result) =>
         result.map((row) => ({
@@ -261,9 +273,11 @@ export class Stream {
    * Sets the read visibility of the stream
    */
   public async setReadVisibility(
+    stream: StreamLocator,
     visibility: VisibilityEnum,
   ): Promise<GenericResponse<TxReceipt>> {
     return await this.setMetadata(
+        stream,
       MetadataKey.ReadVisibilityKey,
       visibility.toString(),
     );
@@ -272,8 +286,12 @@ export class Stream {
   /**
    * Returns the read visibility of the stream
    */
-  public async getReadVisibility(): Promise<VisibilityEnum | null> {
-    const result = await this.getMetadata(MetadataKey.ReadVisibilityKey, true);
+  public async getReadVisibility(
+      stream: StreamLocator,
+  ): Promise<VisibilityEnum | null> {
+    const result = await this.getMetadata(
+        stream,
+        MetadataKey.ReadVisibilityKey);
 
     return head(result)
       .map((row) => toVisibilityEnum(row.value))
@@ -284,9 +302,11 @@ export class Stream {
    * Sets the compose visibility of the stream
    */
   public async setComposeVisibility(
+    stream: StreamLocator,
     visibility: VisibilityEnum,
   ): Promise<GenericResponse<TxReceipt>> {
     return await this.setMetadata(
+      stream,
       MetadataKey.ComposeVisibilityKey,
       visibility.toString(),
     );
@@ -295,11 +315,12 @@ export class Stream {
   /**
    * Returns the compose visibility of the stream
    */
-  public async getComposeVisibility(): Promise<VisibilityEnum | null> {
+  public async getComposeVisibility(
+      stream: StreamLocator,
+  ): Promise<VisibilityEnum | null> {
     const result = await this.getMetadata(
-      MetadataKey.ComposeVisibilityKey,
-      true,
-    );
+      stream,
+      MetadataKey.ComposeVisibilityKey);
 
     return head(result)
       .map((row) => toVisibilityEnum(row.value))
@@ -310,9 +331,11 @@ export class Stream {
    * Allows a wallet to read the stream
    */
   public async allowReadWallet(
+    stream: StreamLocator,
     wallet: EthereumAddress,
   ): Promise<GenericResponse<TxReceipt>> {
     return await this.setMetadata(
+      stream,
       MetadataKey.AllowReadWalletKey,
       wallet.getAddress(),
     );
@@ -322,11 +345,12 @@ export class Stream {
    * Disables a wallet from reading the stream
    */
   public async disableReadWallet(
+    stream: StreamLocator,
     wallet: EthereumAddress,
   ): Promise<GenericResponse<TxReceipt>> {
     const result = await this.getMetadata(
+      stream,
       MetadataKey.AllowReadWalletKey,
-      true,
       wallet.getAddress(),
     );
 
@@ -338,22 +362,20 @@ export class Stream {
       throw new Error("Wallet not found in allowed list");
     }
 
-    return await this.disableMetadata(row_id);
+    return await this.disableMetadata(stream, row_id);
   }
 
   /**
    * Allows a stream to use this stream as child
    */
   public async allowComposeStream(
-    locator: StreamLocator,
+    stream: StreamLocator,
+    wallet: StreamLocator,
   ): Promise<GenericResponse<TxReceipt>> {
-    const streamDbId = generateDBID(
-      locator.dataProvider.getAddress(),
-      locator.streamId.getId(),
-    );
     return await this.setMetadata(
+      stream,
       MetadataKey.AllowComposeStreamKey,
-      streamDbId,
+      wallet.streamId.getId(),
     );
   }
 
@@ -361,12 +383,13 @@ export class Stream {
    * Disables a stream from using this stream as child
    */
   public async disableComposeStream(
-    locator: StreamLocator,
+    stream: StreamLocator,
+    wallet: StreamLocator,
   ): Promise<GenericResponse<TxReceipt>> {
     const result = await this.getMetadata(
+      stream,
       MetadataKey.AllowComposeStreamKey,
-      true,
-      locator.toString(),
+      wallet.toString(),
     );
 
     const row_id = head(result)
@@ -377,24 +400,29 @@ export class Stream {
       throw new Error("Stream not found in allowed list");
     }
 
-    return await this.disableMetadata(row_id);
+    return await this.disableMetadata(stream, row_id);
   }
 
   protected async disableMetadata(
+    stream: StreamLocator,
     rowId: string,
   ): Promise<GenericResponse<TxReceipt>> {
-    return await this.executeWithNamedParams("disable_metadata", [
-      ActionInput.fromObject({
-        $row_id: rowId,
-      }),
-    ]);
+    return await this.executeWithNamedParams("disable_metadata", [{
+            $data_provider: stream.dataProvider.getAddress(),
+            $stream_id: stream.streamId.getId(),
+            $row_id: rowId,
+    }]);
   }
 
   /**
    * Returns the wallets allowed to read the stream
    */
-  public async getAllowedReadWallets(): Promise<EthereumAddress[]> {
-    const result = await this.getMetadata(MetadataKey.AllowReadWalletKey);
+  public async getAllowedReadWallets(
+    stream: StreamLocator,
+  ): Promise<EthereumAddress[]> {
+    const result = await this.getMetadata(
+        stream,
+        MetadataKey.AllowReadWalletKey);
 
     return result
       .filter((row) => row.value)
@@ -404,8 +432,12 @@ export class Stream {
   /**
    * Returns the streams allowed to compose the stream
    */
-  public async getAllowedComposeStreams(): Promise<StreamLocator[]> {
-    const result = await this.getMetadata(MetadataKey.AllowComposeStreamKey);
+  public async getAllowedComposeStreams(
+    stream: StreamLocator,
+  ): Promise<StreamLocator[]> {
+    const result = await this.getMetadata(
+        stream,
+        MetadataKey.AllowComposeStreamKey);
 
     return result
       .filter((row) => row.value)

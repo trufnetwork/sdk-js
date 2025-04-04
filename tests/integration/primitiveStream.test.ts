@@ -26,7 +26,7 @@ describe.sequential(
           expect(deployReceipt.status).toBe(200);
 
           // Load the deployed stream
-          const primitiveStream = defaultClient.loadPrimitiveStream();
+          const primitiveStream = defaultClient.loadPrimitiveAction();
 
           // Insert a record
           const insertTx = await primitiveStream.insertRecord({
@@ -136,7 +136,7 @@ describe.sequential(
         try {
           // Deploy and initialize stream
           await defaultClient.deployStream(streamId, "primitive", true);
-          const primitiveStream = defaultClient.loadPrimitiveStream();
+          const primitiveStream = defaultClient.loadPrimitiveAction();
 
           // Insert historical records (2022)
           const historicalRecords: InsertRecordInput[] = [
@@ -145,7 +145,7 @@ describe.sequential(
             { stream: { streamId, dataProvider: defaultClient.address() }, eventTime: new Date("2022-12-01").getTime() / 1000, value: "150" },
           ];
           const historicalTx =
-            await primitiveStream.insertRecords(historicalRecords);
+            await primitiveStream.insertRecords(historicalRecords, true);
           await defaultClient.waitForTx(historicalTx.data!.tx_hash!);
 
           // Insert current records (2023)
@@ -215,7 +215,7 @@ describe.sequential(
             expect(deployReceipt.status).toBe(200);
 
             // Load the deployed stream
-            const primitiveStream = defaultClient.loadPrimitiveStream();
+            const primitiveStream = defaultClient.loadPrimitiveAction();
 
             // Insert a record
             const insertTx = await primitiveStream.insertRecord(
