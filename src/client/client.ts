@@ -6,11 +6,11 @@ import { EnvironmentType } from "@kwilteam/kwil-js/dist/core/enums";
 import { GenericResponse } from "@kwilteam/kwil-js/dist/core/resreq";
 import { TxReceipt } from "@kwilteam/kwil-js/dist/core/tx";
 import { TxInfoReceipt } from "@kwilteam/kwil-js/dist/core/txQuery";
-import { ComposedStream } from "../contracts-api/composedStream";
+import { ComposedAction } from "../contracts-api/composedAction";
 import { deployStream } from "../contracts-api/deployStream";
 import { deleteStream } from "../contracts-api/deleteStream";
-import { PrimitiveStream } from "../contracts-api/primitiveStream";
-import { Stream } from "../contracts-api/stream";
+import { PrimitiveAction } from "../contracts-api/primitiveAction";
+import { Action } from "../contracts-api/action";
 import { StreamType } from "../contracts-api/contractValues";
 import { StreamLocator } from "../types/stream";
 import { EthereumAddress } from "../util/EthereumAddress";
@@ -150,8 +150,8 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
    * Loads an already deployed stream, permitting its API usage.
    * @returns An instance of IStream.
    */
-  loadStream(): Stream {
-    return new Stream(
+  loadAction(): Action {
+    return new Action(
       this.getKwilClient() as WebKwil | NodeKwil,
       this.getKwilSigner(),
     );
@@ -161,16 +161,16 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
    * Loads a primitive stream.
    * @returns An instance of IPrimitiveStream.
    */
-  loadPrimitiveStream(): PrimitiveStream {
-    return PrimitiveStream.fromStream(this.loadStream());
+  loadPrimitiveAction(): PrimitiveAction {
+    return PrimitiveAction.fromStream(this.loadAction());
   }
 
   /**
    * Loads a composed stream.
    * @returns An instance of IComposedStream.
    */
-  loadComposedStream(): ComposedStream {
-    return ComposedStream.fromStream(this.loadStream());
+  loadComposedAction(): ComposedAction {
+    return ComposedAction.fromStream(this.loadAction());
   }
 
   /**

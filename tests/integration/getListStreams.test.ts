@@ -42,21 +42,18 @@ describe.sequential("Get List Streams", { timeout: 90000 }, () => {
       expect(foundPrimitive).toBeDefined();
       expect(foundComposed).toBeDefined();
 
-      // TODO: Complete the test
-      return;
-
       // Verify stream types
       if (foundPrimitive) {
         const primitiveType = await defaultClient
-          .loadStream(foundPrimitive)
-          .getType();
+          .loadAction()
+          .getType(foundPrimitive);
         expect(primitiveType).toBe(StreamType.Primitive);
       }
 
       if (foundComposed) {
         const composedType = await defaultClient
-          .loadStream(foundComposed)
-          .getType();
+          .loadAction()
+          .getType(foundComposed);
         expect(composedType).toBe(StreamType.Composed);
       }
     },

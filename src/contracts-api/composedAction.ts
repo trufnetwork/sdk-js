@@ -6,7 +6,7 @@ import { StreamLocator } from "../types/stream";
 import { EthereumAddress } from "../util/EthereumAddress";
 import { StreamId } from "../util/StreamId";
 import { StreamType } from "./contractValues";
-import { Stream } from "./stream";
+import { Action } from "./action";
 import DataType = Utils.DataType;
 
 export const ErrorStreamNotComposed = "stream is not a composed stream";
@@ -30,26 +30,12 @@ export interface DescribeTaxonomiesParams {
   latestGroupSequence: boolean;
 }
 
-export class ComposedStream extends Stream {
+export class ComposedAction extends Action {
   constructor(
     kwilClient: WebKwil | NodeKwil,
     kwilSigner: KwilSigner,
   ) {
     super(kwilClient, kwilSigner);
-  }
-
-  /**
-   * Checks if the stream is a valid composed stream.
-   * A valid composed stream must be:
-   * - initialized
-   * - of type composed
-   */
-  private async checkValidComposedStream(): Promise<void> {
-    // Then check if is composed
-    const streamType = await this.getType();
-    if (streamType !== StreamType.Composed) {
-      throw new Error(ErrorStreamNotComposed);
-    }
   }
 
   /**
@@ -165,8 +151,8 @@ export class ComposedStream extends Stream {
    * @param stream The base stream to convert
    * @returns A ComposedStream instance
    */
-  public static fromStream(stream: Stream): ComposedStream {
-    return new ComposedStream(
+  public static fromStream(stream: Action): ComposedAction {
+    return new ComposedAction(
       stream["kwilClient"],
       stream["kwilSigner"],
     );

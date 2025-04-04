@@ -16,9 +16,9 @@ export interface DestroyStreamInput {
 }
 
 /**
- * Output after destroying a stream.
+ * Output after deleting a stream.
  */
-export interface DestroyStreamOutput {
+export interface DeleteStreamOutput {
   receipt: TxReceipt;
 }
 

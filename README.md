@@ -46,23 +46,18 @@ const client = new NodeTNClient({
 const streamId = await StreamId.generate("my-data-stream");
 await client.deployStream(streamId, "primitive", true);
 
-const stream = client.loadPrimitiveStream({
-  streamId,
-  dataProvider: client.address(),
-});
-
-// here simplified, you might need to wait for the tx using client.waitForTx
-await stream.initializeStream();
+const stream = client.loadPrimitiveAction();
 
 // Insert data, simplified
 await stream.insertRecords([
-  { dateValue: "2024-01-01", value: "100.5" }
+  { stream: client.ownStreamLocator(streamId), eventTime: new Date("2024-01-01").getTime() / 1000, value: "100.5" }
 ]);
 
 // Read data
 const data = await stream.getRecord({
-  dateFrom: "2024-01-01",
-  dateTo: "2024-01-01",
+  stream: client.ownStreamLocator(streamId),
+  from: new Date("2024-01-01").getTime() / 1000,
+  to: new Date("2024-01-02").getTime() / 1000,
 });
 ```
 

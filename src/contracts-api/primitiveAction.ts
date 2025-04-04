@@ -2,32 +2,18 @@ import {KwilSigner, NodeKwil, Utils, WebKwil} from "@kwilteam/kwil-js";
 import {GenericResponse} from "@kwilteam/kwil-js/dist/core/resreq";
 import {TxReceipt} from "@kwilteam/kwil-js/dist/core/tx";
 import {StreamType} from "./contractValues";
-import {Stream} from "./stream";
+import {Action} from "./action";
 import {StreamLocator} from "../types/stream";
 import DataType = Utils.DataType;
 
 const ErrorStreamNotPrimitive = "stream is not a primitive stream";
 
-export class PrimitiveStream extends Stream {
+export class PrimitiveAction extends Action {
   constructor(
     kwilClient: WebKwil | NodeKwil,
     kwilSigner: KwilSigner,
   ) {
     super(kwilClient, kwilSigner);
-  }
-
-  /**
-   * Checks if the stream is a valid primitive stream.
-   * A valid primitive stream must be:
-   * - initialized
-   * - of type primitive
-   */
-  private async checkValidPrimitiveStream(): Promise<void> {
-    // Then check if is primitive
-    const streamType = await this.getType();
-    if (streamType !== StreamType.Primitive) {
-      throw new Error(ErrorStreamNotPrimitive);
-    }
   }
 
   /**
@@ -89,8 +75,8 @@ export class PrimitiveStream extends Stream {
    * @param stream The base stream to convert
    * @returns A Promise that resolves to a PrimitiveStream instance
    */
-  public static fromStream(stream: Stream): PrimitiveStream {
-    return new PrimitiveStream(
+  public static fromStream(stream: Action): PrimitiveAction {
+    return new PrimitiveAction(
         stream["kwilClient"],
         stream["kwilSigner"],
     );

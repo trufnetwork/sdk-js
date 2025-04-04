@@ -30,63 +30,69 @@ const type = await stream.getType(); // Returns StreamType
 
 // Get stream records
 const records = await stream.getRecord({
-  dateFrom: "2024-01-01",
-  dateTo: "2024-01-31",
+  stream: streamLocator,
+  from: new Date("2024-01-01").getTime() / 1000,
+  to: new Date("2024-01-31").getTime() / 1000,
   frozenAt: 12345, // Optional block height
 });
 
 // Get stream index
 const index = await stream.getIndex({
-  dateFrom: "2024-01-01",
-  dateTo: "2024-01-31",
-  baseDate: "2023-12-31",
+  stream: streamLocator,
+  from: new Date("2024-01-01").getTime() / 1000,
+  to: new Date("2024-01-31").getTime() / 1000,
+  baseTime: new Date("2023-12-31").getTime() / 1000, // Optional
 });
 
 // Get first record
 const firstRecord = await stream.getFirstRecord({
-  afterDate: "2024-01-01",
+  stream: streamLocator,
+  after: new Date("2024-01-01").getTime() / 1000,
   frozenAt: 12345,
 }); // Returns StreamRecord | null
 
 // Calculate year-over-year changes
 const changes = await stream.getIndexChange({
-  dateFrom: "2024-01-01",
-  dateTo: "2024-12-31",
-  daysInterval: 365,
-  baseDate: "2024-01-01",
+  stream: streamLocator,
+  from: new Date("2024-01-01").getTime() / 1000,
+  to: new Date("2024-12-31").getTime() / 1000,
+  timeInterval: 365 * 24 * 60 * 60,
+  baseTime: new Date("2024-01-01").getTime() / 1000, // Optional
 }); // Returns StreamRecord[]
 ```
 
 ### Primitive Stream Operations
 
 ```typescript
-const primitiveStream = client.loadPrimitiveStream(streamLocator);
+const primitiveStream = client.loadPrimitiveAction(streamLocator);
 
 // Insert data
 await primitiveStream.insertRecords([
-  { dateValue: "2024-01-01", value: "100.5" },
+  { stream: streamLocator, eventTime: new Date("2024-01-01").getTime() / 1000, value: "100.5" },
 ]);
 ```
 
 ### Composed Stream Operations
 
 ```typescript
-const composedStream = client.loadComposedStream(streamLocator);
+const composedStream = client.loadComposedAction(streamLocator);
 
 // Set stream weights
 await composedStream.setTaxonomy({
+  stream: streamLocator,
   taxonomyItems: [
     {
       childStream: childStreamLocator,
       weight: "1.5",
     },
   ],
-  startDate: "2024-01-01", // Optional
+  startDate: new Date("2024-01-01").getTime() / 1000, // Optional
 });
 
 // Get taxonomy
 const taxonomy = await composedStream.describeTaxonomies({
-  latestVersion: true,
+  stream: streamLocator,
+  $latestGroupSequence: true,
 });
 ```
 
@@ -94,20 +100,20 @@ const taxonomy = await composedStream.describeTaxonomies({
 
 ```typescript
 // Set visibility
-await stream.setReadVisibility(visibility.private);
-await stream.setComposeVisibility(visibility.public);
+await stream.setReadVisibility(streamLocator, visibility.private);
+await stream.setComposeVisibility(streamLocator, visibility.public);
 
 // Get visibility
-const readVisibility = await stream.getReadVisibility(); // Returns VisibilityEnum | null
-const composeVisibility = await stream.getComposeVisibility();
+const readVisibility = await stream.getReadVisibility(streamLocator); // Returns VisibilityEnum | null
+const composeVisibility = await stream.getComposeVisibility(streamLocator);
 
 // Manage permissions
 await stream.allowReadWallet(new EthereumAddress("0x..."));
-await stream.allowComposeStream(otherStreamLocator);
+await stream.allowComposeStream(streamLocator, otherStreamLocator);
 
 // Query permissions
-const readers = await stream.getAllowedReadWallets();
-const composers = await stream.getAllowedComposeStreams();
+const readers = await stream.getAllowedReadWallets(streamLocator);
+const composers = await stream.getAllowedComposeStreams(streamLocator);
 ```
 
 ### Stream Management
@@ -116,11 +122,8 @@ const composers = await stream.getAllowedComposeStreams();
 // Deploy new stream
 await client.deployStream(streamId, StreamType.Primitive, true);
 
-// Initialize stream
-await stream.initializeStream();
-
 // Destroy stream
-await client.destroyStream(streamId, true);
+await client.destroyStream(streamLocator, true);
 
 // List streams
 const allStreams = await client.getAllStreams();
