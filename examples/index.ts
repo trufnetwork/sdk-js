@@ -4,8 +4,9 @@ import {
     StreamId,
     type StreamLocator,
     StreamType,
-} from "@trufnetwork/sdk-js";
+} from "../src"
 import { Wallet } from "ethers";
+import dotenv from 'dotenv';
 
 // Helper: delay for a given number of milliseconds.
 async function delay(ms: number): Promise<void> {
@@ -27,7 +28,7 @@ async function retryOperation<T>(
             // if the error is "dataset not found", we can ignore it and continue
             if (String(error).includes("dataset not found")) {
                 console.log("Stream not found, ignoring error.");
-                return;
+                return {} as T;
             }
 
             console.log(
@@ -58,6 +59,14 @@ async function safeDestroy(client: NodeTNClient, streamId: StreamId) {
     const wallet = new Wallet(
         "0000000000000000000000000000000000000000000000000000000000000001"
     );
+
+    // get the connection string from the environment variable
+    dotenv.config();
+    const neonConnectionString = process.env.NEON_CONNECTION_STRING;
+    if (!neonConnectionString) {
+        console.log("No connection string provided, will not doing explorer-related operations");
+    }
+
     const client = new NodeTNClient({
         chainId: "",
         endpoint: "http://localhost:8484",
@@ -65,6 +74,8 @@ async function safeDestroy(client: NodeTNClient, streamId: StreamId) {
             address: wallet.address,
             signer: wallet,
         },
+        neonConnectionString: neonConnectionString, // Optional, for explorer-related operations
+        timeout: 30000, //Optional, default is 10 seconds
     });
 
     // Create a new stream ID.

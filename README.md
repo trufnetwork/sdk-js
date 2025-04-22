@@ -5,7 +5,7 @@ The TN SDK provides developers with tools to interact with the Truf Network, a d
 ## Quick Start
 
 ### Prerequisites
-- Node.js 18 or later
+- Node.js 18 or later (For enabling Explorer-related features, please use Node.js 18)
 
 ### Installation
 ```bash

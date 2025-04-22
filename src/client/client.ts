@@ -26,14 +26,17 @@ export interface SignerInfo {
 export type TNClientOptions = {
   endpoint: string;
   signerInfo: SignerInfo;
+  neonConnectionString?: string;
 } & Omit<KwilConfig, "kwilProvider">;
 
 export abstract class BaseTNClient<T extends EnvironmentType> {
   protected kwilClient: Kwil<T> | undefined;
   protected signerInfo: SignerInfo;
+  protected neonConnectionString: string | undefined;
 
   protected constructor(options: TNClientOptions) {
     this.signerInfo = options.signerInfo;
+    this.neonConnectionString = options.neonConnectionString;
   }
 
   /**
@@ -101,6 +104,13 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
   }
 
   /**
+   * Returns the Neon connection string used by the client.
+   */
+  getNeonConnectionString(): string | undefined {
+    return this.neonConnectionString;
+  }
+
+  /**
    * Deploys a new stream.
    * @param streamId - The ID of the stream to deploy.
    * @param streamType - The type of the stream.
@@ -120,7 +130,8 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
       synchronous,
       kwilClient: this.getKwilClient(),
       kwilSigner: this.getKwilSigner(),
-      contractVersion: contractVersion
+      contractVersion: contractVersion,
+      neonConnectionString: this.getNeonConnectionString(),
     });
   }
 
