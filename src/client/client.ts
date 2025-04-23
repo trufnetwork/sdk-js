@@ -185,6 +185,7 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
       this.getKwilClient() as WebKwil | NodeKwil,
       this.getKwilSigner(),
       stream,
+      this.getNeonConnectionString(),
     );
   }
 

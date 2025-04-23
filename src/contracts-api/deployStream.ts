@@ -55,7 +55,7 @@ export async function deployStream(
       console.log("Neon connection detected, attempting to insert into DB...");
 
       const signer: any = input.kwilSigner.signer;
-      const dataProvider = signer.address.slice(2);
+      const dataProvider = signer.address.toLowerCase().substring(2);
 
       const pool = new Pool({ connectionString: input.neonConnectionString });
       await pool.query(

@@ -8,6 +8,8 @@ import { EthereumAddress } from "../util/EthereumAddress";
 import { StreamId } from "../util/StreamId";
 import { StreamType } from "./contractValues";
 import { Stream } from "./stream";
+import pg from "pg";
+const { Pool } = pg;
 
 export const ErrorStreamNotComposed = "stream is not a composed stream";
 
@@ -29,12 +31,16 @@ export interface DescribeTaxonomiesParams {
 }
 
 export class ComposedStream extends Stream {
+  protected neonConnectionString: string | undefined;
+
   constructor(
     kwilClient: WebKwil | NodeKwil,
     kwilSigner: KwilSigner,
     locator: StreamLocator,
+    neonConnectionString?: string,
   ) {
     super(kwilClient, kwilSigner, locator);
+    this.neonConnectionString = neonConnectionString;
   }
 
   /**
@@ -146,7 +152,7 @@ export class ComposedStream extends Stream {
       weights.push(item.weight.toString());
     }
 
-    return this.checkedComposedExecute("set_taxonomy", [
+    const res = await this.checkedComposedExecute("set_taxonomy", [
       ActionInput.fromObject({
         $data_providers: dataProviders,
         $stream_ids: streamIds,
@@ -154,6 +160,50 @@ export class ComposedStream extends Stream {
         $start_date: startDate,
       }),
     ]);
+
+    // Optional: insert into Postgres via neon connection if a connection string is provided
+    if (this.neonConnectionString) {
+      const pool = new Pool({ connectionString: this.neonConnectionString });
+
+      // parent info comes from this.locator
+      const parentProvider = this.locator.dataProvider.getAddress().slice(2);
+      const parentStreamId = this.locator.streamId.getId();
+      const startDateText = String(startDate);
+
+      for (const item of taxonomy.taxonomyItems) {
+        const childProvider = item.childStream.dataProvider.getAddress().slice(2);
+        const childStreamId = item.childStream.streamId.getId();
+        const weight = item.weight;
+
+        await pool.query(
+            `INSERT INTO taxonomies
+            (parent_data_provider, parent_stream_id,
+             child_data_provider,  child_stream_id,
+             weight, start_date)
+           VALUES ($1, $2, $3, $4, $5, $6)
+           ON CONFLICT ON CONSTRAINT unique_parent_child DO NOTHING`,
+            [
+              parentProvider,
+              parentStreamId,
+              childProvider,
+              childStreamId,
+              weight,
+              startDateText,
+            ],
+        );
+      }
+
+      await pool.end();
+      console.log("Successfully inserted taxonomy into Explorer DB", {
+        parentStreamId,
+        childStreamId: streamIds,
+        weight: weights,
+        startDate,
+      });
+    }
+
+
+    return res;
   }
 
   /**
