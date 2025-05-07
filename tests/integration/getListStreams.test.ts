@@ -1,10 +1,9 @@
 import { describe, expect } from "vitest";
 import { StreamId } from "../../src/util/StreamId";
 import { StreamType } from "../../src/contracts-api/contractValues";
-import { testWithDefaultWallet, waitForTxSuccess } from "./utils";
-import NodeTNClient from "../../src/client/nodeClient";
+import { testWithDefaultWallet } from "./utils";
 
-describe.sequential("Get All Streams", { timeout: 90000 }, () => {
+describe.sequential("Get List Streams", { timeout: 90000 }, () => {
   testWithDefaultWallet.skipIf(process.env.CI)(
     "should list all streams",
     async ({ defaultClient }) => {
@@ -16,28 +15,18 @@ describe.sequential("Get All Streams", { timeout: 90000 }, () => {
 
       // Deploy streams and add them to the disposable stack
       disposables.defer(async () => {
-        await defaultClient
-          .destroyStream(primitiveStreamId, true)
-          .catch((e) => {
+        await defaultClient.destroyStream({ streamId: primitiveStreamId, dataProvider: defaultClient.address() }, true).catch((e) => {
             console.error(e);
           });
-        await defaultClient.destroyStream(composedStreamId, true).catch((e) => {
+          await defaultClient.destroyStream({ streamId: composedStreamId, dataProvider: defaultClient.address() }, true).catch((e) => {
           console.error(e);
         });
       });
-      await createAndInitStream(
-        defaultClient,
-        primitiveStreamId,
-        StreamType.Primitive,
-      );
-      await createAndInitStream(
-        defaultClient,
-        composedStreamId,
-        StreamType.Composed,
-      );
+      await defaultClient.deployStream(primitiveStreamId, StreamType.Primitive, true);
+      await defaultClient.deployStream(composedStreamId, StreamType.Composed, true);
 
       // Get all streams
-      const streams = await defaultClient.getAllStreams();
+      const streams = await defaultClient.getListStreams({});
 
       // Verify streams are listed
       expect(streams.length).toBeGreaterThan(1);
@@ -56,15 +45,15 @@ describe.sequential("Get All Streams", { timeout: 90000 }, () => {
       // Verify stream types
       if (foundPrimitive) {
         const primitiveType = await defaultClient
-          .loadStream(foundPrimitive)
-          .getType();
+          .loadAction()
+          .getType(foundPrimitive);
         expect(primitiveType).toBe(StreamType.Primitive);
       }
 
       if (foundComposed) {
         const composedType = await defaultClient
-          .loadStream(foundComposed)
-          .getType();
+          .loadAction()
+          .getType(foundComposed);
         expect(composedType).toBe(StreamType.Composed);
       }
     },
@@ -77,13 +66,13 @@ describe.sequential("Get All Streams", { timeout: 90000 }, () => {
 
       const streamId = await StreamId.generate("test-list-owner");
       disposables.defer(async () => {
-        await defaultClient.destroyStream(streamId, true);
+        await defaultClient.destroyStream({ streamId, dataProvider: defaultClient.address() }, true);
       });
-      await createAndInitStream(defaultClient, streamId, StreamType.Primitive);
+      await defaultClient.deployStream(streamId, StreamType.Primitive, true);
 
       // Get streams for owner
-      const streams = await defaultClient.getAllStreams(
-        defaultClient.address(),
+      const streams = await defaultClient.getListStreams(
+          { dataProvider: defaultClient.address().getAddress() },
       );
 
       // Verify our test stream is in the list
@@ -101,19 +90,3 @@ describe.sequential("Get All Streams", { timeout: 90000 }, () => {
     },
   );
 });
-
-// Helper function to create and initialize a stream
-async function createAndInitStream(
-  client: NodeTNClient,
-  streamId: StreamId,
-  type: StreamType,
-) {
-  await client.deployStream(streamId, type, true);
-  const stream = client.loadStream({
-    streamId,
-    dataProvider: client.address(),
-  });
-  const tx = await stream.initializeStream();
-  await waitForTxSuccess(tx, client);
-  return stream;
-}

@@ -6,7 +6,7 @@ import {
     StreamType,
 } from "../src"
 import { Wallet } from "ethers";
-import dotenv from 'dotenv';
+import * as dotenv from 'dotenv';
 
 // Helper: delay for a given number of milliseconds.
 async function delay(ms: number): Promise<void> {
@@ -28,7 +28,7 @@ async function retryOperation<T>(
             // if the error is "dataset not found", we can ignore it and continue
             if (String(error).includes("dataset not found")) {
                 console.log("Stream not found, ignoring error.");
-                return {} as T;
+                return {} as T; // Return an empty object or handle it as needed
             }
 
             console.log(
@@ -40,17 +40,27 @@ async function retryOperation<T>(
     throw lastError;
 }
 
-// Helper: destroy stream once and ignore "dataset not found" errors.
+// Helper: destroy stream once and ignore "stream does not exist" errors.
 async function safeDestroy(client: NodeTNClient, streamId: StreamId) {
     try {
         await retryOperation(async () => {
-            const tx_destroy = await client.destroyStream(streamId, true);
+            const tx_destroy = await client.destroyStream(
+                { streamId, dataProvider: client.address() }, true);
             console.log("Destroy transaction hash:", tx_destroy.data?.tx_hash);
             // Wait for the transaction to be mined.
             await client.waitForTx(tx_destroy.data?.tx_hash!);
             console.log(`Stream ${streamId.getId()} destroyed successfully.`);
         });
     } catch (error) {
+        console.log(error);
+        if (
+            error instanceof Error &&
+            error.message.includes("not exist")
+        ) {
+            console.warn(`[TN SDK] Stream ${streamId.getId()} does not exist, skipping destroy.`);
+            return;
+        }
+
         throw error;
     }
 }
@@ -78,6 +88,13 @@ async function safeDestroy(client: NodeTNClient, streamId: StreamId) {
         timeout: 30000, //Optional, default is 10 seconds
     });
 
+    // Example of using the client to get the last transactions.
+    const lastTransactions = await client.getLastTransactions({
+        dataProvider: undefined,
+        limitSize: 6,
+    });
+    console.log("Last transactions:", lastTransactions);
+
     // Create a new stream ID.
     const streamIdNew = await StreamId.generate("new-stream-id");
 
@@ -88,7 +105,7 @@ async function safeDestroy(client: NodeTNClient, streamId: StreamId) {
 
     // Deploy the new stream with retry.
     const deployResponse = await retryOperation(() =>
-        client.deployStream(streamIdNew, streamType, true, 2)
+        client.deployStream(streamIdNew, streamType, true)
     );
     console.log("Deploy transaction hash:", deployResponse.data?.tx_hash);
 
@@ -100,23 +117,15 @@ async function safeDestroy(client: NodeTNClient, streamId: StreamId) {
         streamId: streamIdNew,
         dataProvider: EthereumAddress.fromString(wallet.address).throw(),
     };
-    const streamApiNew = client.loadPrimitiveStream(streamLocatorNew);
-
-    // Initialize the stream with retry.
-    const initResponse = await retryOperation(() =>
-        streamApiNew.initializeStream()
-    );
-    console.log("Initialize transaction hash:", initResponse.data?.tx_hash);
-
-    // Wait for the transaction to be mined.
-    await client.waitForTx(initResponse.data?.tx_hash!);
+    const streamApiNew = client.loadPrimitiveAction();
 
     // Insert a new record into the stream with retry.
     const currentTimeUnix = Math.floor(Date.now() / 1000);
     const insertResponse = await retryOperation(() =>
         streamApiNew.insertRecords([
             {
-                dateValue: currentTimeUnix,
+                stream: streamLocatorNew,
+                eventTime: currentTimeUnix,
                 value: "1000",
             },
         ])
@@ -128,7 +137,9 @@ async function safeDestroy(client: NodeTNClient, streamId: StreamId) {
 
     // Fetch the record with retry.
     const resultNew = await retryOperation(() =>
-        streamApiNew.getRecord({})
+        streamApiNew.getRecord({
+            stream: streamLocatorNew,
+        })
     );
     console.log("Fetched record:", resultNew);
 
@@ -138,7 +149,7 @@ async function safeDestroy(client: NodeTNClient, streamId: StreamId) {
     await safeDestroy(client, streamIdComposed);
 
     const deployResponseComposed = await retryOperation(() =>
-        client.deployStream(streamIdComposed, StreamType.Composed, true, 2)
+        client.deployStream(streamIdComposed, StreamType.Composed, true)
     );
     console.log("Deploy transaction hash:", deployResponseComposed.data?.tx_hash);
     // Wait for the transaction to be mined.
@@ -149,20 +160,12 @@ async function safeDestroy(client: NodeTNClient, streamId: StreamId) {
         streamId: streamIdComposed,
         dataProvider: EthereumAddress.fromString(wallet.address).throw(),
     };
-    const streamApiComposed = client.loadComposedStream(streamLocatorComposed);
-
-    // Initialize the stream with retry.
-    const initResponseComposed = await retryOperation(() =>
-        streamApiComposed.initializeStream()
-    );
-    console.log("Initialize transaction hash:", initResponseComposed.data?.tx_hash);
-
-    // Wait for the transaction to be mined.
-    await client.waitForTx(initResponseComposed.data?.tx_hash!);
+    const streamApiComposed = client.loadComposedAction();
 
     // Set the taxonomy with retry.
     const setTaxonomyResponse = await retryOperation(() =>
         streamApiComposed.setTaxonomy({
+            stream: streamLocatorComposed,
             taxonomyItems: [
                 {
                     childStream: {
@@ -182,14 +185,19 @@ async function safeDestroy(client: NodeTNClient, streamId: StreamId) {
 
     // Fetch the taxonomy with retry.
     const resultComposed = await retryOperation(() =>
-        streamApiComposed.describeTaxonomies({ latestVersion: true })
+        streamApiComposed.describeTaxonomies({
+            stream: streamLocatorComposed,
+            latestGroupSequence: true
+        })
     )
     console.log("Fetched taxonomy items:", resultComposed[0].taxonomyItems);
     console.log("Fetched taxonomy start date:", resultComposed[0].startDate);
 
     // Fetch the record with retry.
     const resultComposedRecord = await retryOperation(() =>
-        streamApiComposed.getRecord({})
+        streamApiComposed.getRecord({
+            stream: streamLocatorComposed,
+        })
     );
     console.log("Fetched record:", resultComposedRecord);
 

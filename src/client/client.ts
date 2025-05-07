@@ -1,21 +1,22 @@
 import { Client, KwilSigner, NodeKwil, WebKwil } from "@kwilteam/kwil-js";
 import { KwilConfig } from "@kwilteam/kwil-js/dist/api_client/config";
 import { Kwil } from "@kwilteam/kwil-js/dist/client/kwil";
-import { EthSigner } from "@kwilteam/kwil-js/dist/core/builders";
+import { EthSigner } from "@kwilteam/kwil-js/dist/core/signature";
 import { EnvironmentType } from "@kwilteam/kwil-js/dist/core/enums";
 import { GenericResponse } from "@kwilteam/kwil-js/dist/core/resreq";
 import { TxReceipt } from "@kwilteam/kwil-js/dist/core/tx";
 import { TxInfoReceipt } from "@kwilteam/kwil-js/dist/core/txQuery";
-import { ComposedStream } from "../contracts-api/composedStream";
+import { ComposedAction } from "../contracts-api/composedAction";
 import { deployStream } from "../contracts-api/deployStream";
-import { destroyStream } from "../contracts-api/destroyStream";
-import { PrimitiveStream } from "../contracts-api/primitiveStream";
-import { Stream } from "../contracts-api/stream";
+import { deleteStream } from "../contracts-api/deleteStream";
+import { PrimitiveAction } from "../contracts-api/primitiveAction";
+import { Action } from "../contracts-api/action";
 import { StreamType } from "../contracts-api/contractValues";
 import { StreamLocator } from "../types/stream";
 import { EthereumAddress } from "../util/EthereumAddress";
 import { StreamId } from "../util/StreamId";
-import { listAllStreams } from "./listAllStreams";
+import { listStreams } from "./listStreams";
+import { getLastTransactions } from "./getLastTransactions";
 
 export interface SignerInfo {
   // we need to have the address upfront to create the KwilSigner, instead of relying on the signer to return it asynchronously
@@ -28,6 +29,22 @@ export type TNClientOptions = {
   signerInfo: SignerInfo;
   neonConnectionString?: string;
 } & Omit<KwilConfig, "kwilProvider">;
+
+export interface ListStreamsInput {
+    dataProvider?: string;
+    limit?: number;
+    offset?: number;
+    orderBy?: string;
+}
+
+/**
+ * @param dataProvider optional address; when omitted or null, returns for all providers
+ * @param limitSize max rows to return (default 6, max 100)
+ */
+export interface GetLastTransactionsInput {
+  dataProvider?: string;
+  limitSize?: number;
+}
 
 export abstract class BaseTNClient<T extends EnvironmentType> {
   protected kwilClient: Kwil<T> | undefined;
@@ -53,14 +70,13 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
           .catch(() => ({ data: undefined, status: undefined }));
         switch (receipt.status) {
           case 200:
-            if (receipt.data?.tx_result.log === "success") {
-              resolve(receipt.data);
-            } else {
+            if (receipt.data?.tx_result?.log !== undefined && receipt.data?.tx_result?.log.includes("ERROR")) {
               reject(
-                new Error(
-                  `Transaction failed: status ${receipt.status} : log message ${receipt.data?.tx_result.log}`,
-                ),
-              );
+                  new Error(
+                      `Transaction failed: status ${receipt.status} : log message ${receipt.data?.tx_result.log}`,
+                  ))
+            } else {
+              resolve(receipt.data!);
             }
             break;
           case undefined:
@@ -122,7 +138,6 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
     streamId: StreamId,
     streamType: StreamType,
     synchronous?: boolean,
-    contractVersion?: number
   ): Promise<GenericResponse<TxReceipt>> {
     return await deployStream({
       streamId,
@@ -130,23 +145,22 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
       synchronous,
       kwilClient: this.getKwilClient(),
       kwilSigner: this.getKwilSigner(),
-      contractVersion: contractVersion,
       neonConnectionString: this.getNeonConnectionString(),
     });
   }
 
   /**
    * Destroys a stream.
-   * @param streamId - The ID of the stream to destroy.
+   * @param stream - The StreamLocator of the stream to destroy.
    * @param synchronous - Whether the destruction should be synchronous.
    * @returns A promise that resolves to a generic response containing the transaction receipt.
    */
   async destroyStream(
-    streamId: StreamId,
+    stream: StreamLocator,
     synchronous?: boolean,
   ): Promise<GenericResponse<TxReceipt>> {
-    return await destroyStream({
-      streamId,
+    return await deleteStream({
+      stream,
       synchronous,
       kwilClient: this.getKwilClient(),
       kwilSigner: this.getKwilSigner(),
@@ -155,38 +169,29 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
 
   /**
    * Loads an already deployed stream, permitting its API usage.
-   * @param stream - The locator of the stream to load.
    * @returns An instance of IStream.
    */
-  loadStream(stream: StreamLocator): Stream {
-    return new Stream(
+  loadAction(): Action {
+    return new Action(
       this.getKwilClient() as WebKwil | NodeKwil,
       this.getKwilSigner(),
-      stream,
     );
   }
 
   /**
    * Loads a primitive stream.
-   * @param stream - The locator of the primitive stream to load.
    * @returns An instance of IPrimitiveStream.
    */
-  loadPrimitiveStream(stream: StreamLocator): PrimitiveStream {
-    return PrimitiveStream.fromStream(this.loadStream(stream));
+  loadPrimitiveAction(): PrimitiveAction {
+    return PrimitiveAction.fromStream(this.loadAction());
   }
 
   /**
    * Loads a composed stream.
-   * @param stream - The locator of the composed stream to load.
    * @returns An instance of IComposedStream.
    */
-  loadComposedStream(stream: StreamLocator): ComposedStream {
-    return new ComposedStream(
-      this.getKwilClient() as WebKwil | NodeKwil,
-      this.getKwilSigner(),
-      stream,
-      this.getNeonConnectionString(),
-    );
+  loadComposedAction(): ComposedAction {
+    return ComposedAction.fromStream(this.loadAction(), this.getNeonConnectionString());
   }
 
   /**
@@ -211,12 +216,21 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
 
   /**
    * Returns all streams from the TN network.
-   * @param owner - The owner of the streams. If not provided, all streams will be returned.
+   * @param input - The input parameters for listing streams.
    * @returns A promise that resolves to a list of stream locators.
    */
-  async getAllStreams(owner?: EthereumAddress): Promise<StreamLocator[]> {
-    return listAllStreams(this.getKwilClient(), owner);
+  async getListStreams(input: ListStreamsInput): Promise<StreamLocator[]> {
+    return listStreams(this.getKwilClient() as WebKwil | NodeKwil,this.getKwilSigner(),input);
   }
+
+    /**
+     * Returns the last write activity across streams.
+     * @param input - The input parameters for getting last transactions.
+     * @returns A promise that resolves to a list of last transactions.
+     */
+    async getLastTransactions(input: GetLastTransactionsInput): Promise<any[]> {
+        return getLastTransactions(this.getKwilClient() as WebKwil | NodeKwil,this.getKwilSigner(),input);
+    }
 
   /**
    * Get the default chain id for a provider. Use with caution, as this decreases the security of the TN.

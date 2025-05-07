@@ -1,16 +1,9 @@
-import { StreamType } from "./contractValues";
-import { TxReceipt } from "@kwilteam/kwil-js/dist/core/tx";
-import { Kwil } from "@kwilteam/kwil-js/dist/client/kwil";
-import { CompiledKuneiform } from "@kwilteam/kwil-js/dist/core/payload";
-import {
-  composedStreamTemplate,
-  primitiveStreamTemplate,
-  composedStreamTemplateUnix,
-  primitiveStreamTemplateUnix
-} from "../contracts/contractsContent";
-import { GenericResponse } from "@kwilteam/kwil-js/dist/core/resreq";
-import { KwilSigner } from "@kwilteam/kwil-js";
-import { StreamId } from "../util/StreamId";
+import {StreamType} from "./contractValues";
+import {TxReceipt} from "@kwilteam/kwil-js/dist/core/tx";
+import {Kwil} from "@kwilteam/kwil-js/dist/client/kwil";
+import {KwilSigner} from "@kwilteam/kwil-js";
+import {GenericResponse} from "@kwilteam/kwil-js/dist/core/resreq";
+import {StreamId} from "../util/StreamId";
 import pg from "pg";
 const { Pool } = pg;
 
@@ -20,7 +13,6 @@ export interface DeployStreamInput {
   kwilClient: Kwil<any>;
   kwilSigner: KwilSigner;
   synchronous?: boolean;
-  contractVersion?: number;
   neonConnectionString?: string;
 }
 
@@ -37,17 +29,18 @@ export async function deployStream(
   input: DeployStreamInput,
 ): Promise<GenericResponse<TxReceipt>> {
   try {
-    const schema = await getContract(input.streamType, input.contractVersion);
-
-    schema.name = input.streamId.getId();
-
-    const txHash = await input.kwilClient.deploy(
-      {
-        schema,
-        description: `TN SDK - Deploying ${input.streamType} stream: ${input.streamId.getId()}`,
-      },
-      input.kwilSigner,
-      input.synchronous,
+      const txHash = await input.kwilClient.execute(
+        {
+            namespace: "main",
+            inputs: [{
+                $stream_id: input.streamId.getId(),
+                $stream_type: input.streamType,
+            }],
+            name: "create_stream",
+            description: `TN SDK - Deploying ${input.streamType} stream: ${input.streamId.getId()}`
+        },
+        input.kwilSigner,
+        input.synchronous,
     );
 
     // Optional: insert into Postgres via neon connection
@@ -55,7 +48,7 @@ export async function deployStream(
       console.log("Neon connection detected, attempting to insert into DB...");
 
       const signer: any = input.kwilSigner.signer;
-      const dataProvider = signer.address.toLowerCase().substring(2);
+      const dataProvider = signer.address.toLowerCase();
 
       const pool = new Pool({ connectionString: input.neonConnectionString });
       await pool.query(
@@ -72,22 +65,5 @@ export async function deployStream(
     return txHash;
   } catch (error) {
     throw new Error(`Failed to deploy stream: ${error}`);
-  }
-}
-
-/**
- * Returns the contract content based on the stream type.
- * @param streamType - The type of the stream.
- * @param contractVersion
- * @returns The contract content as a Uint8Array.
- */
-async function getContract(streamType: StreamType, contractVersion?: number): Promise<CompiledKuneiform> {
-  switch (streamType) {
-    case StreamType.Composed:
-      return contractVersion === 2 ? composedStreamTemplateUnix : composedStreamTemplate;
-    case StreamType.Primitive:
-      return contractVersion === 2 ? primitiveStreamTemplateUnix : primitiveStreamTemplate;
-    default:
-      throw new Error(`Unknown stream type: ${streamType}`);
   }
 }
