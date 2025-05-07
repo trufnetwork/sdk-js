@@ -5,10 +5,8 @@ import { DateString } from "../types/other";
 import { StreamLocator } from "../types/stream";
 import { EthereumAddress } from "../util/EthereumAddress";
 import { StreamId } from "../util/StreamId";
-import { StreamType } from "./contractValues";
 import { Action } from "./action";
 import DataType = Utils.DataType;
-import { Stream } from "./stream";
 import pg from "pg";
 const { Pool } = pg;
 
@@ -41,7 +39,6 @@ export class ComposedAction extends Action {
     kwilSigner: KwilSigner,
     neonConnectionString?: string,
   ) {
-    super(kwilClient, kwilSigner);
     super(kwilClient, kwilSigner);
     this.neonConnectionString = neonConnectionString;
   }
@@ -131,7 +128,7 @@ export class ComposedAction extends Action {
       weights.push(item.weight.toString());
     }
 
-    return await this.executeWithActionBody({
+    const txHash = await this.executeWithActionBody({
         namespace: "main",
         name: "insert_taxonomy",
         inputs: [
@@ -152,26 +149,18 @@ export class ComposedAction extends Action {
           $weights: DataType.NumericArray(36,18),
           $start_date: DataType.Int
         }});
-    const res = await this.checkedComposedExecute("set_taxonomy", [
-      ActionInput.fromObject({
-        $data_providers: dataProviders,
-        $stream_ids: streamIds,
-        $weights: weights,
-        $start_date: startDate,
-      }),
-    ]);
 
     // Optional: insert into Postgres via neon connection if a connection string is provided
     if (this.neonConnectionString) {
       const pool = new Pool({ connectionString: this.neonConnectionString });
 
       // parent info comes from this.locator
-      const parentProvider = this.locator.dataProvider.getAddress().slice(2);
-      const parentStreamId = this.locator.streamId.getId();
-      const startDateText = String(startDate);
+      const parentProvider = taxonomy.stream.dataProvider.getAddress().toLowerCase();
+      const parentStreamId = taxonomy.stream.streamId.getId();
+      const startDateText = String(taxonomy.startDate);
 
       for (const item of taxonomy.taxonomyItems) {
-        const childProvider = item.childStream.dataProvider.getAddress().slice(2);
+        const childProvider = item.childStream.dataProvider.getAddress().toLowerCase();
         const childStreamId = item.childStream.streamId.getId();
         const weight = item.weight;
 
@@ -196,14 +185,14 @@ export class ComposedAction extends Action {
       await pool.end();
       console.log("Successfully inserted taxonomy into Explorer DB", {
         parentStreamId,
-        childStreamId: streamIds,
+        childStreamId: childStreamIds,
         weight: weights,
-        startDate,
+        startDate: startDateText,
       });
     }
 
 
-    return res;
+    return txHash;
   }
 
   /**

@@ -6,7 +6,7 @@ import {
     StreamType,
 } from "../src"
 import { Wallet } from "ethers";
-import dotenv from 'dotenv';
+import * as dotenv from 'dotenv';
 
 // Helper: delay for a given number of milliseconds.
 async function delay(ms: number): Promise<void> {
@@ -149,7 +149,7 @@ async function safeDestroy(client: NodeTNClient, streamId: StreamId) {
     await safeDestroy(client, streamIdComposed);
 
     const deployResponseComposed = await retryOperation(() =>
-        client.deployStream(streamIdComposed, StreamType.Composed, true, 2)
+        client.deployStream(streamIdComposed, StreamType.Composed, true)
     );
     console.log("Deploy transaction hash:", deployResponseComposed.data?.tx_hash);
     // Wait for the transaction to be mined.
@@ -160,20 +160,12 @@ async function safeDestroy(client: NodeTNClient, streamId: StreamId) {
         streamId: streamIdComposed,
         dataProvider: EthereumAddress.fromString(wallet.address).throw(),
     };
-    const streamApiComposed = client.loadComposedStream(streamLocatorComposed);
-
-    // Initialize the stream with retry.
-    const initResponseComposed = await retryOperation(() =>
-        streamApiComposed.initializeStream()
-    );
-    console.log("Initialize transaction hash:", initResponseComposed.data?.tx_hash);
-
-    // Wait for the transaction to be mined.
-    await client.waitForTx(initResponseComposed.data?.tx_hash!);
+    const streamApiComposed = client.loadComposedAction();
 
     // Set the taxonomy with retry.
     const setTaxonomyResponse = await retryOperation(() =>
         streamApiComposed.setTaxonomy({
+            stream: streamLocatorComposed,
             taxonomyItems: [
                 {
                     childStream: {
@@ -193,14 +185,19 @@ async function safeDestroy(client: NodeTNClient, streamId: StreamId) {
 
     // Fetch the taxonomy with retry.
     const resultComposed = await retryOperation(() =>
-        streamApiComposed.describeTaxonomies({ latestVersion: true })
+        streamApiComposed.describeTaxonomies({
+            stream: streamLocatorComposed,
+            latestGroupSequence: true
+        })
     )
     console.log("Fetched taxonomy items:", resultComposed[0].taxonomyItems);
     console.log("Fetched taxonomy start date:", resultComposed[0].startDate);
 
     // Fetch the record with retry.
     const resultComposedRecord = await retryOperation(() =>
-        streamApiComposed.getRecord({})
+        streamApiComposed.getRecord({
+            stream: streamLocatorComposed,
+        })
     );
     console.log("Fetched record:", resultComposedRecord);
 

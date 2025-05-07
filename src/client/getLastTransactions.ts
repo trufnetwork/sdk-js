@@ -42,9 +42,18 @@ export async function getLastTransactions(
                 data: Array<{
                     hash: string;
                     sender: string;
-                    /* ... */
-                }>;
+                }> | null;
             };
+
+            if (!json.ok || !json.data || json.data.length === 0) {
+                console.warn(`No transaction found at block ${r.created_at}`);
+                return {
+                    blockHeight: r.created_at,
+                    method: r.method,
+                    sender: "(unknown)",
+                    transactionHash: "(unknown)",
+                };
+            }
 
             const tx = json.data[0];
             return {
