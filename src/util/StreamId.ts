@@ -4,10 +4,12 @@ import { Either } from "monads-io";
 export class StreamId {
   private readonly id: string;
   private readonly correctlyCreated: boolean = false;
+  private readonly name?: string;
 
-  private constructor(id: string) {
+  private constructor(id: string, name?: string) {
     this.id = id;
     this.correctlyCreated = true;
+    this.name = name;
   }
 
   public getId(): string {
@@ -16,6 +18,10 @@ export class StreamId {
     }
 
     return this.id;
+  }
+
+  public getName(): string | undefined {
+    return this.name;
   }
 
   public validate(): boolean {
@@ -42,7 +48,7 @@ export class StreamId {
     // Take the first 30 characters of the hash and prepend "st"
     const streamIdStr = "st" + hash.slice(0, 30);
 
-    return new StreamId(streamIdStr);
+    return new StreamId(streamIdStr, s);
   }
 
   public static fromString(s: string): Either<Error, StreamId> {
