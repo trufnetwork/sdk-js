@@ -31,11 +31,16 @@ export interface DescribeTaxonomiesParams {
 }
 
 export class ComposedAction extends Action {
+  protected neonConnectionString: string | undefined;
+
   constructor(
     kwilClient: WebKwil | NodeKwil,
     kwilSigner: KwilSigner,
+    neonConnectionString?: string,
   ) {
     super(kwilClient, kwilSigner);
+    super(kwilClient, kwilSigner);
+    this.neonConnectionString = neonConnectionString;
   }
 
   /**
@@ -149,12 +154,14 @@ export class ComposedAction extends Action {
   /**
    * Creates a ComposedStream from a base Stream
    * @param stream The base stream to convert
+   * @param neonConnectionString The Neon connection string
    * @returns A ComposedStream instance
    */
-  public static fromStream(stream: Action): ComposedAction {
+  public static fromStream(stream: Action, neonConnectionString?: string): ComposedAction {
     return new ComposedAction(
       stream["kwilClient"],
       stream["kwilSigner"],
+      neonConnectionString,
     );
   }
 }

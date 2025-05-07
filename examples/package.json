@@ -11,6 +11,7 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@trufnetwork/sdk-js": "^0.2.2"
+    "@trufnetwork/sdk-js": "^0.2.2",
+    "dotenv": "^16.5.0"
   }
 }

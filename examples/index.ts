@@ -6,6 +6,7 @@ import {
     StreamType,
 } from "../src"
 import { Wallet } from "ethers";
+import dotenv from 'dotenv';
 
 // Helper: delay for a given number of milliseconds.
 async function delay(ms: number): Promise<void> {
@@ -59,6 +60,14 @@ async function safeDestroy(client: NodeTNClient, streamId: StreamId) {
     const wallet = new Wallet(
         "0000000000000000000000000000000000000000000000000000000000000001"
     );
+
+    // get the connection string from the environment variable
+    dotenv.config();
+    const neonConnectionString = process.env.NEON_CONNECTION_STRING;
+    if (!neonConnectionString) {
+        console.log("No connection string provided, will not doing explorer-related operations");
+    }
+
     const client = new NodeTNClient({
         chainId: "",
         endpoint: "http://localhost:8484",
@@ -66,13 +75,15 @@ async function safeDestroy(client: NodeTNClient, streamId: StreamId) {
             address: wallet.address,
             signer: wallet,
         },
+        neonConnectionString: neonConnectionString, // Optional, for explorer-related operations
+        timeout: 30000, //Optional, default is 10 seconds
     });
 
     // Create a new stream ID.
     const streamIdNew = await StreamId.generate("new-stream-id");
 
     // Before testing: destroy the stream if it already exists.
-    // await safeDestroy(client, streamIdNew);
+    await safeDestroy(client, streamIdNew);
 
     const streamType = StreamType.Primitive;
 
@@ -84,6 +95,8 @@ async function safeDestroy(client: NodeTNClient, streamId: StreamId) {
 
     // Wait for the transaction to be mined.
     await client.waitForTx(deployResponse.data?.tx_hash!);
+
+    return;
 
     // Prepare the stream locator for the new stream.
     const streamLocatorNew: StreamLocator = {
