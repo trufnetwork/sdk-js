@@ -112,8 +112,6 @@ async function safeDestroy(client: NodeTNClient, streamId: StreamId) {
     // Wait for the transaction to be mined.
     await client.waitForTx(deployResponse.data?.tx_hash!);
 
-    return;
-
     // Prepare the stream locator for the new stream.
     const streamLocatorNew: StreamLocator = {
         streamId: streamIdNew,
@@ -145,6 +143,68 @@ async function safeDestroy(client: NodeTNClient, streamId: StreamId) {
     );
     console.log("Fetched record:", resultNew);
 
+    // Example of deploying composed stream
+    const streamIdComposed = await StreamId.generate("composed-stream-id");
+    // Before testing: destroy the stream if it already exists.
+    await safeDestroy(client, streamIdComposed);
+
+    const deployResponseComposed = await retryOperation(() =>
+        client.deployStream(streamIdComposed, StreamType.Composed, true, 2)
+    );
+    console.log("Deploy transaction hash:", deployResponseComposed.data?.tx_hash);
+    // Wait for the transaction to be mined.
+    await client.waitForTx(deployResponseComposed.data?.tx_hash!);
+
+    // Prepare the stream locator for the new stream.
+    const streamLocatorComposed: StreamLocator = {
+        streamId: streamIdComposed,
+        dataProvider: EthereumAddress.fromString(wallet.address).throw(),
+    };
+    const streamApiComposed = client.loadComposedStream(streamLocatorComposed);
+
+    // Initialize the stream with retry.
+    const initResponseComposed = await retryOperation(() =>
+        streamApiComposed.initializeStream()
+    );
+    console.log("Initialize transaction hash:", initResponseComposed.data?.tx_hash);
+
+    // Wait for the transaction to be mined.
+    await client.waitForTx(initResponseComposed.data?.tx_hash!);
+
+    // Set the taxonomy with retry.
+    const setTaxonomyResponse = await retryOperation(() =>
+        streamApiComposed.setTaxonomy({
+            taxonomyItems: [
+                {
+                    childStream: {
+                        streamId: streamIdNew,
+                        dataProvider: EthereumAddress.fromString(wallet.address).throw(),
+                    },
+                    weight: "1",
+                },
+            ],
+            startDate: 0,
+        })
+    );
+    console.log("Set taxonomy transaction hash:", setTaxonomyResponse.data?.tx_hash);
+
+    // Wait for the transaction to be mined.
+    await client.waitForTx(setTaxonomyResponse.data?.tx_hash!);
+
+    // Fetch the taxonomy with retry.
+    const resultComposed = await retryOperation(() =>
+        streamApiComposed.describeTaxonomies({ latestVersion: true })
+    )
+    console.log("Fetched taxonomy items:", resultComposed[0].taxonomyItems);
+    console.log("Fetched taxonomy start date:", resultComposed[0].startDate);
+
+    // Fetch the record with retry.
+    const resultComposedRecord = await retryOperation(() =>
+        streamApiComposed.getRecord({})
+    );
+    console.log("Fetched record:", resultComposedRecord);
+
     // After testing: destroy the stream.
+    await safeDestroy(client, streamIdComposed);
     await safeDestroy(client, streamIdNew);
 })();

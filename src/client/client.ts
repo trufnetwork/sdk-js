@@ -223,8 +223,6 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
     return listStreams(this.getKwilClient() as WebKwil | NodeKwil,this.getKwilSigner(),input);
   }
 
-  //getLastTransactions
-
     /**
      * Returns the last write activity across streams.
      * @param input - The input parameters for getting last transactions.

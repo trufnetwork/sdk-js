@@ -62,7 +62,7 @@ export async function deployStream(
       console.log("successfully inserted into Explorer DB", input.streamId.getName());
     }
 
-    return txHash
+    return txHash;
   } catch (error) {
     throw new Error(`Failed to deploy stream: ${error}`);
   }

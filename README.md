@@ -73,6 +73,18 @@ const client = new NodeTNClient({
 });
 ```
 
+### Explorer interaction
+
+To enable Explorer-related features, you need to set the `neonConnectionString` in the `NodeTNClient` constructor.
+You can request the explorer write only connection string by contacting us.
+
+```ts
+const client = new NodeTNClient({     
+    // other options...
+    neonConnectionString: yourNeonConnectionString,
+});
+```
+
 For a complete working example:
 - Check our [TN SDK Demo Repository](https://github.com/truflation/tsn-sdk-demo)
 - Try the [Live Demo on CodeSandbox](https://codesandbox.io/p/devbox/m2r3tt?file=%2Fsrc%2Froutes%2F%2Bpage.svelte)

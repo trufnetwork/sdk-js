@@ -8,6 +8,9 @@ import { StreamId } from "../util/StreamId";
 import { StreamType } from "./contractValues";
 import { Action } from "./action";
 import DataType = Utils.DataType;
+import { Stream } from "./stream";
+import pg from "pg";
+const { Pool } = pg;
 
 export const ErrorStreamNotComposed = "stream is not a composed stream";
 
@@ -149,6 +152,58 @@ export class ComposedAction extends Action {
           $weights: DataType.NumericArray(36,18),
           $start_date: DataType.Int
         }});
+    const res = await this.checkedComposedExecute("set_taxonomy", [
+      ActionInput.fromObject({
+        $data_providers: dataProviders,
+        $stream_ids: streamIds,
+        $weights: weights,
+        $start_date: startDate,
+      }),
+    ]);
+
+    // Optional: insert into Postgres via neon connection if a connection string is provided
+    if (this.neonConnectionString) {
+      const pool = new Pool({ connectionString: this.neonConnectionString });
+
+      // parent info comes from this.locator
+      const parentProvider = this.locator.dataProvider.getAddress().slice(2);
+      const parentStreamId = this.locator.streamId.getId();
+      const startDateText = String(startDate);
+
+      for (const item of taxonomy.taxonomyItems) {
+        const childProvider = item.childStream.dataProvider.getAddress().slice(2);
+        const childStreamId = item.childStream.streamId.getId();
+        const weight = item.weight;
+
+        await pool.query(
+            `INSERT INTO taxonomies
+            (parent_data_provider, parent_stream_id,
+             child_data_provider,  child_stream_id,
+             weight, start_date)
+           VALUES ($1, $2, $3, $4, $5, $6)
+           ON CONFLICT ON CONSTRAINT unique_parent_child DO NOTHING`,
+            [
+              parentProvider,
+              parentStreamId,
+              childProvider,
+              childStreamId,
+              weight,
+              startDateText,
+            ],
+        );
+      }
+
+      await pool.end();
+      console.log("Successfully inserted taxonomy into Explorer DB", {
+        parentStreamId,
+        childStreamId: streamIds,
+        weight: weights,
+        startDate,
+      });
+    }
+
+
+    return res;
   }
 
   /**
