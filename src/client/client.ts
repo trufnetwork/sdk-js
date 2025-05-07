@@ -16,6 +16,7 @@ import { StreamLocator } from "../types/stream";
 import { EthereumAddress } from "../util/EthereumAddress";
 import { StreamId } from "../util/StreamId";
 import { listStreams } from "./listStreams";
+import { getLastTransactions } from "./getLastTransactions";
 
 export interface SignerInfo {
   // we need to have the address upfront to create the KwilSigner, instead of relying on the signer to return it asynchronously
@@ -33,6 +34,15 @@ export interface ListStreamsInput {
     limit?: number;
     offset?: number;
     orderBy?: string;
+}
+
+/**
+ * @param dataProvider optional address; when omitted or null, returns for all providers
+ * @param limitSize max rows to return (default 6, max 100)
+ */
+export interface GetLastTransactionsInput {
+  dataProvider?: string;
+  limitSize?: number;
 }
 
 export abstract class BaseTNClient<T extends EnvironmentType> {
@@ -201,6 +211,17 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
   async getListStreams(input: ListStreamsInput): Promise<StreamLocator[]> {
     return listStreams(this.getKwilClient() as WebKwil | NodeKwil,this.getKwilSigner(),input);
   }
+
+  //getLastTransactions
+
+    /**
+     * Returns the last write activity across streams.
+     * @param input - The input parameters for getting last transactions.
+     * @returns A promise that resolves to a list of last transactions.
+     */
+    async getLastTransactions(input: GetLastTransactionsInput): Promise<any[]> {
+        return getLastTransactions(this.getKwilClient() as WebKwil | NodeKwil,this.getKwilSigner(),input);
+    }
 
   /**
    * Get the default chain id for a provider. Use with caution, as this decreases the security of the TN.

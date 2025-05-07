@@ -68,6 +68,13 @@ async function safeDestroy(client: NodeTNClient, streamId: StreamId) {
         },
     });
 
+    // Example of using the client to get the last transactions.
+    const lastTransactions = await client.getLastTransactions({
+        dataProvider: undefined,
+        limitSize: 6,
+    });
+    console.log("Last transactions:", lastTransactions);
+
     // Create a new stream ID.
     const streamIdNew = await StreamId.generate("new-stream-id");
 
