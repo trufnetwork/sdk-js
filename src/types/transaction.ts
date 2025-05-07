@@ -7,4 +7,6 @@ export interface LastTransaction {
     sender: string;
     /** Hash of the on‐chain transaction */
     transactionHash: string;
+    /** Millisecond timestamp from the block header */
+    stampMs: number;
 }
