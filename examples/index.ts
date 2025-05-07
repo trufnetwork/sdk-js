@@ -40,7 +40,7 @@ async function retryOperation<T>(
     throw lastError;
 }
 
-// Helper: destroy stream once and ignore "dataset not found" errors.
+// Helper: destroy stream once and ignore "stream does not exist" errors.
 async function safeDestroy(client: NodeTNClient, streamId: StreamId) {
     try {
         await retryOperation(async () => {
@@ -52,6 +52,15 @@ async function safeDestroy(client: NodeTNClient, streamId: StreamId) {
             console.log(`Stream ${streamId.getId()} destroyed successfully.`);
         });
     } catch (error) {
+        console.log(error);
+        if (
+            error instanceof Error &&
+            error.message.includes("not exist")
+        ) {
+            console.warn(`[TN SDK] Stream ${streamId.getId()} does not exist, skipping destroy.`);
+            return;
+        }
+
         throw error;
     }
 }
