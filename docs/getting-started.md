@@ -1,7 +1,9 @@
 # Getting Started with TN SDK JS
 
 ## Prerequisites
-- Node.js 18 or later
+
+* Node.js 18 or later
+* A valid Ethereum private key
 
 ## Installation
 
@@ -16,43 +18,64 @@ yarn add @trufnetwork/sdk-js
 ## Quick Start
 
 ```typescript
-import { NodeTNClient, StreamId } from "@trufnetwork/sdk-js";
 import { Wallet } from "ethers";
+import {
+  NodeTNClient,
+  StreamId,
+  EthereumAddress,
+} from "@trufnetwork/sdk-js";
+import * as dotenv from "dotenv";
 
-// Initialize client
-const wallet = new Wallet(privateKey);
-const chainId = await NodeTNClient.getDefaultChainId("https://staging.tsn.truflation.com");
+dotenv.config();
 
+// Initialize wallet
+const wallet = new Wallet(process.env.PRIVATE_KEY!);
+
+// Prepare client options
+const endpoint = process.env.TN_ENDPOINT!;
+const chainId = process.env.CHAIN_ID || (await NodeTNClient.getDefaultChainId(endpoint));
+
+// Initialize TN client
 const client = new NodeTNClient({
-  endpoint: "https://staging.tsn.truflation.com",
+  endpoint,
   signerInfo: {
     address: wallet.address,
-    signer: wallet, // Must implement signMessage (e.g. ethers Wallet)
+    signer: wallet,
   },
   chainId,
 });
 
-// Create and initialize a primitive stream
+// Generate a new stream ID
 const streamId = await StreamId.generate("my-stream");
+
+// Deploy a primitive stream synchronously
 await client.deployStream(streamId, "primitive", true);
 
-const stream = client.loadPrimitiveAction({
+// Prepare stream locator
+const streamLocator = {
   streamId,
-  dataProvider: client.address(),
-});
+  dataProvider: EthereumAddress.fromString(wallet.address).throw(),
+};
 
-await stream.initializeStream();
+// Load primitive action client
+const primitiveStream = client.loadPrimitiveAction();
 
-// Insert data
-await stream.insertRecords([
-  { dateValue: "2024-01-01", value: "100.5" }
+// Insert records
+await primitiveStream.insertRecords([
+  {
+    stream: streamLocator,
+    eventTime: Math.floor(new Date("2024-01-01").getTime() / 1000),
+    value: "100.5",
+  },
 ]);
 
-// Read data
-const data = await stream.getRecord({
-  dateFrom: "2024-01-01",
-  dateTo: "2024-01-01"
+// Read back records
+const records = await primitiveStream.getRecord({
+  stream: streamLocator,
+  from: Math.floor(new Date("2024-01-01").getTime() / 1000),
+  to: Math.floor(new Date("2024-01-01").getTime() / 1000),
 });
+console.log("Fetched records:", records);
 ```
 
 ## Environment-Specific Usage
