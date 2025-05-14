@@ -78,8 +78,8 @@ async function safeDestroy(client: NodeTNClient, streamId: StreamId) {
     }
 
     const client = new NodeTNClient({
-        chainId: "",
-        endpoint: "http://localhost:8484",
+        chainId: "tn-v2",
+        endpoint: "https://gateway.mainnet.truf.network",
         signerInfo: {
             address: wallet.address,
             signer: wallet,
@@ -95,6 +95,7 @@ async function safeDestroy(client: NodeTNClient, streamId: StreamId) {
     });
     console.log("Last transactions:", lastTransactions);
 
+    return;
     // Create a new stream ID.
     const streamIdNew = await StreamId.generate("new-stream-id");
 
