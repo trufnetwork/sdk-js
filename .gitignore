@@ -18,8 +18,11 @@ out
 *.tsbuildinfo.json
 
 # env
+.env
 .env.*
 !.env.example
 
 .idea
 package-lock.json
+
+/gitignore

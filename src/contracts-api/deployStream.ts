@@ -11,9 +11,7 @@ import {
 import { GenericResponse } from "@kwilteam/kwil-js/dist/core/resreq";
 import { KwilSigner } from "@kwilteam/kwil-js";
 import { StreamId } from "../util/StreamId";
-import pg from "pg";
-const { Pool } = pg;
-
+import { type Pool } from "pg";
 export interface DeployStreamInput {
   streamId: StreamId;
   streamType: StreamType;
@@ -21,7 +19,7 @@ export interface DeployStreamInput {
   kwilSigner: KwilSigner;
   synchronous?: boolean;
   contractVersion?: number;
-  neonConnectionString?: string;
+  pool?: Pool;
 }
 
 export interface DeployStreamOutput {
@@ -51,20 +49,19 @@ export async function deployStream(
     );
 
     // Optional: insert into Postgres via neon connection
-    if (input.neonConnectionString) {
+    if (input.pool) {
       console.log("Neon connection detected, attempting to insert into DB...");
 
       const signer: any = input.kwilSigner.signer;
       const dataProvider = signer.address.toLowerCase().substring(2);
 
-      const pool = new Pool({ connectionString: input.neonConnectionString });
-      await pool.query(
-          `INSERT INTO streams (data_provider, stream_id, type, stream_name, display_name, categories, owner_wallet, geography, tags)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-             ON CONFLICT (data_provider, stream_id) DO NOTHING`,
-          [dataProvider, input.streamId.getId(), input.streamType, input.streamId.getName(), input.streamId.getName(), '{External}', dataProvider, 'Global', '{External}'],
+      await input.pool.query(
+        `INSERT INTO streams (data_provider, stream_id, type, stream_name, display_name, categories, owner_wallet, geography, tags)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+           ON CONFLICT (data_provider, stream_id) DO NOTHING`,
+        [dataProvider, input.streamId.getId(), input.streamType, input.streamId.getName(), input.streamId.getName(), '{External}', dataProvider, 'Global', '{External}'],
       );
-      await pool.end();
+      await input.pool.end();
 
       console.log("successfully inserted into Explorer DB", input.streamId.getName());
     }

@@ -8,8 +8,7 @@ import { EthereumAddress } from "../util/EthereumAddress";
 import { StreamId } from "../util/StreamId";
 import { StreamType } from "./contractValues";
 import { Stream } from "./stream";
-import pg from "pg";
-const { Pool } = pg;
+import { type Pool } from "pg";
 
 export const ErrorStreamNotComposed = "stream is not a composed stream";
 
@@ -31,16 +30,16 @@ export interface DescribeTaxonomiesParams {
 }
 
 export class ComposedStream extends Stream {
-  protected neonConnectionString: string | undefined;
+  protected pool: Pool | undefined;
 
   constructor(
     kwilClient: WebKwil | NodeKwil,
     kwilSigner: KwilSigner,
     locator: StreamLocator,
-    neonConnectionString?: string,
+    pool?: Pool,
   ) {
     super(kwilClient, kwilSigner, locator);
-    this.neonConnectionString = neonConnectionString;
+    this.pool = pool;
   }
 
   /**
@@ -162,9 +161,7 @@ export class ComposedStream extends Stream {
     ]);
 
     // Optional: insert into Postgres via neon connection if a connection string is provided
-    if (this.neonConnectionString) {
-      const pool = new Pool({ connectionString: this.neonConnectionString });
-
+    if (this.pool) {
       // parent info comes from this.locator
       const parentProvider = this.locator.dataProvider.getAddress().slice(2);
       const parentStreamId = this.locator.streamId.getId();
@@ -175,7 +172,7 @@ export class ComposedStream extends Stream {
         const childStreamId = item.childStream.streamId.getId();
         const weight = item.weight;
 
-        await pool.query(
+        await this.pool.query(
             `INSERT INTO taxonomies
             (parent_data_provider, parent_stream_id,
              child_data_provider,  child_stream_id,
@@ -193,7 +190,7 @@ export class ComposedStream extends Stream {
         );
       }
 
-      await pool.end();
+      await this.pool.end();
       console.log("Successfully inserted taxonomy into Explorer DB", {
         parentStreamId,
         childStreamId: streamIds,
@@ -201,7 +198,6 @@ export class ComposedStream extends Stream {
         startDate,
       });
     }
-
 
     return res;
   }

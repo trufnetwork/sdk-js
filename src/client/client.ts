@@ -16,6 +16,7 @@ import { StreamLocator } from "../types/stream";
 import { EthereumAddress } from "../util/EthereumAddress";
 import { StreamId } from "../util/StreamId";
 import { listAllStreams } from "./listAllStreams";
+import { type Pool } from "pg";
 
 export interface SignerInfo {
   // we need to have the address upfront to create the KwilSigner, instead of relying on the signer to return it asynchronously
@@ -131,7 +132,7 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
       kwilClient: this.getKwilClient(),
       kwilSigner: this.getKwilSigner(),
       contractVersion: contractVersion,
-      neonConnectionString: this.getNeonConnectionString(),
+      pool: this.getPool(),
     });
   }
 
@@ -185,7 +186,7 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
       this.getKwilClient() as WebKwil | NodeKwil,
       this.getKwilSigner(),
       stream,
-      this.getNeonConnectionString(),
+      this.getPool(),
     );
   }
 
@@ -230,4 +231,7 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
     const chainInfo = await kwilClient["chainInfoClient"]();
     return chainInfo.data?.chain_id;
   }
+
+
+  protected abstract getPool(): Pool | undefined;
 }
