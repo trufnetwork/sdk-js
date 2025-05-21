@@ -31,7 +31,6 @@ export default defineConfig({
       {
         test: { // Inner test config for browser project
           name: 'browser',
-          setupFiles: ['dotenv/config'],
           maxConcurrency: 1,
           browser: {
             enabled: true,
