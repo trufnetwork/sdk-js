@@ -8,8 +8,7 @@ import { EthereumAddress } from "../util/EthereumAddress";
 import { StreamId } from "../util/StreamId";
 import { StreamType } from "./contractValues";
 import { Stream } from "./stream";
-import pg from "pg";
-const { Pool } = pg;
+import { isBrowser } from "../util/isBrowser";
 
 export const ErrorStreamNotComposed = "stream is not a composed stream";
 
@@ -162,9 +161,11 @@ export class ComposedStream extends Stream {
     ]);
 
     // Optional: insert into Postgres via neon connection if a connection string is provided
-    if (this.neonConnectionString) {
+    if (this.neonConnectionString && !isBrowser) {
+      const pgModule = await import("pg");
+      const { Pool } = pgModule.default;
       const pool = new Pool({ connectionString: this.neonConnectionString });
-
+      
       // parent info comes from this.locator
       const parentProvider = this.locator.dataProvider.getAddress().slice(2);
       const parentStreamId = this.locator.streamId.getId();
@@ -200,8 +201,9 @@ export class ComposedStream extends Stream {
         weight: weights,
         startDate,
       });
+    } else if (this.neonConnectionString && isBrowser) {
+      console.warn("Database operations are not supported in browser environments. Taxonomy data will not be saved to the database.");
     }
-
 
     return res;
   }
