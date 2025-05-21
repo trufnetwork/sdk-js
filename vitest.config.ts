@@ -4,13 +4,15 @@ import { defineConfig } from 'vitest/config'
 export default defineConfig({
   test: {
     includeSource: [''],
-    setupFiles: ['disposablestack/auto'],
+    setupFiles: ['disposablestack/auto', 'dotenv/config'],
     maxConcurrency: 1, // Disable concurrency to avoid nonce errors
     fileParallelism: false,
     projects: [
       {
         test: { // Inner test config for node project
           name: 'node',
+          setupFiles: ['disposablestack/auto', 'dotenv/config'],
+          maxConcurrency: 1,
           environment: 'node',
           include: [
             'src/**/*.test.ts',
@@ -29,6 +31,8 @@ export default defineConfig({
       {
         test: { // Inner test config for browser project
           name: 'browser',
+          setupFiles: ['dotenv/config'],
+          maxConcurrency: 1,
           browser: {
             enabled: true,
             provider: 'playwright',
