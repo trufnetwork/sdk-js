@@ -1,6 +1,6 @@
 # API Reference
 
-For detailed information about TN concepts and operations, please refer to the [Js SDK Documentation](https://github.com/trufnetwork/sdk-js/blob/main/docs/api-reference.md).
+For detailed information about TN concepts and operations, please refer to the [README](https://github.com/trufnetwork/sdk-js/blob/main/README.md).
 
 ## Installation
 
@@ -49,6 +49,28 @@ const lastTxs = await client.getLastTransactions({
   limitSize: 6,
 });
 console.log("Last transactions:", lastTxs);
+```
+
+## Accessing Public Streams
+
+You can access any public stream on the network, including the Truflation AI Index:
+
+```typescript
+// Create a stream locator for the AI Index
+const aiIndexLocator = {
+  streamId: StreamId.fromString("st527bf3897aa3d6f5ae15a0af846db6").throw(),
+  dataProvider: EthereumAddress.fromString("0x4710a8d8f0d845da110086812a32de6d90d7ff5c").throw(),
+};
+
+// Load the action client
+const stream = client.loadAction();
+
+// Get the latest records
+const records = await stream.getRecord({
+  stream: aiIndexLocator,
+});
+
+console.log("AI Index records:", records);
 ```
 
 ## Stream Operations
@@ -174,4 +196,4 @@ const all = await client.getListStreams({ dataProvider: undefined, limit: 100 })
 const mine = await client.getListStreams({ dataProvider: wallet.address, limit: 100 });
 ```
 
-For comprehensive examples, see the [integration tests](../tests/integration) and [example scripts](../examples).
+For comprehensive examples, see the [example scripts](../examples).

@@ -32,8 +32,8 @@ dotenv.config();
 const wallet = new Wallet(process.env.PRIVATE_KEY!);
 
 // Prepare client options
-const endpoint = process.env.TN_ENDPOINT!;
-const chainId = process.env.CHAIN_ID || (await NodeTNClient.getDefaultChainId(endpoint));
+const endpoint = process.env.TN_ENDPOINT || "https://gateway.mainnet.truf.network";
+const chainId = process.env.CHAIN_ID || "tn-v2" || (await NodeTNClient.getDefaultChainId(endpoint));
 
 // Initialize TN client
 const client = new NodeTNClient({
@@ -78,6 +78,28 @@ const records = await primitiveStream.getRecord({
 console.log("Fetched records:", records);
 ```
 
+## Reading from Existing Streams
+
+You can read data from any public stream, such as the Truflation AI Index:
+
+```typescript
+// Create a stream locator for the AI Index
+const aiIndexLocator = {
+  streamId: StreamId.fromString("st527bf3897aa3d6f5ae15a0af846db6").throw(),
+  dataProvider: EthereumAddress.fromString("0x4710a8d8f0d845da110086812a32de6d90d7ff5c").throw(),
+};
+
+// Load the action client
+const stream = client.loadAction();
+
+// Get the latest records
+const records = await stream.getRecord({
+  stream: aiIndexLocator,
+});
+
+console.log("AI Index records:", records);
+```
+
 ## Environment-Specific Usage
 
 The SDK provides optimized clients for different environments:
@@ -94,7 +116,7 @@ import { BrowserTNClient } from "@trufnetwork/sdk-js";
 
 - Review [Core Concepts](./core-concepts.md) to understand streams and permissions
 - See the [API Reference](./api-reference.md) for detailed method documentation
-- Check our [integration tests](../tests/integration) for comprehensive examples
+- Check our [example scripts](../examples) for comprehensive examples
 
 ## Support
 
