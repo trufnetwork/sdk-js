@@ -2,7 +2,6 @@
   "name": "node_sdk",
   "version": "1.0.0",
   "main": "index.ts",
-  "type": "module",
   "scripts": {
     "start": "tsx index.ts"
   },
@@ -11,7 +10,7 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@trufnetwork/sdk-js": "^0.2.2",
+    "@trufnetwork/sdk-js": "^0.2.8",
     "dotenv": "^16.5.0"
   }
 }
