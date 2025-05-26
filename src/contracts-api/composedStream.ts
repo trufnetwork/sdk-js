@@ -163,12 +163,12 @@ export class ComposedStream extends Stream {
     // Optional: insert into Postgres via neon connection if a connection string is provided
     if (this.pool) {
       // parent info comes from this.locator
-      const parentProvider = this.locator.dataProvider.getAddress().slice(2);
+      const parentProvider = this.locator.dataProvider.getAddress();
       const parentStreamId = this.locator.streamId.getId();
       const startDateText = String(startDate);
 
       for (const item of taxonomy.taxonomyItems) {
-        const childProvider = item.childStream.dataProvider.getAddress().slice(2);
+        const childProvider = item.childStream.dataProvider.getAddress();
         const childStreamId = item.childStream.streamId.getId();
         const weight = item.weight;
 
