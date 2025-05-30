@@ -536,4 +536,17 @@ export class Action {
       )
       .throw();
   }
+
+  /**
+   * Returns the size of database
+   */
+  public async getDatabaseSize(): Promise<BigInt> {
+    const result = await this.call<{ database_size: BigInt }[]>("get_database_size", {})
+    return result
+      .map((rows) => {
+        const raw = rows[0].database_size;
+        const asBigInt = BigInt(raw.toString());
+        return asBigInt;
+      }).throw();
+  }
 }
