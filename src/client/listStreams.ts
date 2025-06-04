@@ -23,6 +23,7 @@ export async function listStreams(
             $limit: input.limit,
             $offset: input.offset,
             $order_by: input.orderBy,
+            $block_height: input.blockHeight,
         },
         name: "list_streams",
         namespace: "main",

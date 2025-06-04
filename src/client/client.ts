@@ -35,6 +35,7 @@ export interface ListStreamsInput {
     limit?: number;
     offset?: number;
     orderBy?: string;
+    blockHeight?: number;
 }
 
 /**
