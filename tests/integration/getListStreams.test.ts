@@ -26,7 +26,7 @@ describe.sequential("Get List Streams", { timeout: 90000 }, () => {
       await defaultClient.deployStream(composedStreamId, StreamType.Composed, true);
 
       // Get all streams
-      const streams = await defaultClient.getListStreams({});
+      const streams = await defaultClient.getListStreams({ blockHeight: 0 });
 
       // Verify streams are listed
       expect(streams.length).toBeGreaterThan(1);
@@ -72,7 +72,7 @@ describe.sequential("Get List Streams", { timeout: 90000 }, () => {
 
       // Get streams for owner
       const streams = await defaultClient.getListStreams(
-          { dataProvider: defaultClient.address().getAddress() },
+          { dataProvider: defaultClient.address().getAddress(), blockHeight: 0 },
       );
 
       // Verify our test stream is in the list
@@ -83,8 +83,8 @@ describe.sequential("Get List Streams", { timeout: 90000 }, () => {
 
       // Verify stream belongs to owner
       if (found) {
-        expect(found.dataProvider.getAddress()).toBe(
-          defaultClient.address().getAddress(),
+        expect(found.dataProvider.getAddress().toLowerCase()).toBe(
+          defaultClient.address().getAddress().toLowerCase(),
         );
       }
     },
