@@ -1,6 +1,6 @@
 # TN SDK JS
 
-The TN SDK provides developers with tools to interact with the TRUF.NETWORK, a decentralized platform for publishing, composing, and consuming economic data streams.
+The TN SDK provides developers with tools to interact with the [TRUF.NETWORK](https://truf.network/), a decentralized platform for publishing, composing, and consuming economic data streams.
 
 ## Core Concepts
 
@@ -30,22 +30,22 @@ This section will guide you through the initial setup and a basic client initial
 npm install @trufnetwork/sdk-js
 # or
 yarn add @trufnetwork/sdk-js
-# or 
+# or
 pnpm install @trufnetwork/sdk-js
 ```
 
 ### Basic Client Initialization
 
-Here's a quick example of how to initialize the client:
+Here's a quick example of how to initialize the client for a Node.js environment. The initialized `client` and `wallet` instances can typically be reused for subsequent operations shown in later examples.
 
 ```ts
 import { NodeTNClient, StreamId } from "@trufnetwork/sdk-js";
 import { Wallet } from "ethers";
 
-// Create a wallet
+// Create a wallet.
 const wallet = new Wallet("YOUR_PRIVATE_KEY");
 
-// Initialize client
+// Initialize client for Node.js
 const client = new NodeTNClient({
   endpoint: "https://gateway.mainnet.truf.network",
   signerInfo: {
@@ -54,107 +54,31 @@ const client = new NodeTNClient({
   },
   chainId: "tn-v2", // or use NodeTNClient.getDefaultChainId(endpoint)
 });
-
-// You are now ready to interact with TRUF.Network!
-// See Usage Examples for more detailed operations.
-```
-> **Note:** Replace `YOUR_PRIVATE_KEY` with your actual private key (hex string). The
-> wallet is required for signing and authenticating requests.
-
-const stream = client.loadPrimitiveAction();
-
-// Insert data, simplified
-await stream.insertRecords([
-  { stream: client.ownStreamLocator(streamId), eventTime: new Date("2024-01-01").getTime() / 1000, value: "100.5" }
-]);
-
-// Read data
-const data = await stream.getRecord({
-  stream: client.ownStreamLocator(streamId),
-  from: new Date("2024-01-01").getTime() / 1000,
-  to: new Date("2024-01-02").getTime() / 1000,
-});
 ```
 
-### Reading from Truflation AI Index
+> **Note:** `YOUR_PRIVATE_KEY` is a placeholder. **Never hardcode private keys.** For Node.js, store it in a `.env` file (e.g., `PRIVATE_KEY="0xabc..."`) and use [`dotenv`](https://www.npmjs.com/package/dotenv) (`npm install dotenv`) to load it as `process.env.PRIVATE_KEY`. Your private key is essential for signing and authenticating requests.
 
-You can easily read data from existing indexes like the Truflation AI Index:
+### Client for Different Environments
 
-```ts
-import { NodeTNClient, StreamId, EthereumAddress } from "@trufnetwork/sdk-js";
-import { Wallet } from "ethers";
+Import the client relevant to your JavaScript environment:
 
-const wallet = new Wallet("0000000000000000000000000000000000000000000000000000000000000001");
-
-const client = new NodeTNClient({
-  endpoint: "https://gateway.mainnet.truf.network",
-  signerInfo: {
-    address: wallet.address,
-    signer: wallet,
-  },
-  chainId: "tn-v2",
-});
-
-// Create a stream locator for the AI Index
-const aiIndexLocator = {
-  streamId: StreamId.fromString("st527bf3897aa3d6f5ae15a0af846db6").throw(),
-  dataProvider: EthereumAddress.fromString("0x4710a8d8f0d845da110086812a32de6d90d7ff5c").throw(),
-};
-
-// Load the action client
-const stream = client.loadAction();
-
-// Get the latest records
-const records = await stream.getRecord({
-  stream: aiIndexLocator,
-});
-
-console.log("AI Index records:", records);
+```typescript
+// For Node.js applications
+import { NodeTNClient } from "@trufnetwork/sdk-js";
 ```
 
-### Explorer Interaction
-
-To enable Explorer-related features, you need to set the `neonConnectionString` in the `NodeTNClient` constructor.
-You can request the explorer write-only connection string by contacting us.
-
-```ts
-const client = new NodeTNClient({     
-    endpoint: "https://gateway.mainnet.truf.network",
-    signerInfo: {
-        address: wallet.address,
-        signer: wallet,
-    },
-    chainId: "tn-v2",
-    neonConnectionString: yourNeonConnectionString,
-});
+```typescript
+// For browser applications
+import { BrowserTNClient } from "@trufnetwork/sdk-js";
 ```
+For detailed configuration options for both clients, please see our [API Reference](./docs/api-reference.md). //TODO
 
-For a complete working example:
-- Check our [TN SDK Demo Repository](https://github.com/truflation/tsn-sdk-demo)
-- Try the [Live Demo on CodeSandbox](https://codesandbox.io/p/devbox/m2r3tt?file=%2Fsrc%2Froutes%2F%2Bpage.svelte)
-- Try reading from [a Truflation Stream on CodeSandbox with NodeJS](https://codesandbox.io/p/devbox/rtm7mn?file=%2Findex.ts%3A22%2C11)
-- Check out the [TN SDK JS Example Directory](./examples). It contains examples for stream deployment, data insertion, data retrieval, and stream destruction.
+## Usage Examples
 
-## Stream Types
 
-TN supports two main types of streams:
+## Deployment Considerations
 
-- **Primitive Streams**: Direct data sources from providers
-- **Composed Streams**: Aggregate data from multiple streams using weights
-
-More information about TN components can be found in the [Js SDK Documentation](https://github.com/trufnetwork/sdk-js/blob/main/docs/api-reference.md).
-
-## Documentation
-
-- [Getting Started](./docs/getting-started.md)
-- [Core Concepts](./docs/core-concepts.md)
-- [API Reference](./docs/api-reference.md)
-
-## Mainnet Network
-
-The mainnet network is available at https://gateway.mainnet.truf.network
-
-## Running with Deno
+### Running with Deno
 
 This package works with Deno when using the `--allow-net` permission flag:
 
@@ -162,7 +86,7 @@ This package works with Deno when using the `--allow-net` permission flag:
 import { ... } from "npm:@trufnetwork/sdk-js"
 ```
 
-### Deno Environment Permissions
+#### Deno Environment Permissions
 
 By default, some dependencies require environment permissions. If you need to run without environment permissions, please see [this GitHub issue](https://github.com/denoland/deno/issues/20898#issuecomment-2500396620) for workarounds.
 
@@ -170,15 +94,15 @@ By default, some dependencies require environment permissions. If you need to ru
 
 ### Handling Crypto Hashing in Serverless Environments
 
-When deploying to serverless environments, some Node.js modules like `crypto-hash` may not work as expected due to
-compatibility issues. To resolve this, you can create a shim for the `crypto-hash` module and use
+When deploying to some serverless environments, Node.js modules like `crypto-hash` may encounter compatibility issues. To resolve this, you can create a shim for the 
+`crypto-hash` module and use
 Webpack's `NormalModuleReplacementPlugin` to replace it during the build process.
 
-#### 1. Create a Shim File
+##### 1. Create a Shim File
 
 Add a new file named `crypto-hash-sync.js` to your project:
 
-```js
+```javascript
 import { createHash } from 'crypto';
 
 export const sha1 = (input) => createHash('sha1').update(input).digest('hex');
@@ -187,14 +111,15 @@ export const sha384 = (input) => createHash('sha384').update(input).digest('hex'
 export const sha512 = (input) => createHash('sha512').update(input).digest('hex');
 ```
 
-#### 2. Update Your Webpack Configuration
+##### 2. Update Your Bundler Configuration (Example: Webpack)
 
-Modify your `next.config.js` (or equivalent Webpack configuration file) to include the following:
+If you are using Webpack (common in Next.js or custom serverless setups), modify your configuration (e.g., `next.config.js` or `webpack.config.js`):
 
-```js
+```javascript
 const path = require('path');
 
 module.exports = {
+    // ... other configurations
     webpack: (config, {isServer, webpack}) => {
         // Add shim for crypto-hash
         config.plugins.push(
@@ -204,9 +129,11 @@ module.exports = {
             )
         );
         return config;
-    }
+    },
+    // ... other configurations
 };
 ```
+For other bundlers or serverless platforms, consult their documentation on module aliasing or replacement.
 
 ## Further Resources & Next Steps
 
@@ -218,8 +145,9 @@ To continue learning and building with the TN SDK, explore the following resourc
 - **Detailed Documentation**:
     - [API Reference](./docs/api-reference.md): Comprehensive details on all SDK classes, methods, types, and parameters.
 - **Examples & Demos**:
-    - [Live Demo on CodeSandbox](https://codesandbox.io/p/devbox/m2r3tt?file=%2Fsrc%2Froutes%2F%2Bpage.svelte) TODO: Update
-    - [Reading a Truflation Stream (Node.js on CodeSandbox)](https://codesandbox.io/p/devbox/rtm7mn?file=%2Findex.ts%3A22%2C11) //TODO: update
+    - [TN SDK Demo Repository](https://github.com/truflation/tsn-sdk-demo)
+    - [Live Demo on CodeSandbox](https://codesandbox.io/p/devbox/m2r3tt?file=%2Fsrc%2Froutes%2F%2Bpage.svelte)
+    - [Reading a Truflation Stream (Node.js on CodeSandbox)](https://codesandbox.io/p/devbox/rtm7mn?file=%2Findex.ts%3A22%2C11)
     - [Local Examples Directory](./examples) (Contains examples for stream deployment, data insertion, retrieval, and destruction).
 - **Whitepaper**:
     - [Truflation Whitepaper](https://whitepaper.truflation.com)
