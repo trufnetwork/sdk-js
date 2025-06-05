@@ -224,7 +224,7 @@ To continue learning and building with the TN SDK, explore the following resourc
 
 - **Tutorials & Guides**:
     - [Getting Started Guide](./docs/getting-started.md): A detailed walkthrough for setting up and making your first interactions with the SDK.
-    - [Core Concepts Explained](./docs/core-concepts.md): Understand the fundamental building blocks of the Truf Network and the SDK.
+    - [Core Concepts Explained](./docs/core-concepts.md): Understand the fundamental building blocks of the TRUF.NETWORK and the SDK.
 - **Detailed Documentation**:
     - [API Reference](./docs/api-reference.md): Comprehensive details on all SDK classes, methods, types, and parameters.
 - **Examples & Demos**:

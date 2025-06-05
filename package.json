@@ -1,7 +1,7 @@
 {
   "name": "@trufnetwork/sdk-js",
   "version": "0.3.2",
-  "description": "Truf Network SDK for JavaScript",
+  "description": "TRUF.NETWORK SDK for JavaScript",
   "type": "module",
   "keywords": [
     "truf",
