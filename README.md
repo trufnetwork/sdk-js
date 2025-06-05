@@ -65,9 +65,7 @@ Import the client relevant to your JavaScript environment:
 ```typescript
 // For Node.js applications
 import { NodeTNClient } from "@trufnetwork/sdk-js";
-```
 
-```typescript
 // For browser applications
 import { BrowserTNClient } from "@trufnetwork/sdk-js";
 ```
@@ -77,6 +75,44 @@ For detailed configuration options for both clients, please see our [API Referen
 
 Here are some common use cases for the SDK. For a wider range of examples and advanced scenarios, please explore the [example scripts in this repository](./examples) and our [detailed API Reference](./docs/api-reference.md). //TODO
 
+### Deploying and Managing Your Own Stream
+
+Assuming you have initialized `client` (an instance of `NodeTNClient`) and `wallet` (an instance of `ethers.Wallet`) as shown in the [Basic Client Initialization](#basic-client-initialization) section, here's how you can deploy a stream, insert data, and read it back.
+
+```ts
+import { NodeTNClient, StreamId, StreamType } from "@trufnetwork/sdk-js";
+import { Wallet } from "ethers";
+
+// 1. Generate or define a stream ID
+const streamId = await StreamId.generate("my-data-stream");
+
+// 2. Deploy a primitive stream
+const deployResponse = await client.deployStream(streamId, StreamType.Primitive, true);
+deployResponse.throw();
+const deployReceipt = deployResponse.unwrap();
+await client.waitForTx(deployReceipt.txHash);
+
+// 3. Load the action client
+const streamAction = client.loadPrimitiveAction(); //You can use loadAction() too
+
+// 4. Insert Data
+const insertResponse = await streamAction.insertRecords([
+  {
+    stream: client.ownStreamLocator(streamId),
+    eventTime: Math.floor(new Date("2024-03-10T10:00:00Z").getTime() / 1000),
+    value: "123.45"
+  }
+]);
+// For streams deployed by the client's wallet (like this one), client.ownStreamLocator(streamId) can be used.
+// For other streams, you'd explicitly define the stream locator with the streamId and the dataProvider's Ethereum address.
+
+// 5. Read data
+const data = await streamAction.getRecord({
+  stream: client.ownStreamLocator(streamId),
+  from: Math.floor(new Date("2024-03-10").getTime() / 1000),
+  to: Math.floor(new Date("2024-03-11").getTime() / 1000)
+});
+```
 
 ### Reading from an Existing Index (e.g., Truflation AI Index)
 
