@@ -75,6 +75,29 @@ For detailed configuration options for both clients, please see our [API Referen
 
 ## Usage Examples
 
+Here are some common use cases for the SDK. For a wider range of examples and advanced scenarios, please explore the [example scripts in this repository](./examples) and our [detailed API Reference](./docs/api-reference.md). //TODO
+
+
+### Reading from an Existing Index (e.g., Truflation AI Index)
+
+Assuming you have an initialized `client` (an instance of `NodeTNClient`) as shown in [Basic Client Initialization](#basic-client-initialization) section, you can read from existing public streams. 
+```ts
+import { StreamId, EthereumAddress } from "@trufnetwork/sdk-js";
+
+// Create a stream locator for the AI Index
+const aiIndexLocator = {
+  streamId: StreamId.fromString("st527bf3897aa3d6f5ae15a0af846db6").throw(),
+  dataProvider: EthereumAddress.fromString("0x4710a8d8f0d845da110086812a32de6d90d7ff5c").throw(),
+};
+
+// Load the action client
+const streamAction = client.loadAction();
+
+// Get the latest records
+const records = await streamAction.getRecord({
+  stream: aiIndexLocator,
+});
+```
 
 ### Explorer Interaction
 
@@ -82,7 +105,7 @@ To enable Explorer-related features, you need to set the `neonConnectionString` 
 You can request the explorer write-only connection string by contacting us.
 
 ```ts
-// Assuming 'wallet' is an initialized Ethers Wallet
+const wallet = new Wallet("YOUR_PRIVATE_KEY");
 
 const client = new NodeTNClient({
     endpoint: "https://gateway.mainnet.truf.network",
