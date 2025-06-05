@@ -155,6 +155,10 @@ const client = new NodeTNClient({
 ```
 For more details on specific methods related to Explorer interactions, consult the [API Reference](./docs/api-reference.md). //TODO
 
+### Using the SDK with Your Local Node
+If you are running your own TRUF.NETWORK node, you can configure the SDK to interact with your local instance. This is useful for development, testing, or when operating within a private network.
+For detailed instructions, prerequisites, and examples, please see our [Using the SDK with Your Local Node Guide](./docs/local-node-guide.md).
+
 ## Deployment Considerations
 
 ### Running with Deno
