@@ -69,11 +69,11 @@ import { NodeTNClient } from "@trufnetwork/sdk-js";
 // For browser applications
 import { BrowserTNClient } from "@trufnetwork/sdk-js";
 ```
-For detailed configuration options for both clients, please see our [API Reference](./docs/api-reference.md). //TODO
+For detailed configuration options for both clients, please see our [API Reference](./docs/api-reference.md). 
 
 ## Usage Examples
 
-Here are some common use cases for the SDK. For a wider range of examples and advanced scenarios, please explore the [example scripts in this repository](./examples) and our [detailed API Reference](./docs/api-reference.md). //TODO
+Here are some common use cases for the SDK. For a wider range of examples and advanced scenarios, please explore the [example scripts in this repository](./examples) and our [detailed API Reference](./docs/api-reference.md).
 
 ### Deploying and Managing Your Own Stream
 
@@ -153,7 +153,7 @@ const client = new NodeTNClient({
     neonConnectionString: yourNeonConnectionString, // Add your connection string here
 });
 ```
-For more details on specific methods related to Explorer interactions, consult the [API Reference](./docs/api-reference.md). //TODO
+For more details on specific methods related to Explorer interactions, consult the [API Reference](./docs/api-reference.md).
 
 ### Using the SDK with Your Local Node
 If you are running your own TRUF.NETWORK node, you can configure the SDK to interact with your local instance. This is useful for development, testing, or when operating within a private network.
@@ -228,10 +228,7 @@ To continue learning and building with the TN SDK, explore the following resourc
 - **Detailed Documentation**:
     - [API Reference](./docs/api-reference.md): Comprehensive details on all SDK classes, methods, types, and parameters.
 - **Examples & Demos**:
-    - [TN SDK Demo Repository](https://github.com/truflation/tsn-sdk-demo)
-    - [Live Demo on CodeSandbox](https://codesandbox.io/p/devbox/m2r3tt?file=%2Fsrc%2Froutes%2F%2Bpage.svelte)
-    - [Reading a Truflation Stream (Node.js on CodeSandbox)](https://codesandbox.io/p/devbox/rtm7mn?file=%2Findex.ts%3A22%2C11)
-    - [Local Examples Directory](./examples) (Contains examples for stream deployment, data insertion, retrieval, and destruction).
+    - [Local Examples Directory](./examples)
 - **Whitepaper**:
     - [Truflation Whitepaper](https://whitepaper.truflation.com)
 
