@@ -76,6 +76,26 @@ For detailed configuration options for both clients, please see our [API Referen
 ## Usage Examples
 
 
+### Explorer Interaction
+
+To enable Explorer-related features, you need to set the `neonConnectionString` in the `NodeTNClient` constructor.
+You can request the explorer write-only connection string by contacting us.
+
+```ts
+// Assuming 'wallet' is an initialized Ethers Wallet
+
+const client = new NodeTNClient({
+    endpoint: "https://gateway.mainnet.truf.network",
+    signerInfo: {
+        address: wallet.address,
+        signer: wallet,
+    },
+    chainId: "tn-v2",
+    neonConnectionString: yourNeonConnectionString, // Add your connection string here
+});
+```
+For more details on specific methods related to Explorer interactions, consult the [API Reference](./docs/api-reference.md). //TODO
+
 ## Deployment Considerations
 
 ### Running with Deno
