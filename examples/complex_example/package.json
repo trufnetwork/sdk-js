@@ -1,0 +1,16 @@
+{
+  "name": "node_sdk",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "type": "module",
+  "scripts": {
+    "start": "tsx index.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@trufnetwork/sdk-js": "^0.3.3"
+  }
+} 
