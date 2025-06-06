@@ -49,7 +49,8 @@ const wallet = new Wallet("YOUR_PRIVATE_KEY");
 
 // Initialize client for Node.js
 const client = new NodeTNClient({
-	endpoint: "https://gateway.mainnet.truf.network",
+	// Use the mainnet gateway or your own local node endpoint
+	endpoint: "https://gateway.mainnet.truf.network", // e.g., http://localhost:8484 for a local node
 	signerInfo: {
 		address: wallet.address,
 		signer: wallet, // Any object that implements signMessage
@@ -127,8 +128,8 @@ For more details on specific methods related to Explorer interactions, consult t
 
 ### Using the SDK with Your Local Node
 
-If you are running your own TRUF.NETWORK node, you can configure the SDK to interact with your local instance. This is useful for development, testing, or when operating within a private network.
-For detailed instructions, prerequisites, and examples, please see our [Using the SDK with Your Local Node Guide](./docs/local-node-guide.md).
+If you are running your own TRUF.NETWORK node, you can configure the SDK to interact with your local instance by changing the `endpoint` in the client configuration, as shown in the [Basic Client Initialization](#basic-client-initialization) section. This is useful for development, testing, or when operating within a private network.
+For more detailed instructions, prerequisites, and examples, please see our [Using the SDK with Your Local Node Guide](./docs/local-node-guide.md).
 
 ## Deployment Considerations
 
