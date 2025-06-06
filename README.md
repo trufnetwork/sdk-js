@@ -81,7 +81,7 @@ Here is a common use case for the SDK. For a wider range of examples and advance
 
 ### Reading from a Stream
 
-Assuming you have initialized `client` as shown in the [Basic Client Initialization](#basic-client-initialization) section, you can read from any public stream. The following example demonstrates how to read from the Truflation AI Index.
+Assuming you have initialized `client` as shown in the [Basic Client Initialization](#basic-client-initialization) section, you can read from any public stream. The following example demonstrates how to read from AI Index.
 
 ```ts
 import { StreamId, EthereumAddress } from "@trufnetwork/sdk-js";
@@ -104,6 +104,95 @@ const records = await streamAction.getRecord({
 ```
 
 > **Note:** For streams that you have deployed using the same wallet, you can use `client.ownStreamLocator(streamId)` as a convenient shorthand to create the stream locator. This is equivalent to specifying the `streamId` and your wallet's `dataProvider` address explicitly.
+
+### Creating a Stream
+
+You can create two types of streams in the TRUF.NETWORK: Primitive and Composed streams.
+
+#### Creating a Primitive Stream
+
+A primitive stream is a direct data source that allows you to insert individual records.
+
+```typescript
+// Generate a unique stream ID
+const streamId = await StreamId.generate("my_first_stream");
+
+// Deploy the primitive stream
+const deployResult = await client.deployStream(
+	streamId, 
+	StreamType.Primitive
+);
+
+// Load the primitive action to insert records
+const primitiveAction = client.loadPrimitiveAction();
+
+// Insert a record
+await primitiveAction.insertRecord({
+	stream: client.ownStreamLocator(streamId),
+	eventTime: Date.now(), // Unix timestamp
+	value: "100.50" // Value as a string for precision
+});
+```
+
+#### Creating a Composed Stream
+
+A composed stream aggregates data from multiple primitive streams with configurable weights.
+
+```typescript
+// Generate stream IDs for parent and child streams
+const parentStreamId = await StreamId.generate("composite_economic_index");
+const childStream1Id = await StreamId.generate("child_stream_1");
+const childStream2Id = await StreamId.generate("child_stream_2");
+
+// Deploy the parent composed stream
+await client.deployStream(
+	parentStreamId, 
+	StreamType.Composed
+);
+
+// Load the composed action to set taxonomy
+const composedAction = client.loadComposedAction();
+
+// Set stream taxonomy (how child streams are combined)
+await composedAction.setTaxonomy({
+	stream: client.ownStreamLocator(parentStreamId),
+	taxonomyItems: [
+		{
+			childStream: client.ownStreamLocator(childStream1Id),
+			weight: "0.6" // 60% weight
+		},
+		{
+			childStream: client.ownStreamLocator(childStream2Id),
+			weight: "0.4" // 40% weight
+		}
+	],
+	startDate: Date.now() // When this taxonomy becomes effective
+});
+```
+
+#### Stream Visibility and Permissions
+
+You can control stream visibility and access permissions:
+
+```typescript
+// Set read visibility (public or private)
+await streamAction.setReadVisibility(
+	client.ownStreamLocator(streamId), 
+	visibility.public // or visibility.private
+);
+
+// Allow specific wallets to read the stream
+await streamAction.allowReadWallet(
+	client.ownStreamLocator(streamId),
+	EthereumAddress.fromString("0x1234...")
+);
+```
+
+**Notes:**
+- Stream IDs are generated deterministically from a descriptive string.
+- Always use string values for numeric data to maintain precision.
+- Weights in composed streams must sum to 1.0.
+- Streams can be made public or private, with fine-grained access control.
 
 ### Explorer Interaction
 
@@ -143,7 +232,12 @@ import { ... } from "npm:@trufnetwork/sdk-js"
 
 #### Deno Environment Permissions
 
-By default, some dependencies require environment permissions. If you need to run without environment permissions, please see [this GitHub issue](https://github.com/denoland/deno/issues/20898#issuecomment-2500396620) for workarounds.
+By default, some dependencies require environment permissions. If you need to run without environment permissions, please see [this GitHub issue](https://github.com/denoland/deno/issues/20898#issuecomment-2500396620) for potential workarounds.
+
+**Need Immediate Deno Support?**
+- Open an issue on our GitHub repository
+- Reach out to our support team
+- Provide details of your specific use case
 
 ## Serverless Deployment Notes
 

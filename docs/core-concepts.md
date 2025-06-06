@@ -1,111 +1,102 @@
 # Core Concepts
 
-## Stream Types
+## Stream Lifecycle Management
 
-TN supports two types of streams:
+### Stream Creation Workflow
+1. **Stream ID Generation**
+   - Deterministic generation from descriptive names
+   - Ensures unique, reproducible identifiers
+   ```typescript
+   const streamId = await StreamId.generate("economic_indicator");
+   ```
 
-- **Primitive Streams**: Single data source streams that store raw values
-- **Composed Streams**: Aggregate multiple streams with configurable weights
+2. **Stream Deployment**
+   - Validate stream type (Primitive/Composed)
+   - On-chain registration
+   - Transaction confirmation
+   ```typescript
+   await client.deployStream(streamId, StreamType.Primitive);
+   ```
 
-```typescript
-import { StreamType } from "@trufnetwork/sdk-js";
+3. **Stream Mutation**
+   - Record insertion
+   - Taxonomy configuration
+   - Visibility settings
 
-// Available stream types
-StreamType.Primitive  // Single data source
-StreamType.Composed   // Aggregates multiple streams with weights
-```
+4. **Stream Destruction**
+   - Permanent removal from network
+   - Irreversible operation
+   ```typescript
+   await client.destroyStream(streamLocator);
+   ```
 
-For detailed information about stream types and their use cases, see the [API Reference](./api-reference.md).
+## Advanced Stream Composition
 
-## Error Handling
-
-The SDK uses Either monad from monads-io for parsing addresses and stream IDs:
-
-```typescript
-// Safe address parsing
-const addressResult = EthereumAddress.fromString("0x123...")
-  .mapRight(addr => addr.getAddress())
-  .mapLeft(error => handleError(error));
-
-// Safe stream ID parsing  
-const streamIdResult = StreamId.fromString("st123...")
-  .mapRight(id => id.getId())
-  .mapLeft(error => handleError(error));
-```
-
-## Stream Identification
-
-Each stream is identified by two components:
-
-```typescript
-interface StreamLocator {
-  streamId: StreamId;        // Unique stream identifier
-  dataProvider: EthereumAddress;  // Stream owner's address
-}
-
-// Generate a deterministic stream ID
-const streamId = await StreamId.generate("my-unique-name");
-```
-
-## Accessing Existing Streams
-
-You can access existing streams on the network if they are public or you have permission:
+### Taxonomy Weights
+- Represent relative importance
+- Dynamic reconfiguration possible
 
 ```typescript
-// Access the Truflation AI Index
-const aiIndexLocator = {
-  streamId: StreamId.fromString("st527bf3897aa3d6f5ae15a0af846db6").throw(),
-  dataProvider: EthereumAddress.fromString("0x4710a8d8f0d845da110086812a32de6d90d7ff5c").throw(),
-};
-
-const stream = client.loadAction();
-const records = await stream.getRecord({ stream: aiIndexLocator });
+await composedAction.setTaxonomy({
+  stream: composedStreamLocator,
+  taxonomyItems: [
+    { childStream: stockStream, weight: "0.6" },
+    { childStream: commodityStream, weight: "0.4" }
+  ],
+  startDate: Date.now()
+});
 ```
 
-## Permissions Model
+### Composition Strategies
+1. **Weighted Average**
+   - Linear combination of child streams
+2. **Hierarchical Aggregation**
+   - Multi-level stream composition
+3. **Time-Weighted Composition**
+   - Varying weights based on temporal factors
 
-Streams support granular permissions for both reading and composing:
+## Performance Considerations
+
+### Optimization Techniques
+- Batch record insertions
 
 ```typescript
-import { visibility } from "@trufnetwork/sdk-js";
-
-// Set visibility
-await stream.setReadVisibility(streamLocator, visibility.private);
-await stream.setComposeVisibility(streamLocator, visibility.public);
-
-// Grant permissions
-await stream.allowReadWallet(streamLocator, new EthereumAddress("0x..."));
-await stream.allowComposeStream(streamLocator, otherStreamLocator);
+// Batch record insertion
+await primitiveAction.insertRecords([
+  { stream: stream1, eventTime: 1, value: "1" },
+  { stream: stream2, eventTime: 2, value: "2" }
+]);
 ```
 
-## Transaction Handling
+## Security and Permissions
 
-The SDK provides transaction monitoring with configurable timeouts:
+### Access Control Model
+- Granular read/write permissions
+- Public and private stream configurations
+- Wallet-based access management
 
 ```typescript
-// Wait for transaction with custom timeout
-await client.waitForTx(txHash, 15000); // 15 second timeout
+// Set stream visibility
+await streamAction.setReadVisibility(
+  streamLocator, 
+  visibility.private
+);
 
-// Default handling
-const tx = await stream.insertRecords([{
-  stream: streamLocator,
-  eventTime: Math.floor(Date.now() / 1000),
-  value: "100.5",
-}]);
-
-if (tx.data?.tx_hash) {
-  await client.waitForTx(tx.data.tx_hash);
-}
+// Grant specific wallet access
+await streamAction.allowReadWallet(
+  streamLocator, 
+  EthereumAddress.fromString("0x...")
+);
 ```
 
-## Mainnet Network
+## Best Practices
 
-The mainnet network is available at:
-- Endpoint: `https://gateway.mainnet.truf.network`
-- Chain ID: `tn-v2`
+1. Use environment-secured private keys
+2. Implement robust error handling
+3. Validate stream data before insertion
+4. Monitor transaction confirmations
 
-## Further Reading
+## Further Learning
 
-- [Example Scripts](../examples) - Usage examples
-- [API Reference](./api-reference.md) - Detailed SDK methods
-- [monads-io Documentation](https://github.com/AlexXanderGrib/monads-io) - Error handling patterns
+- [API Reference](./api-reference.md)
+- [Getting Started Guide](./getting-started.md)

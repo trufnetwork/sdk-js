@@ -17,12 +17,15 @@ yarn add @trufnetwork/sdk-js
 
 ## Quick Start
 
+### Mainnet Configuration
+
 ```typescript
 import { Wallet } from "ethers";
 import {
   NodeTNClient,
   StreamId,
   EthereumAddress,
+  StreamType
 } from "@trufnetwork/sdk-js";
 import * as dotenv from "dotenv";
 
@@ -31,9 +34,9 @@ dotenv.config();
 // Initialize wallet
 const wallet = new Wallet(process.env.PRIVATE_KEY!);
 
-// Prepare client options
-const endpoint = process.env.TN_ENDPOINT || "https://gateway.mainnet.truf.network";
-const chainId = process.env.CHAIN_ID || "tn-v2" || (await NodeTNClient.getDefaultChainId(endpoint));
+// Mainnet configuration
+const endpoint = "https://gateway.mainnet.truf.network";
+const chainId = "tn-v2";
 
 // Initialize TN client
 const client = new NodeTNClient({
@@ -44,12 +47,33 @@ const client = new NodeTNClient({
   },
   chainId,
 });
+```
 
+### Local Node Configuration
+
+```typescript
+// Local node configuration
+const localEndpoint = "http://localhost:8484";
+
+const localClient = new NodeTNClient({
+  endpoint: localEndpoint,
+  signerInfo: {
+    address: wallet.address,
+    signer: wallet,
+  },
+  chainId: "", // Local node might use empty chainId
+});
+```
+
+### Stream Creation and Management
+
+```typescript
 // Generate a new stream ID
 const streamId = await StreamId.generate("my-stream");
 
-// Deploy a primitive stream synchronously
-await client.deployStream(streamId, "primitive", true);
+// Deploy a primitive stream
+const deployTx = await client.deployStream(streamId, StreamType.Primitive);
+await client.waitForTx(deployTx.data.tx_hash);
 
 // Prepare stream locator
 const streamLocator = {
@@ -61,13 +85,14 @@ const streamLocator = {
 const primitiveStream = client.loadPrimitiveAction();
 
 // Insert records
-await primitiveStream.insertRecords([
+const insertTx = await primitiveStream.insertRecords([
   {
     stream: streamLocator,
     eventTime: Math.floor(new Date("2024-01-01").getTime() / 1000),
     value: "100.5",
   },
 ]);
+await client.waitForTx(insertTx.data.tx_hash);
 
 // Read back records
 const records = await primitiveStream.getRecord({
@@ -76,6 +101,30 @@ const records = await primitiveStream.getRecord({
   to: Math.floor(new Date("2024-01-01").getTime() / 1000),
 });
 console.log("Fetched records:", records);
+```
+
+### Composed Stream Example
+
+```typescript
+// Create a composed stream
+const composedStreamId = await StreamId.generate('market_index');
+await client.deployStream(composedStreamId, StreamType.Composed);
+
+const composedAction = client.loadComposedAction();
+await composedAction.setTaxonomy({
+  stream: client.ownStreamLocator(composedStreamId),
+  taxonomyItems: [
+    { 
+      childStream: stockPriceStream, 
+      weight: "0.6"  // 60% weight
+    },
+    { 
+      childStream: commodityPriceStream, 
+      weight: "0.4"  // 40% weight
+    }
+  ],
+  startDate: Date.now()
+});
 ```
 
 ## Reading from Existing Streams
@@ -100,6 +149,17 @@ const records = await stream.getRecord({
 console.log("AI Index records:", records);
 ```
 
+## Error Handling
+
+```typescript
+try {
+  const deployTx = await client.deployStream(streamId, StreamType.Primitive);
+  await client.waitForTx(deployTx.data.tx_hash);
+} catch (error) {
+  console.error("Stream deployment failed:", error);
+}
+```
+
 ## Environment-Specific Usage
 
 The SDK provides optimized clients for different environments:
@@ -112,11 +172,19 @@ import { NodeTNClient } from "@trufnetwork/sdk-js";
 import { BrowserTNClient } from "@trufnetwork/sdk-js"; 
 ```
 
+## Local Node Considerations
+
+- Ensure your local node is fully synchronized
+- Use `http://localhost:8484` as the default endpoint
+- The `chainId` might be an empty string
+- Verify network connectivity before querying
+
 ## Next Steps
 
 - Review [Core Concepts](./core-concepts.md) to understand streams and permissions
 - See the [API Reference](./api-reference.md) for detailed method documentation
 - Check our [example scripts](../examples) for comprehensive examples
+- Explore [Local Node Guide](./local-node-guide.md) for node-specific configurations
 
 ## Support
 

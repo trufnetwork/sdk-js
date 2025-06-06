@@ -1,199 +1,221 @@
 # API Reference
 
-For detailed information about TN concepts and operations, please refer to the [README](https://github.com/trufnetwork/sdk-js/blob/main/README.md).
+## Overview
 
-## Installation
-
-```bash
-npm install @trufnetwork/sdk-js
-```
+The TRUF.NETWORK SDK provides a comprehensive interface for stream management, offering powerful primitives for data streaming, composition, and on-chain interactions.
 
 ## Client Initialization
 
+### `createClient(config: ClientConfig)`
+Initializes a TrufNetwork client with specified configuration.
+
+#### Parameters
+- `config: Object`
+  - `privateKey: string` - Ethereum private key (securely managed)
+  - `network: Object`
+    - `endpoint: string` - RPC endpoint URL
+    - `chainId: string` - Network chain identifier
+  - `timeout?: number` - Optional request timeout (default: 30000ms)
+
+#### Example
 ```typescript
-import {
-  NodeTNClient,
-  StreamId,
-  EthereumAddress,
-} from "@trufnetwork/sdk-js";
-import { Wallet } from "ethers";
-import * as dotenv from "dotenv";
+import { createClient } from '@trufnetwork/sdk-js';
 
-dotenv.config();
-
-const endpoint = process.env.TN_ENDPOINT || "https://gateway.mainnet.truf.network";
-
-// (Optional) Fetch default chain ID:
-// const chainId = await NodeTNClient.getDefaultChainId(endpoint);
-
-const wallet = new Wallet(process.env.PRIVATE_KEY!);
-
-const client = new NodeTNClient({
-  endpoint,
-  signerInfo: {
-    address: wallet.address,
-    signer: wallet, // Must implement signMessage
+const client = createClient({
+  privateKey: process.env.PRIVATE_KEY,
+  network: {
+    endpoint: 'http://localhost:8484',
+    chainId: 'tn-v2' // Or left empty for local nodes
   },
-  chainId: process.env.CHAIN_ID || "tn-v2",
-  neonConnectionString: process.env.NEON_CONNECTION_STRING, // Optional, for explorer-related queries
-  timeout: 30000, // Optional, default 10000 ms
+  timeout: 45000  // Optional custom timeout
 });
 ```
 
-## Example Usage
+## Stream Identification
 
+### `StreamId.generate(name: string): Promise<StreamId>`
+Generates a deterministic, unique stream identifier.
+
+#### Parameters
+- `name: string` - Descriptive name for the stream
+
+#### Returns
+- `Promise<StreamId>` - Unique stream identifier
+
+#### Example
 ```typescript
-// Fetch recent transactions
-const lastTxs = await client.getLastTransactions({
-  dataProvider: undefined, // or your wallet address
-  limitSize: 6,
+const marketIndexStreamId = await StreamId.generate('market_index');
+```
+
+## Stream Deployment
+
+### `client.deployStream(streamId: StreamId, type: StreamType): Promise<DeploymentResult>`
+Deploys a new stream to the TRUF.NETWORK.
+
+#### Parameters
+- `streamId: StreamId` - Unique stream identifier
+- `type: StreamType` - Stream type (Primitive or Composed)
+
+#### Returns
+- `Promise<DeploymentResult>` 
+  - `txHash: string` - Transaction hash
+  - `streamLocator: StreamLocator` - Stream location details
+
+#### Example
+```typescript
+const deploymentResult = await client.deployStream(
+  marketIndexStreamId, 
+  StreamType.Composed
+);
+```
+
+## Stream Destruction
+
+### `client.destroyStream(streamLocator: StreamLocator): Promise<DestructionResult>`
+Permanently removes a stream from the network.
+
+#### Parameters
+- `streamLocator: Object`
+  - `streamId: StreamId`
+  - `dataProvider: EthereumAddress`
+
+#### Example
+```typescript
+await client.destroyStream({
+  streamId: marketIndexStreamId,
+  dataProvider: wallet.address
 });
-console.log("Last transactions:", lastTxs);
 ```
 
-## Accessing Public Streams
+## Record Insertion
 
-You can access any public stream on the network, including the Truflation AI Index:
+### `streamAction.insertRecord(options: InsertRecordOptions): Promise<InsertResult>`
+Inserts a single record into a stream.
 
+#### Parameters
+- `options: Object`
+  - `stream: StreamLocator` - Target stream
+  - `eventTime: number` - Timestamp of the record
+  - `value: string` - Record value
+
+#### Example
 ```typescript
-// Create a stream locator for the AI Index
-const aiIndexLocator = {
-  streamId: StreamId.fromString("st527bf3897aa3d6f5ae15a0af846db6").throw(),
-  dataProvider: EthereumAddress.fromString("0x4710a8d8f0d845da110086812a32de6d90d7ff5c").throw(),
-};
-
-// Load the action client
-const stream = client.loadAction();
-
-// Get the latest records
-const records = await stream.getRecord({
-  stream: aiIndexLocator,
-});
-
-console.log("AI Index records:", records);
-```
-
-## Stream Operations
-
-### Stream Locators
-
-```typescript
-import { StreamLocator } from "@trufnetwork/sdk-js";
-
-const streamLocator: StreamLocator = {
-  streamId: await StreamId.generate("my-stream"),
-  dataProvider: EthereumAddress.fromString(wallet.address).throw(),
-};
-```
-
-### Base Stream Methods
-
-```typescript
-// Load the generic Action client
-const stream = client.loadAction();
-
-// Get stream type
-const type = await stream.getType(streamLocator);
-
-// Get records within a time range, if from and to set to null, it will return latest record
-const records = await stream.getRecord({
+const insertResult = await primitiveAction.insertRecord({
   stream: streamLocator,
-  from: 1680307200,      // Unix timestamp (seconds)
-  to: 1682899200,
-  frozenAt: 12345,       // Optional block height
-});
-
-// Get index values within a time range, if from and to set to null, it will return latest index
-const index = await stream.getIndex({
-  stream: streamLocator,
-  from: 1680307200,
-  to: 1682899200,
-  baseTime: 1703980800,  // Optional where the value considered as 100
-});
-
-// Get first record after a timestamp
-const first = await stream.getFirstRecord({
-  stream: streamLocator,
-  after: 1680307200,
-  frozenAt: 12345,
-});
-
-// Calculate year-over-year index changes
-const changes = await stream.getIndexChange({
-  stream: streamLocator,
-  from: 1680307200,
-  to: 1703980800,
-  timeInterval: 365 * 24 * 60 * 60,
-  baseTime: 1680307200,   // Optional
+  eventTime: Date.now(),
+  value: "100.50"
 });
 ```
 
-### Primitive Stream Operations
+### `streamAction.insertRecords(records: InsertRecordOptions[]): Promise<BatchInsertResult>`
+Batch inserts multiple records for efficiency.
 
+#### Parameters
+- `records: Array<InsertRecordOptions>` - Array of record insertion options
+
+#### Example
 ```typescript
-// Load primitive-specific methods
-const primitiveStream = client.loadPrimitiveAction();
-
-// Insert new records
-await primitiveStream.insertRecords([
-  {
-    stream: streamLocator,
-    eventTime: 1680307200,
-    value: "100.5",
+const batchResult = await primitiveAction.insertRecords([
+  { 
+    stream: stockStream, 
+    eventTime: Date.now(), 
+    value: "150.25" 
   },
+  { 
+    stream: commodityStream, 
+    eventTime: Date.now(), 
+    value: "75.10" 
+  }
 ]);
 ```
 
-### Composed Stream Operations
+## Stream Querying
 
+### `streamAction.getRecord(input: GetRecordInput): Promise<StreamRecord[]>`
+Retrieves records from a stream with advanced filtering.
+
+#### Parameters
+- `input: Object`
+  - `stream: StreamLocator` - Target stream
+  - `from?: number` - Optional start timestamp
+  - `to?: number` - Optional end timestamp
+  - `frozenAt?: number` - Optional timestamp for frozen state
+  - `baseTime?: number` - Optional base time for relative queries
+
+#### Example
 ```typescript
-// Load composed-specific methods
-const composedStream = client.loadComposedAction();
+const records = await streamAction.getRecord({
+  stream: marketIndexLocator,
+  from: Date.now() - 86400000, // Last 24 hours
+  to: Date.now()
+});
+```
 
-// Set taxonomy weights
-await composedStream.setTaxonomy({
-  stream: streamLocator,
+## Composition Management
+
+### `composedAction.setTaxonomy(options: TaxonomyConfig): Promise<TaxonomyResult>`
+Configures stream composition and weight distribution.
+
+#### Parameters
+- `options: Object`
+  - `stream: StreamLocator` - Composed stream
+  - `taxonomyItems: Array<{childStream: StreamLocator, weight: string}>` 
+  - `startDate: number` - Effective date for taxonomy
+
+#### Example
+```typescript
+await composedAction.setTaxonomy({
+  stream: composedMarketIndexLocator,
   taxonomyItems: [
-    { childStream: childStreamLocator, weight: "1.5" },
+    { childStream: stockStream, weight: "0.6" },
+    { childStream: commodityStream, weight: "0.4" }
   ],
-  startDate: 1680307200,  // Optional
-});
-
-// Describe taxonomy configurations
-const taxonomy = await composedStream.describeTaxonomies({
-  stream: streamLocator,
-  latestGroupSequence: true,
+  startDate: Date.now()
 });
 ```
 
-### Permission Management
+## Visibility and Permissions
 
+### `streamAction.setReadVisibility(streamLocator: StreamLocator, visibility: Visibility)`
+Controls stream read access.
+
+#### Example
 ```typescript
-// Set visibility
-await stream.setReadVisibility(streamLocator, visibility.private);
-await stream.setComposeVisibility(streamLocator, visibility.public);
-
-// Grant permissions
-await stream.allowReadWallet(streamLocator, new EthereumAddress("0x..."));
-await stream.allowComposeStream(streamLocator, otherStreamLocator);
-
-// Query permissions
-const readers = await stream.getAllowedReadWallets(streamLocator);
-const composers = await stream.getAllowedComposeStreams(streamLocator);
+await streamAction.setReadVisibility(
+  streamLocator, 
+  visibility.private
+);
 ```
 
-### Stream Management
+### `streamAction.allowReadWallet(streamLocator: StreamLocator, walletAddress: EthereumAddress)`
+Grants read permissions to specific wallets.
 
+#### Example
 ```typescript
-// Deploy a new stream
-await client.deployStream(streamLocator.streamId, StreamType.Primitive, true);
-
-// Destroy an existing stream
-await client.destroyStream(streamLocator, true);
-
-// List streams
-const all = await client.getListStreams({ dataProvider: undefined, limit: 100 });
-const mine = await client.getListStreams({ dataProvider: wallet.address, limit: 100 });
+await streamAction.allowReadWallet(
+  streamLocator, 
+  EthereumAddress.fromString("0x...")
+);
 ```
 
-For comprehensive examples, see the [example scripts](../examples).
+## Transaction Handling
+
+### `client.waitForTx(txHash: string, timeout?: number): Promise<TransactionReceipt>`
+Waits for transaction confirmation with optional timeout.
+
+#### Parameters
+- `txHash: string` - Transaction hash
+- `timeout?: number` - Maximum wait time in milliseconds
+
+#### Example
+```typescript
+const txReceipt = await client.waitForTx(txHash, 30000);
+```
+
+## Performance Recommendations
+- Use batch record insertions
+- Implement client-side caching
+- Handle errors with specific catch blocks
+
+## SDK Compatibility
+- Minimum Node.js Version: 18.x
