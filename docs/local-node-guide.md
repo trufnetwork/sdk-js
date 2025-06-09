@@ -19,15 +19,17 @@ This section is for users who are running their own local TRUF.NETWORK node and 
 ### Discovering Stream Details
 
 Before fetching data, you need the stream's ID and its data provider address. The [TRUF.NETWORK Explorer](https://truf.network/explorer/0x4710a8d8f0d845da110086812a32de6d90d7ff5c/stai0000000000000000000000000000) is a valuable tool for this. For instance, to find details for the "AI Index" stream:
--   **Stream ID:** `stai0000000000000000000000000000`
--   **Data Provider:** `0x4710a8d8f0d845da110086812a32de6d90d7ff5c`
-You can browse the [explorer](https://truf.network/explorer/) for other streams and their metadata.
+
+- **Stream ID:** `stai0000000000000000000000000000`
+- **Data Provider:** `0x4710a8d8f0d845da110086812a32de6d90d7ff5c`
+  You can browse the [explorer](https://truf.network/explorer/) for other streams and their metadata.
 
 ### Example: Fetching Data from Your Local Node
 
 This example demonstrates fetching records from the "AI Index" stream using your local node.
 
 First, ensure you have the SDK and `ethers` installed:
+
 ```bash
 npm install @trufnetwork/sdk-js ethers
 # or
@@ -39,38 +41,36 @@ pnpm install @trufnetwork/sdk-js ethers
 Then, use the following code:
 
 ```typescript
-import {
-  NodeTNClient,
-  StreamLocator,
-  EthereumAddress,
-  StreamId
-} from "@trufnetwork/sdk-js";
+import { NodeTNClient, EthereumAddress, StreamId } from "@trufnetwork/sdk-js";
 import { Wallet } from "ethers";
 
 // Replace with your actual private key or load from environment for security
-const wallet = new Wallet("YOUR_PRIVATE_KEY");
-
+const wallet = new Wallet(
+	"0000000000000000000000000000000000000000000000000000000000000001"
+);
 const client = new NodeTNClient({
-  endpoint: "http://localhost:8484",
-  chainId: "", // Specify your local node's chainId if required
-  signerInfo: {
-    address: wallet.address,
-    signer: wallet,
-  },
+	endpoint: "http://localhost:8484",
+	chainId: "", // Specify your local node's chainId if required
+	signerInfo: {
+		address: wallet.address,
+		signer: wallet,
+	},
 });
 
 // Define the stream locator for the AI Index stream
-const streamLocator: StreamLocator = {
-  streamId: StreamId.fromString("stai0000000000000000000000000000").unwrap(),
-  dataProvider: EthereumAddress.fromString("0x4710a8d8f0d845da110086812a32de6d90d7ff5c").throw(),
+const streamLocator = {
+	streamId: StreamId.fromString("stai0000000000000000000000000000").unwrap(),
+	dataProvider: EthereumAddress.fromString(
+		"0x4710a8d8f0d845da110086812a32de6d90d7ff5c"
+	).throw(),
 };
 
-// Load the primitive stream action client
-const primitive = client.loadPrimitiveAction();
+// Load the composed stream action client
+const streamAction = client.loadComposedAction();
 
 // Fetch records from the local node
-const records = await primitive.getRecord({
-  stream: streamLocator,
+const records = await streamAction.getRecord({
+	stream: streamLocator,
 });
 
 console.log(records);
@@ -82,10 +82,10 @@ console.log(records);
 
 ### Troubleshooting Local Node Connection
 
--   If you receive empty results, ensure your node is fully synced and has the latest data.
-If you cannot connect, verify your node is running and listening on http://localhost:8484.
--   If you cannot connect, verify your node is running and accessible at the specified endpoint (e.g., `http://localhost:8484`). Check firewall settings.
+- If you receive empty results, ensure your node is fully synced and has the latest data.
+  If you cannot connect, verify your node is running and listening on http://localhost:8484.
+- If you cannot connect, verify your node is running and accessible at the specified endpoint (e.g., `http://localhost:8484`). Check firewall settings.
 
 For more details on node setup and sync, refer to the [TRUF.NETWORK Node Operator Guide](https://github.com/trufnetwork/node/).
 
-For client configuration options relevant to local nodes, see the [API Reference](./api-reference.md). 
+For client configuration options relevant to local nodes, see the [API Reference](./api-reference.md).
