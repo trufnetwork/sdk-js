@@ -23,3 +23,7 @@ export { Action } from "./contracts-api/action";
 export { PrimitiveAction } from "./contracts-api/primitiveAction";
 export { ComposedAction } from "./contracts-api/composedAction";
 
+// Role management exports
+export { RoleManagement } from "./contracts-api/roleManagement";
+export type { GrantRoleInput, RevokeRoleInput, AreMembersOfInput, WalletMembership } from "./types/role";
+
