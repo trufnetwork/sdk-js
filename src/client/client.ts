@@ -17,6 +17,8 @@ import { EthereumAddress } from "../util/EthereumAddress";
 import { StreamId } from "../util/StreamId";
 import { listStreams } from "./listStreams";
 import { getLastTransactions } from "./getLastTransactions";
+import { RoleManagement } from "../contracts-api/roleManagement";
+import { OwnerIdentifier } from "../types/role";
 
 export interface SignerInfo {
   // we need to have the address upfront to create the KwilSigner, instead of relying on the signer to return it asynchronously
@@ -196,6 +198,16 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
   }
 
   /**
+   * Loads the role management contract API, permitting its RBAC usage.
+   */
+  loadRoleManagementAction(): RoleManagement {
+    return RoleManagement.fromClient(
+        this.getKwilClient() as WebKwil | NodeKwil,
+        this.getKwilSigner(),
+    );
+  }
+
+  /**
    * Creates a new stream locator.
    * @param streamId - The ID of the stream.
    * @returns A StreamLocator object.
@@ -244,5 +256,92 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
     });
     const chainInfo = await kwilClient["chainInfoClient"]();
     return chainInfo.data?.chain_id;
+  }
+
+  /*
+   * High-level role-management helpers. These wrap the lower-level
+   * RoleManagement contract calls and expose a simpler API on the
+   * TN client.
+   */
+
+  /** Grants a role to one or more wallets. */
+  async grantRole(input: {
+    owner: OwnerIdentifier;
+    roleName: string;
+    wallets: EthereumAddress | EthereumAddress[];
+    synchronous?: boolean;
+  }): Promise<string> {
+    const rm = this.loadRoleManagementAction();
+    const walletsArr: EthereumAddress[] = Array.isArray(input.wallets)
+      ? input.wallets
+      : [input.wallets];
+    const tx = await rm.grantRole(
+      {
+        owner: input.owner,
+        roleName: input.roleName,
+        wallets: walletsArr,
+      },
+      input.synchronous,
+    );
+    return tx.data?.tx_hash as unknown as string;
+  }
+
+  /** Revokes a role from one or more wallets. */
+  async revokeRole(input: {
+    owner: OwnerIdentifier;
+    roleName: string;
+    wallets: EthereumAddress | EthereumAddress[];
+    synchronous?: boolean;
+  }): Promise<string> {
+    const rm = this.loadRoleManagementAction();
+    const walletsArr: EthereumAddress[] = Array.isArray(input.wallets)
+      ? input.wallets
+      : [input.wallets];
+    const tx = await rm.revokeRole(
+      {
+        owner: input.owner,
+        roleName: input.roleName,
+        wallets: walletsArr,
+      },
+      input.synchronous,
+    );
+    return tx.data?.tx_hash as unknown as string;
+  }
+
+  /**
+   * Checks if a wallet is member of a role.
+   * Returns true if the wallet is a member.
+   */
+  async isMemberOf(input: {
+    owner: OwnerIdentifier;
+    roleName: string;
+    wallet: EthereumAddress;
+  }): Promise<boolean> {
+    const rm = this.loadRoleManagementAction();
+    const res = await rm.areMembersOf({
+      owner: input.owner,
+      roleName: input.roleName,
+      wallets: [input.wallet],
+    });
+    return res.length > 0 && res[0].isMember;
+  }
+
+  /**
+   * Lists role members – currently unsupported in the
+   * smart-contract layer.
+   */
+  async listRoleMembers(input: {
+    owner: OwnerIdentifier;
+    roleName: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<import("../types/role").RoleMember[]> {
+    const rm = this.loadRoleManagementAction();
+    return rm.listRoleMembers({
+      owner: input.owner,
+      roleName: input.roleName,
+      limit: input.limit,
+      offset: input.offset,
+    });
   }
 }
