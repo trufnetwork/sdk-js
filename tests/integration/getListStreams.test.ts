@@ -1,9 +1,12 @@
 import { describe, expect } from "vitest";
 import { StreamId } from "../../src/util/StreamId";
 import { StreamType } from "../../src/contracts-api/contractValues";
-import { testWithDefaultWallet } from "./utils";
+import { setupTrufNetwork, testWithDefaultWallet } from "./utils";
 
 describe.sequential("Get List Streams", { timeout: 90000 }, () => {
+  // Spin up/tear down the local TN+Postgres containers once for this suite.
+  setupTrufNetwork();
+
   testWithDefaultWallet.skipIf(process.env.CI)(
     "should list all streams",
     async ({ defaultClient }) => {
