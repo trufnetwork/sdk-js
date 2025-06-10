@@ -1,7 +1,12 @@
 {
   "name": "@trufnetwork/sdk-js",
+<<<<<<< Updated upstream
   "version": "0.3.4",
   "description": "TRUF.NETWORK SDK for JavaScript",
+=======
+  "version": "0.3.5",
+  "description": "Truf Network SDK for JavaScript",
+>>>>>>> Stashed changes
   "type": "module",
   "keywords": [
     "truf",

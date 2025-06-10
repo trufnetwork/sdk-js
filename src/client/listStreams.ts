@@ -1,4 +1,4 @@
-import {StreamLocator} from "../types/stream";
+import {TNStream} from "../types/stream";
 import {EthereumAddress} from "../util/EthereumAddress";
 import {StreamId} from "../util/StreamId";
 import {Database} from "@kwilteam/kwil-js/dist/core/database";
@@ -16,7 +16,7 @@ export async function listStreams(
   kwilClient: WebKwil | NodeKwil,
   kwilSigner: KwilSigner,
   input: ListStreamsInput
-): Promise<StreamLocator[]> {
+): Promise<TNStream[]> {
     const result = await kwilClient.call({
         inputs: {
             $data_provider: input.dataProvider,
@@ -38,6 +38,8 @@ export async function listStreams(
         }[]).map(async (database) => ({
             streamId: await StreamId.generate(database.stream_id),
             dataProvider: new EthereumAddress(database.data_provider),
+            streamType: database.stream_type,
+            createdAt: database.created_at
         }))
     );
 }
