@@ -11,3 +11,10 @@ export interface StreamLocator {
    */
   dataProvider: EthereumAddress;
 }
+
+export interface TNStream {
+  streamId: StreamId;
+  dataProvider: EthereumAddress;
+  streamType: string;
+  createdAt: number;
+}

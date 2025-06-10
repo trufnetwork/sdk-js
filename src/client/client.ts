@@ -12,7 +12,7 @@ import { deleteStream } from "../contracts-api/deleteStream";
 import { PrimitiveAction } from "../contracts-api/primitiveAction";
 import { Action } from "../contracts-api/action";
 import { StreamType } from "../contracts-api/contractValues";
-import { StreamLocator } from "../types/stream";
+import { StreamLocator, TNStream } from "../types/stream";
 import { EthereumAddress } from "../util/EthereumAddress";
 import { StreamId } from "../util/StreamId";
 import { listStreams } from "./listStreams";
@@ -220,7 +220,7 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
    * @param input - The input parameters for listing streams.
    * @returns A promise that resolves to a list of stream locators.
    */
-  async getListStreams(input: ListStreamsInput): Promise<StreamLocator[]> {
+  async getListStreams(input: ListStreamsInput): Promise<TNStream[]> {
     return listStreams(this.getKwilClient() as WebKwil | NodeKwil,this.getKwilSigner(),input);
   }
 
