@@ -3,6 +3,7 @@ import { NodeTNClient } from "../../src/client/nodeClient";
 import { test } from "vitest";
 import { GenericResponse } from "@kwilteam/kwil-js/dist/core/resreq";
 import { TxReceipt } from "@kwilteam/kwil-js/dist/core/tx";
+import { MANAGER_PRIVATE_KEY } from "./trufnetwork.setup";
 
 export const TEST_ENDPOINT = "http://localhost:8484";
 
@@ -20,12 +21,17 @@ type Fixtures<T extends Record<string, any>> = Parameters<
 >[0];
 
 /**
- * Creates a test context for a specific wallet
- * @param privateKey The private key for the wallet
- * @returns A context containing the wallet and its client
+ * Creates a test context for a specific wallet.
+ *
+ * @param privateKey The private key for the wallet.
+ * @param autoGrantNetworkWriter When true (default), the helper will ensure the wallet
+ *                               has the `system:network_writer` role so it can deploy
+ *                               streams.  Set to false for tests that explicitly manage
+ *                               role memberships.
  */
 export async function createWalletContext(
   privateKey: string,
+  autoGrantNetworkWriter = true,
 ): Promise<WalletContext> {
   const wallet = new ethers.Wallet(privateKey);
   const chainId = await NodeTNClient.getDefaultChainId(TEST_ENDPOINT);
@@ -41,15 +47,36 @@ export async function createWalletContext(
     chainId,
   });
 
+  // Ensure the wallet can deploy streams (requires network_writer role) unless disabled.
+  if (autoGrantNetworkWriter) {
+    await ensureNetworkWriterRole(client);
+  }
+
   return { wallet, client };
 }
 
 /**
- * Creates a test extension for multiple wallet roles
- * @param roles Map of role names to private keys
- * @returns A test extension with wallet contexts for each role
+ * Options for `createTestContexts`.
  */
-export function createTestContexts<T extends string>(roles: Record<T, string>) {
+interface CreateTestContextOptions {
+  /**
+   * If true (default), automatically grant the network writer role to every
+   * wallet fixture.  Set to false for tests that need precise control over
+   * role membership.
+   */
+  autoGrantNetworkWriter?: boolean;
+}
+
+/**
+ * Creates a test extension for multiple wallet roles.
+ *
+ * @param roles   Map of role names to private keys.
+ * @param options Optional configuration (e.g., disable auto role grant).
+ */
+export function createTestContexts<T extends string>(
+  roles: Record<T, string>,
+  options: CreateTestContextOptions = {},
+) {
   type ContextType = {
     [K in T as `${K}Wallet`]: ethers.Wallet;
   } & {
@@ -58,6 +85,8 @@ export function createTestContexts<T extends string>(roles: Record<T, string>) {
 
   const testExtension = {} as Fixtures<ContextType>;
 
+  const autoGrant = options.autoGrantNetworkWriter ?? true;
+
   // Create wallet and client fixtures for each role
   Object.entries(roles).forEach(([role, privateKey]) => {
     // Add wallet fixture
@@ -65,7 +94,7 @@ export function createTestContexts<T extends string>(roles: Record<T, string>) {
       {},
       use: any,
     ) => {
-      const { wallet } = await createWalletContext(privateKey as string);
+      const { wallet } = await createWalletContext(privateKey as string, autoGrant);
       await use(wallet);
     };
 
@@ -74,7 +103,7 @@ export function createTestContexts<T extends string>(roles: Record<T, string>) {
       { [`${role}Wallet` as keyof ContextType]: wallet },
       use: any,
     ) => {
-      const { client } = await createWalletContext(privateKey as string);
+      const { client } = await createWalletContext(privateKey as string, autoGrant);
       await use(client);
     };
   });
@@ -91,3 +120,48 @@ export async function waitForTxSuccess(
   }
   return client.waitForTx(tx.data.tx_hash);
 }
+
+/**
+ * Ensures the provided client wallet is a member of the `system:network_writer` role.
+ * If the wallet is not yet a member, the role is granted using the manager wallet.
+ *
+ * This is required now that stream deployment is restricted to network writers.
+ */
+export async function ensureNetworkWriterRole(client: NodeTNClient): Promise<void> {
+  // First, check if the wallet is already in the role.
+  const alreadyMember = await client.isMemberOf({
+    owner: "system",
+    roleName: "network_writer",
+    wallet: client.address(),
+  });
+
+  if (alreadyMember) return; // Nothing to do.
+
+  // Build a manager client (the manager wallet is provisioned during migrations).
+  const managerWallet = new ethers.Wallet(MANAGER_PRIVATE_KEY);
+  const chainId = await NodeTNClient.getDefaultChainId(TEST_ENDPOINT);
+  if (!chainId) {
+    throw new Error("Chain id not found");
+  }
+
+  const managerClient = new NodeTNClient({
+    endpoint: TEST_ENDPOINT,
+    signerInfo: {
+      address: managerWallet.address,
+      signer: managerWallet,
+    },
+    chainId,
+  });
+
+  // Grant the role and wait for confirmation.
+  const txHash = await managerClient.grantRole({
+    owner: "system",
+    roleName: "network_writer",
+    wallets: client.address(),
+  });
+
+  await managerClient.waitForTx(txHash);
+}
+
+// Re-export the TrufNetwork setup helper so tests can opt-in as needed.
+export { setupTrufNetwork } from "./trufnetwork.setup";
