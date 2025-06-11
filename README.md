@@ -194,27 +194,6 @@ await streamAction.allowReadWallet(
 - Weights in composed streams must sum to 1.0.
 - Streams can be made public or private, with fine-grained access control.
 
-### Explorer Interaction
-
-To enable Explorer-related features, you need to set the `neonConnectionString` in the `NodeTNClient` constructor.
-You can request the explorer write-only connection string by contacting us.
-
-```ts
-const wallet = new Wallet("YOUR_PRIVATE_KEY");
-
-const client = new NodeTNClient({
-	endpoint: "https://gateway.mainnet.truf.network",
-	signerInfo: {
-		address: wallet.address,
-		signer: wallet,
-	},
-	chainId: "tn-v2",
-	neonConnectionString: yourNeonConnectionString, // Add your connection string here
-});
-```
-
-For more details on specific methods related to Explorer interactions, consult the [API Reference](./docs/api-reference.md).
-
 ### Using the SDK with Your Local Node
 
 If you are running your own TRUF.NETWORK node, you can configure the SDK to interact with your local instance by changing the `endpoint` in the client configuration, as shown in the [Basic Client Initialization](#basic-client-initialization) section. This is useful for development, testing, or when operating within a private network.
