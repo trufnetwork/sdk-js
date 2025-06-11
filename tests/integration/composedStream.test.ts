@@ -1,13 +1,16 @@
 import { describe, expect } from "vitest";
 import NodeTNClient from "../../src/client/nodeClient";
 import { StreamId } from "../../src/util/StreamId";
-import { testWithDefaultWallet } from "./utils";
+import { setupTrufNetwork, testWithDefaultWallet } from "./utils";
 import {InsertRecordInput} from "../../src";
 
 describe.sequential(
   "ComposedStream Integration Tests",
   { timeout: 90000 },
   () => {
+    // Spin up/tear down the local TN+Postgres containers once for this suite.
+    setupTrufNetwork();
+
     // Skip in CI, because it needs a local node
     testWithDefaultWallet.skipIf(process.env.CI);
 

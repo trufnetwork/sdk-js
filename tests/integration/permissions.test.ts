@@ -2,7 +2,7 @@ import { describe, expect } from "vitest";
 import { EthereumAddress } from "../../src/util/EthereumAddress";
 import { visibility } from "../../src/util/visibility";
 import { StreamId } from "../../src/util/StreamId";
-import { createTestContexts, waitForTxSuccess } from "./utils";
+import { createTestContexts, setupTrufNetwork, waitForTxSuccess } from "./utils";
 import { GenericResponse } from "@kwilteam/kwil-js/dist/core/resreq";
 import { TxReceipt } from "@kwilteam/kwil-js/dist/core/tx";
 
@@ -16,6 +16,9 @@ const PERMISSION_ROLES = {
 const tnTest = createTestContexts(PERMISSION_ROLES);
 
 describe.sequential("Permissions", { timeout: 90000 }, () => {
+  // Spin up/tear down the local TN+Postgres containers once for this suite.
+  setupTrufNetwork();
+
   // Skip in CI, because it needs a local node
   tnTest.skipIf(process.env.CI);
 
