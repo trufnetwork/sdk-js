@@ -13,7 +13,6 @@ export interface DeployStreamInput {
   kwilClient: Kwil<any>;
   kwilSigner: KwilSigner;
   synchronous?: boolean;
-  neonConnectionString?: string;
 }
 
 export interface DeployStreamOutput {
@@ -42,25 +41,6 @@ export async function deployStream(
         input.kwilSigner,
         input.synchronous,
     );
-
-    // Optional: insert into Postgres via neon connection
-    if (input.neonConnectionString) {
-      console.log("Neon connection detected, attempting to insert into DB...");
-
-      const signer: any = input.kwilSigner.signer;
-      const dataProvider = signer.address.toLowerCase();
-
-      const pool = new Pool({ connectionString: input.neonConnectionString });
-      await pool.query(
-          `INSERT INTO streams (data_provider, stream_id, type, stream_name, display_name, categories, owner_wallet, geography, tags)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-             ON CONFLICT (data_provider, stream_id) DO NOTHING`,
-          [dataProvider, input.streamId.getId(), input.streamType, input.streamId.getName(), input.streamId.getName(), '{External}', dataProvider, 'Global', '{External}'],
-      );
-      await pool.end();
-
-      console.log("successfully inserted into Explorer DB", input.streamId.getName());
-    }
 
     return txHash;
   } catch (error) {

@@ -32,15 +32,11 @@ export interface DescribeTaxonomiesParams {
 }
 
 export class ComposedAction extends Action {
-  protected neonConnectionString: string | undefined;
-
   constructor(
     kwilClient: WebKwil | NodeKwil,
     kwilSigner: KwilSigner,
-    neonConnectionString?: string,
   ) {
     super(kwilClient, kwilSigner);
-    this.neonConnectionString = neonConnectionString;
   }
 
   /**
@@ -150,62 +146,18 @@ export class ComposedAction extends Action {
           $start_date: DataType.Int
         }});
 
-    // Optional: insert into Postgres via neon connection if a connection string is provided
-    if (this.neonConnectionString) {
-      const pool = new Pool({ connectionString: this.neonConnectionString });
-
-      // parent info comes from this.locator
-      const parentProvider = taxonomy.stream.dataProvider.getAddress().toLowerCase();
-      const parentStreamId = taxonomy.stream.streamId.getId();
-      const startDateText = String(taxonomy.startDate);
-
-      for (const item of taxonomy.taxonomyItems) {
-        const childProvider = item.childStream.dataProvider.getAddress().toLowerCase();
-        const childStreamId = item.childStream.streamId.getId();
-        const weight = item.weight;
-
-        await pool.query(
-            `INSERT INTO taxonomies
-            (parent_data_provider, parent_stream_id,
-             child_data_provider,  child_stream_id,
-             weight, start_date)
-           VALUES ($1, $2, $3, $4, $5, $6)
-           ON CONFLICT ON CONSTRAINT unique_parent_child DO NOTHING`,
-            [
-              parentProvider,
-              parentStreamId,
-              childProvider,
-              childStreamId,
-              weight,
-              startDateText,
-            ],
-        );
-      }
-
-      await pool.end();
-      console.log("Successfully inserted taxonomy into Explorer DB", {
-        parentStreamId,
-        childStreamId: childStreamIds,
-        weight: weights,
-        startDate: startDateText,
-      });
-    }
-
-
     return txHash;
   }
 
   /**
    * Creates a ComposedStream from a base Stream
    * @param stream The base stream to convert
-   * @param neonConnectionString The Neon connection string
    * @returns A ComposedStream instance
    */
-  public static fromStream(stream: Action, neonConnectionString?: string): ComposedAction {
+  public static fromStream(stream: Action): ComposedAction {
     return new ComposedAction(
       stream["kwilClient"],
       stream["kwilSigner"],
-      neonConnectionString,
     );
   }
 }
