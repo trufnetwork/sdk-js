@@ -219,3 +219,26 @@ const txReceipt = await client.waitForTx(txHash, 30000);
 
 ## SDK Compatibility
 - Minimum Node.js Version: 18.x
+
+## Custom Procedures
+
+### `streamAction.customProcedureWithArgs(procedure: string, args: Record<string, ValueType | ValueType[]>): Promise<StreamRecord[]>`
+Invokes a custom stored procedure declared in the underlying database. The first argument is the procedure name, and the second is an object containing the procedure's named parameters (including the leading `$`).
+
+#### Parameters
+- `procedure: string` – Name of the stored procedure.
+- `args: Record<string, ValueType | ValueType[]>` – Map of named parameters.
+
+#### Example
+```typescript
+const result = await streamAction.customProcedureWithArgs(
+  "get_divergence_index_change",
+  {
+    $from: 1704067200,
+    $to: 1746316800,
+    $frozen_at: null,
+    $base_time: null,
+    $time_interval: 31536000,
+  },
+);
+```
