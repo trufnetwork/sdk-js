@@ -57,15 +57,15 @@ Deploys a new stream to the TRUF.NETWORK.
 - `type: StreamType` - Stream type (Primitive or Composed)
 
 #### Returns
-- `Promise<DeploymentResult>` 
+- `Promise<DeploymentResult>`
   - `txHash: string` - Transaction hash
   - `streamLocator: StreamLocator` - Stream location details
 
 #### Example
 ```typescript
 const deploymentResult = await client.deployStream(
-  marketIndexStreamId, 
-  StreamType.Composed
+        marketIndexStreamId,
+        StreamType.Composed
 );
 ```
 
@@ -116,15 +116,15 @@ Batch inserts multiple records for efficiency.
 #### Example
 ```typescript
 const batchResult = await primitiveAction.insertRecords([
-  { 
-    stream: stockStream, 
-    eventTime: Date.now(), 
-    value: "150.25" 
+  {
+    stream: stockStream,
+    eventTime: Date.now(),
+    value: "150.25"
   },
-  { 
-    stream: commodityStream, 
-    eventTime: Date.now(), 
-    value: "75.10" 
+  {
+    stream: commodityStream,
+    eventTime: Date.now(),
+    value: "75.10"
   }
 ]);
 ```
@@ -132,15 +132,24 @@ const batchResult = await primitiveAction.insertRecords([
 ## Stream Querying
 
 ### `streamAction.getRecord(input: GetRecordInput): Promise<StreamRecord[]>`
-Retrieves records from a stream with advanced filtering.
+Retrieves the **raw numeric values** recorded in a stream for each timestamp.  For primitive streams this is a direct read of the stored events; for composed streams the engine performs an _on-the-fly_ aggregation of all underlying child streams using the active taxonomy and weights at each point in time.
+
+The call is the foundation on which `getIndex` and `getIndexChange` are built—use it whenever you need the exact original numbers without any normalisation.
+
+**Key behaviours**
+1. **Time window** — `from` and `to` are inclusive UNIX-epoch seconds.
+2. **LOCF gap-filling** — If no event exists exactly at `from`, the service automatically carries forward the last known value so that downstream analytics have a continuous series.
+3. **Time-travel (`frozenAt`)** — Supply a block-height timestamp to query the database _as it looked in the past_ (i.e. ignore records created after that height).
+4. **Access control** — Internally calls `is_allowed_to_read_all` ensuring the caller has permission to view every sub-stream referenced by a composed stream.
+5. **Performance** — For large ranges prefer batching or add tighter `from` / `to` filters.
 
 #### Parameters
 - `input: Object`
-  - `stream: StreamLocator` - Target stream
-  - `from?: number` - Optional start timestamp
-  - `to?: number` - Optional end timestamp
-  - `frozenAt?: number` - Optional timestamp for frozen state
-  - `baseTime?: number` - Optional base time for relative queries
+  - `stream: StreamLocator` – Target stream (primitive **or** composed)
+  - `from?: number` – Optional start timestamp (seconds). If omitted returns the latest value.
+  - `to?: number` – Optional end timestamp (seconds). Must be ≥ `from`.
+  - `frozenAt?: number` – Optional created-at cut-off for historical queries.
+  - `baseTime?: number` – Ignored by `getRecord`; present only for signature compatibility with other helpers.
 
 #### Example
 ```typescript
@@ -151,6 +160,72 @@ const records = await streamAction.getRecord({
 });
 ```
 
+### `streamAction.getIndex(input: GetIndexInput): Promise<StreamIndex[]>`
+Transforms raw stream values into an "index" series normalised to a base value of **100** at a reference time.  This is useful for turning any price/metric into a percentage-based index so that unrelated streams can be compared on the same scale.
+
+The underlying formula (applied server-side, see `get_index` action) is:
+
+```
+index_t = (value_t * 100) / baseValue
+```
+
+where `baseValue` is the stream value obtained at `baseTime` (or the closest available value before/after that time if no exact sample exists).
+
+#### Parameters
+- `input: Object`
+  - `stream: StreamLocator` – Target stream (primitive **or** composed)
+  - `from?: number` – Optional start timestamp
+  - `to?: number` – Optional end timestamp
+  - `frozenAt?: number` – Optional timestamp for "time-travel" queries (records created at or before `frozenAt` only)
+  - `baseTime?: number` – Reference timestamp used for normalisation. If omitted, the SDK will try, in order:
+    1. `default_base_time` metadata on the stream
+    2. The first available record in the stream
+
+#### Returns
+- `Promise<StreamIndex[]>` – Array of `{ eventTime: number, value: string }` where `value` is the indexed figure.
+
+#### Example
+```typescript
+const indexSeries = await streamAction.getIndex({
+  stream: marketIndexLocator,
+  from: Date.now() - 30 * 24 * 60 * 60 * 1000, // 30 days
+  to: Date.now(),
+  baseTime: Date.now() - 365 * 24 * 60 * 60 * 1000 // One year ago
+});
+```
+
+### `streamAction.getIndexChange(input: GetIndexChangeInput): Promise<StreamIndex[]>`
+Computes the **percentage change** of the index value over a fixed rolling window `timeInterval`.
+
+For each returned `eventTime` the engine looks backwards by `timeInterval` seconds and picks the closest index value **at or before** that point.  The change is then calculated as:
+
+```
+change_t = ((index_t − index_{t−Δ}) / index_{t−Δ}) * 100
+```
+
+This is equivalent to the classic Δ% formula used in financial analytics.
+
+#### Parameters
+- `input: Object`
+  - All properties from `GetIndexInput` (`stream`, `from`, `to`, `frozenAt`, `baseTime`)
+  - `timeInterval: number` – Window size in **seconds** (e.g. `86400` for daily change, `31536000` for yearly change). **Required.**
+
+#### Returns
+- `Promise<StreamIndex[]>` – Array of `{ eventTime: number, value: string }` where `value` represents the percentage change during the given interval.
+
+#### Example
+```typescript
+const yearlyChange = await streamAction.getIndexChange({
+  stream: marketIndexLocator,
+  from: Date.now() - 2 * 365 * 24 * 60 * 60 * 1000, // Last 2 years
+  to: Date.now(),
+  timeInterval: 31536000, // 1 year in seconds
+  baseTime: null,
+  frozenAt: null
+});
+console.log("Year-on-year % change", yearlyChange);
+```
+
 ## Composition Management
 
 ### `composedAction.setTaxonomy(options: TaxonomyConfig): Promise<TaxonomyResult>`
@@ -159,7 +234,7 @@ Configures stream composition and weight distribution.
 #### Parameters
 - `options: Object`
   - `stream: StreamLocator` - Composed stream
-  - `taxonomyItems: Array<{childStream: StreamLocator, weight: string}>` 
+  - `taxonomyItems: Array<{childStream: StreamLocator, weight: string}>`
   - `startDate: number` - Effective date for taxonomy
 
 #### Example
@@ -182,8 +257,8 @@ Controls stream read access.
 #### Example
 ```typescript
 await streamAction.setReadVisibility(
-  streamLocator, 
-  visibility.private
+        streamLocator,
+        visibility.private
 );
 ```
 
@@ -193,8 +268,8 @@ Grants read permissions to specific wallets.
 #### Example
 ```typescript
 await streamAction.allowReadWallet(
-  streamLocator, 
-  EthereumAddress.fromString("0x...")
+        streamLocator,
+        EthereumAddress.fromString("0x...")
 );
 ```
 
@@ -232,13 +307,13 @@ Invokes a custom stored procedure declared in the underlying database. The first
 #### Example
 ```typescript
 const result = await streamAction.customProcedureWithArgs(
-  "get_divergence_index_change",
-  {
-    $from: 1704067200,
-    $to: 1746316800,
-    $frozen_at: null,
-    $base_time: null,
-    $time_interval: 31536000,
-  },
+        "get_divergence_index_change",
+        {
+          $from: 1704067200,
+          $to: 1746316800,
+          $frozen_at: null,
+          $base_time: null,
+          $time_interval: 31536000,
+        },
 );
 ```
