@@ -1,0 +1,12 @@
+{
+  "name": "custom_procedure_example",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "type": "module",
+  "scripts": {
+    "start": "tsx index.ts"
+  },
+  "dependencies": {
+    "@trufnetwork/sdk-js": "^0.3.3"
+  }
+} 
