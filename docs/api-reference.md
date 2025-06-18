@@ -160,7 +160,7 @@ const records = await streamAction.getRecord({
 });
 ```
 
-### `streamAction.getIndex(input: GetIndexInput): Promise<StreamIndex[]>`
+### `streamAction.getIndex(input: GetRecordInput): Promise<StreamRecord[]>`
 Transforms raw stream values into an "index" series normalised to a base value of **100** at a reference time.  This is useful for turning any price/metric into a percentage-based index so that unrelated streams can be compared on the same scale.
 
 The underlying formula (applied server-side, see `get_index` action) is:
@@ -182,7 +182,7 @@ where `baseValue` is the stream value obtained at `baseTime` (or the closest ava
     2. The first available record in the stream
 
 #### Returns
-- `Promise<StreamIndex[]>` – Array of `{ eventTime: number, value: string }` where `value` is the indexed figure.
+- `Promise<StreamRecord[]>` – Array of `{ eventTime: number, value: string }` representing indexed values.
 
 #### Example
 ```typescript
@@ -194,7 +194,7 @@ const indexSeries = await streamAction.getIndex({
 });
 ```
 
-### `streamAction.getIndexChange(input: GetIndexChangeInput): Promise<StreamIndex[]>`
+### `streamAction.getIndexChange(input: GetRecordInput): Promise<StreamRecord[]>`
 Computes the **percentage change** of the index value over a fixed rolling window `timeInterval`.
 
 For each returned `eventTime` the engine looks backwards by `timeInterval` seconds and picks the closest index value **at or before** that point.  The change is then calculated as:
@@ -207,11 +207,11 @@ This is equivalent to the classic Δ% formula used in financial analytics.
 
 #### Parameters
 - `input: Object`
-  - All properties from `GetIndexInput` (`stream`, `from`, `to`, `frozenAt`, `baseTime`)
+  - All properties from `GetRecordInput` (`stream`, `from`, `to`, `frozenAt`, `baseTime`)
   - `timeInterval: number` – Window size in **seconds** (e.g. `86400` for daily change, `31536000` for yearly change). **Required.**
 
 #### Returns
-- `Promise<StreamIndex[]>` – Array of `{ eventTime: number, value: string }` where `value` represents the percentage change during the given interval.
+- `Promise<StreamRecord[]>` – Array of `{ eventTime: number, value: string }` where `value` is the percentage change over `timeInterval`.
 
 #### Example
 ```typescript
@@ -224,6 +224,30 @@ const yearlyChange = await streamAction.getIndexChange({
   frozenAt: null
 });
 console.log("Year-on-year % change", yearlyChange);
+```
+
+### `streamAction.customProcedureWithArgs(procedure: string, args: Record<string, ValueType | ValueType[]>): Promise<StreamRecord[]>`
+Allows you to invoke any stored procedure defined in the underlying Kwil database and receive the results in `StreamRecord` format.  Use this when the built-in helpers (`getRecord`, `getIndex`, `getIndexChange`) don’t meet a specialised analytics need.
+
+#### Parameters
+- `procedure: string` – Name of the stored procedure.
+- `args: Record<string, ValueType | ValueType[]>` – Named parameters **including** the leading `$` expected by Kwil.
+
+#### Returns
+- `Promise<StreamRecord[]>` – Each row emitted by the procedure must expose `event_time` and `value` columns for automatic mapping.
+
+#### Example
+```typescript
+const result = await streamAction.customProcedureWithArgs(
+  "get_divergence_index_change",
+  {
+    $from: 1704067200,
+    $to: 1746316800,
+    $frozen_at: null,
+    $base_time: null,
+    $time_interval: 31536000,
+  },
+);
 ```
 
 ## Composition Management
@@ -294,26 +318,3 @@ const txReceipt = await client.waitForTx(txHash, 30000);
 
 ## SDK Compatibility
 - Minimum Node.js Version: 18.x
-
-## Custom Procedures
-
-### `streamAction.customProcedureWithArgs(procedure: string, args: Record<string, ValueType | ValueType[]>): Promise<StreamRecord[]>`
-Invokes a custom stored procedure declared in the underlying database. The first argument is the procedure name, and the second is an object containing the procedure's named parameters (including the leading `$`).
-
-#### Parameters
-- `procedure: string` – Name of the stored procedure.
-- `args: Record<string, ValueType | ValueType[]>` – Map of named parameters.
-
-#### Example
-```typescript
-const result = await streamAction.customProcedureWithArgs(
-        "get_divergence_index_change",
-        {
-          $from: 1704067200,
-          $to: 1746316800,
-          $frozen_at: null,
-          $base_time: null,
-          $time_interval: 31536000,
-        },
-);
-```
