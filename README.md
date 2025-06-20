@@ -118,10 +118,7 @@ A primitive stream is a direct data source that allows you to insert individual 
 const streamId = await StreamId.generate("my_first_stream");
 
 // Deploy the primitive stream
-const deployResult = await client.deployStream(
-	streamId, 
-	StreamType.Primitive
-);
+const deployResult = await client.deployStream(streamId, StreamType.Primitive);
 
 // Load the primitive action to insert records
 const primitiveAction = client.loadPrimitiveAction();
@@ -129,8 +126,8 @@ const primitiveAction = client.loadPrimitiveAction();
 // Insert a record
 await primitiveAction.insertRecord({
 	stream: client.ownStreamLocator(streamId),
-	eventTime: Date.now(), // Unix timestamp
-	value: "100.50" // Value as a string for precision
+	eventTime: Math.floor(Date.now() / 1000), // Unix timestamp in seconds
+	value: "100.50", // Value as a string for precision
 });
 ```
 
@@ -145,10 +142,7 @@ const childStream1Id = await StreamId.generate("child_stream_1");
 const childStream2Id = await StreamId.generate("child_stream_2");
 
 // Deploy the parent composed stream
-await client.deployStream(
-	parentStreamId, 
-	StreamType.Composed
-);
+await client.deployStream(parentStreamId, StreamType.Composed);
 
 // Load the composed action to set taxonomy
 const composedAction = client.loadComposedAction();
@@ -159,14 +153,14 @@ await composedAction.setTaxonomy({
 	taxonomyItems: [
 		{
 			childStream: client.ownStreamLocator(childStream1Id),
-			weight: "0.6" // 60% weight
+			weight: "0.6", // 60% weight
 		},
 		{
 			childStream: client.ownStreamLocator(childStream2Id),
-			weight: "0.4" // 40% weight
-		}
+			weight: "0.4", // 40% weight
+		},
 	],
-	startDate: Date.now() // When this taxonomy becomes effective
+	startDate: Math.floor(Date.now() / 1000), // When this taxonomy becomes effective
 });
 ```
 
@@ -177,7 +171,7 @@ You can control stream visibility and access permissions:
 ```typescript
 // Set read visibility (public or private)
 await streamAction.setReadVisibility(
-	client.ownStreamLocator(streamId), 
+	client.ownStreamLocator(streamId),
 	visibility.public // or visibility.private
 );
 
@@ -189,6 +183,7 @@ await streamAction.allowReadWallet(
 ```
 
 **Notes:**
+
 - Stream IDs are generated deterministically from a descriptive string.
 - Always use string values for numeric data to maintain precision.
 - Weights in composed streams must sum to 1.0.
@@ -214,6 +209,7 @@ import { ... } from "npm:@trufnetwork/sdk-js"
 By default, some dependencies require environment permissions. If you need to run without environment permissions, please see [this GitHub issue](https://github.com/denoland/deno/issues/20898#issuecomment-2500396620) for potential workarounds.
 
 **Need Immediate Deno Support?**
+
 - Open an issue on our GitHub repository
 - Reach out to our support team
 - Provide details of your specific use case
