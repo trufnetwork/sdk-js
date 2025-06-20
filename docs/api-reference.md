@@ -95,7 +95,7 @@ Inserts a single record into a stream.
 #### Parameters
 - `options: Object`
   - `stream: StreamLocator` - Target stream
-  - `eventTime: number` - Timestamp of the record
+  - `eventTime: number` - UNIX timestamp of the record in seconds.
   - `value: string` - Record value
 
 #### Example
@@ -116,16 +116,16 @@ Batch inserts multiple records for efficiency.
 #### Example
 ```typescript
 const batchResult = await primitiveAction.insertRecords([
-  {
-    stream: stockStream,
-    eventTime: Date.now(),
-    value: "150.25"
-  },
-  {
-    stream: commodityStream,
-    eventTime: Date.now(),
-    value: "75.10"
-  }
+	{
+		stream: stockStream,
+		eventTime: Math.floor(Date.now() / 1000),
+		value: "150.25",
+	},
+	{
+		stream: commodityStream,
+		eventTime: Math.floor(Date.now() / 1000),
+		value: "75.10",
+	},
 ]);
 ```
 
@@ -137,7 +137,8 @@ Retrieves the **raw numeric values** recorded in a stream for each timestamp.  F
 The call is the foundation on which `getIndex` and `getIndexChange` are built—use it whenever you need the exact original numbers without any normalisation.
 
 **Key behaviours**
-1. **Time window** — `from` and `to` are inclusive UNIX-epoch seconds.
+
+1. **Time window** — `from` and `to` are inclusive UNIX epoch timestamps in **seconds**.
 2. **LOCF gap-filling** — If no event exists exactly at `from`, the service automatically carries forward the last known value so that downstream analytics have a continuous series.
 3. **Time-travel (`frozenAt`)** — Supply a block-height timestamp to query the database _as it looked in the past_ (i.e. ignore records created after that height).
 4. **Access control** — Internally calls `is_allowed_to_read_all` ensuring the caller has permission to view every sub-stream referenced by a composed stream.
@@ -146,17 +147,18 @@ The call is the foundation on which `getIndex` and `getIndexChange` are built—
 #### Parameters
 - `input: Object`
   - `stream: StreamLocator` – Target stream (primitive **or** composed)
-  - `from?: number` – Optional start timestamp (seconds). If omitted returns the latest value.
-  - `to?: number` – Optional end timestamp (seconds). Must be ≥ `from`.
+  - `from?: number` – Optional start timestamp (UNIX seconds). If omitted returns the latest value.
+  - `to?: number` – Optional end timestamp (UNIX seconds). Must be ≥ `from`.
   - `frozenAt?: number` – Optional created-at cut-off for historical queries.
   - `baseTime?: number` – Ignored by `getRecord`; present only for signature compatibility with other helpers.
 
 #### Example
 ```typescript
+const nowInSeconds = Math.floor(Date.now() / 1000);
 const records = await streamAction.getRecord({
-  stream: marketIndexLocator,
-  from: Date.now() - 86400000, // Last 24 hours
-  to: Date.now()
+	stream: marketIndexLocator,
+	from: nowInSeconds - (86400), // Last 24 hours
+	to: nowInSeconds,
 });
 ```
 
@@ -174,10 +176,10 @@ where `baseValue` is the stream value obtained at `baseTime` (or the closest ava
 #### Parameters
 - `input: Object`
   - `stream: StreamLocator` – Target stream (primitive **or** composed)
-  - `from?: number` – Optional start timestamp
-  - `to?: number` – Optional end timestamp
+  - `from?: number` – Optional start timestamp (UNIX seconds).
+  - `to?: number` – Optional end timestamp (UNIX seconds).
   - `frozenAt?: number` – Optional timestamp for "time-travel" queries (records created at or before `frozenAt` only)
-  - `baseTime?: number` – Reference timestamp used for normalisation. If omitted, the SDK will try, in order:
+  - `baseTime?: number` – Reference timestamp (UNIX seconds) used for normalisation. If omitted, the SDK will try, in order:
     1. `default_base_time` metadata on the stream
     2. The first available record in the stream
 
@@ -186,11 +188,12 @@ where `baseValue` is the stream value obtained at `baseTime` (or the closest ava
 
 #### Example
 ```typescript
+const nowInSeconds = Math.floor(Date.now() / 1000);
 const indexSeries = await streamAction.getIndex({
-  stream: marketIndexLocator,
-  from: Date.now() - 30 * 24 * 60 * 60 * 1000, // 30 days
-  to: Date.now(),
-  baseTime: Date.now() - 365 * 24 * 60 * 60 * 1000 // One year ago
+	stream: marketIndexLocator,
+	from: nowInSeconds - 30 * 24 * 60 * 60, // 30 days
+	to: nowInSeconds,
+	baseTime: nowInSeconds - 365 * 24 * 60 * 60, // One year ago
 });
 ```
 
@@ -215,13 +218,14 @@ This is equivalent to the classic Δ% formula used in financial analytics.
 
 #### Example
 ```typescript
+const nowInSeconds = Math.floor(Date.now() / 1000);
 const yearlyChange = await streamAction.getIndexChange({
-  stream: marketIndexLocator,
-  from: Date.now() - 2 * 365 * 24 * 60 * 60 * 1000, // Last 2 years
-  to: Date.now(),
-  timeInterval: 31536000, // 1 year in seconds
-  baseTime: null,
-  frozenAt: null
+	stream: marketIndexLocator,
+	from: nowInSeconds - 2 * 365 * 24 * 60 * 60, // Last 2 years
+	to: nowInSeconds,
+	timeInterval: 31536000, // 1 year in seconds
+	baseTime: null,
+	frozenAt: null,
 });
 console.log("Year-on-year % change", yearlyChange);
 ```
@@ -264,12 +268,12 @@ Configures stream composition and weight distribution.
 #### Example
 ```typescript
 await composedAction.setTaxonomy({
-  stream: composedMarketIndexLocator,
-  taxonomyItems: [
-    { childStream: stockStream, weight: "0.6" },
-    { childStream: commodityStream, weight: "0.4" }
-  ],
-  startDate: Date.now()
+	stream: composedMarketIndexLocator,
+	taxonomyItems: [
+		{ childStream: stockStream, weight: "0.6" },
+		{ childStream: commodityStream, weight: "0.4" },
+	],
+	startDate: Math.floor(Date.now() / 1000),
 });
 ```
 
