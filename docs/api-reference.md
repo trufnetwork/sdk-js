@@ -19,15 +19,15 @@ Initializes a TrufNetwork client with specified configuration.
 
 #### Example
 ```typescript
-import { createClient } from "@trufnetwork/sdk-js";
+import { createClient } from '@trufnetwork/sdk-js';
 
 const client = createClient({
-	privateKey: process.env.PRIVATE_KEY,
-	network: {
-		endpoint: "http://localhost:8484",
-		chainId: "tn-v2", // Or left empty for local nodes
-	},
-	timeout: 45000, // Optional custom timeout
+  privateKey: process.env.PRIVATE_KEY,
+  network: {
+    endpoint: 'http://localhost:8484',
+    chainId: 'tn-v2' // Or left empty for local nodes
+  },
+  timeout: 45000  // Optional custom timeout
 });
 ```
 
@@ -82,8 +82,8 @@ Permanently removes a stream from the network.
 #### Example
 ```typescript
 await client.destroyStream({
-	streamId: marketIndexStreamId,
-	dataProvider: wallet.address,
+  streamId: marketIndexStreamId,
+  dataProvider: wallet.address
 });
 ```
 
@@ -95,15 +95,15 @@ Inserts a single record into a stream.
 #### Parameters
 - `options: Object`
   - `stream: StreamLocator` - Target stream
-  - `eventTime: number` - Timestamp of the record (UNIX epoch in seconds)
+  - `eventTime: number` - Timestamp of the record
   - `value: string` - Record value
 
 #### Example
 ```typescript
 const insertResult = await primitiveAction.insertRecord({
-	stream: streamLocator,
-	eventTime: Math.floor(Date.now() / 1000),
-	value: "100.50",
+  stream: streamLocator,
+  eventTime: Date.now(),
+  value: "100.50"
 });
 ```
 
@@ -116,33 +116,23 @@ Batch inserts multiple records for efficiency.
 #### Example
 ```typescript
 const batchResult = await primitiveAction.insertRecords([
-	{
-		stream: stockStream,
-		eventTime: Math.floor(Date.now() / 1000),
-		value: "150.25",
-	},
-	{
-		stream: commodityStream,
-		eventTime: Math.floor(Date.now() / 1000),
-		value: "75.10",
-	},
+  { 
+    stream: stockStream, 
+    eventTime: Date.now(), 
+    value: "150.25" 
+  },
+  { 
+    stream: commodityStream, 
+    eventTime: Date.now(), 
+    value: "75.10" 
+  }
 ]);
 ```
 
 ## Stream Querying
 
 ### `streamAction.getRecord(input: GetRecordInput): Promise<StreamRecord[]>`
-
-Retrieves the **raw numeric values** recorded in a stream for each timestamp. For primitive streams this is a direct read of the stored events; for composed streams the engine performs an _on-the-fly_ aggregation of all underlying child streams using the active taxonomy and weights at each point in time.
-
-The call is the foundation on which `getIndex` and `getIndexChange` are built—use it whenever you need the exact original numbers without any normalisation.
-
-**Key behaviours**
-1. **Time window** — `from` and `to` are inclusive UNIX-epoch seconds.
-2. **LOCF gap-filling** — If no event exists exactly at `from`, the service automatically carries forward the last known value so that downstream analytics have a continuous series.
-3. **Time-travel (`frozenAt`)** — Supply a block-height timestamp to query the database _as it looked in the past_ (i.e. ignore records created after that height).
-4. **Access control** — Internally calls `is_allowed_to_read_all` ensuring the caller has permission to view every sub-stream referenced by a composed stream.
-5. **Performance** — For large ranges prefer batching or add tighter `from` / `to` filters.
+Retrieves records from a stream with advanced filtering.
 
 #### Parameters
 - `input: Object`
@@ -155,9 +145,9 @@ The call is the foundation on which `getIndex` and `getIndexChange` are built—
 #### Example
 ```typescript
 const records = await streamAction.getRecord({
-	stream: marketIndexLocator,
-	from: Math.floor(Date.now() / 1000) - 86400, // Last 24 hours
-	to: Math.floor(Date.now() / 1000),
+  stream: marketIndexLocator,
+  from: Date.now() - 86400000, // Last 24 hours
+  to: Date.now()
 });
 ```
 
@@ -260,18 +250,18 @@ Configures stream composition and weight distribution.
 #### Parameters
 - `options: Object`
   - `stream: StreamLocator` - Composed stream
-  - `taxonomyItems: Array<{childStream: StreamLocator, weight: string}>`
-  - `startDate: number` - Effective date for taxonomy (UNIX epoch in seconds)
+  - `taxonomyItems: Array<{childStream: StreamLocator, weight: string}>` 
+  - `startDate: number` - Effective date for taxonomy
 
 #### Example
 ```typescript
 await composedAction.setTaxonomy({
-	stream: composedMarketIndexLocator,
-	taxonomyItems: [
-		{ childStream: stockStream, weight: "0.6" },
-		{ childStream: commodityStream, weight: "0.4" },
-	],
-	startDate: Math.floor(Date.now() / 1000),
+  stream: composedMarketIndexLocator,
+  taxonomyItems: [
+    { childStream: stockStream, weight: "0.6" },
+    { childStream: commodityStream, weight: "0.4" }
+  ],
+  startDate: Date.now()
 });
 ```
 
