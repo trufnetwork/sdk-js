@@ -7,6 +7,7 @@ export class NodeTNClient extends BaseTNClient<EnvironmentType.NODE> {
     super(options);
     this.kwilClient = new NodeKwil({
       ...options,
+      timeout: options.timeout ?? 30000,
       kwilProvider: options.endpoint,
     });
   }
