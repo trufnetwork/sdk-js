@@ -13,9 +13,9 @@ From the project root:
 
 ```bash
 # Install dependencies (if you haven't already)
-pnpm install
+pnpm add @trufnetwork/sdk-js@latest
 
-# Execute the script with tsx
+# Execute the script
 pnpm start
 ```
 

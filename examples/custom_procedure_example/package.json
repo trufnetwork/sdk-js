@@ -5,8 +5,5 @@
   "type": "module",
   "scripts": {
     "start": "tsx index.ts"
-  },
-  "dependencies": {
-    "@trufnetwork/sdk-js": "^0.3.3"
   }
 } 

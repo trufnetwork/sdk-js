@@ -9,8 +9,5 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
-  "dependencies": {
-    "@trufnetwork/sdk-js": "^0.3.3"
-  }
+  "description": ""
 } 
