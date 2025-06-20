@@ -116,15 +116,15 @@ Batch inserts multiple records for efficiency.
 #### Example
 ```typescript
 const batchResult = await primitiveAction.insertRecords([
-  { 
-    stream: stockStream, 
-    eventTime: Date.now(), 
-    value: "150.25" 
+  {
+    stream: stockStream,
+    eventTime: Date.now(),
+    value: "150.25"
   },
-  { 
-    stream: commodityStream, 
-    eventTime: Date.now(), 
-    value: "75.10" 
+  {
+    stream: commodityStream,
+    eventTime: Date.now(),
+    value: "75.10"
   }
 ]);
 ```
@@ -132,7 +132,16 @@ const batchResult = await primitiveAction.insertRecords([
 ## Stream Querying
 
 ### `streamAction.getRecord(input: GetRecordInput): Promise<StreamRecord[]>`
-Retrieves records from a stream with advanced filtering.
+Retrieves the **raw numeric values** recorded in a stream for each timestamp.  For primitive streams this is a direct read of the stored events; for composed streams the engine performs an _on-the-fly_ aggregation of all underlying child streams using the active taxonomy and weights at each point in time.
+
+The call is the foundation on which `getIndex` and `getIndexChange` are built—use it whenever you need the exact original numbers without any normalisation.
+
+**Key behaviours**
+1. **Time window** — `from` and `to` are inclusive UNIX-epoch seconds.
+2. **LOCF gap-filling** — If no event exists exactly at `from`, the service automatically carries forward the last known value so that downstream analytics have a continuous series.
+3. **Time-travel (`frozenAt`)** — Supply a block-height timestamp to query the database _as it looked in the past_ (i.e. ignore records created after that height).
+4. **Access control** — Internally calls `is_allowed_to_read_all` ensuring the caller has permission to view every sub-stream referenced by a composed stream.
+5. **Performance** — For large ranges prefer batching or add tighter `from` / `to` filters.
 
 #### Parameters
 - `input: Object`
@@ -151,9 +160,8 @@ const records = await streamAction.getRecord({
 });
 ```
 
-### `streamAction.getIndex(input: GetIndexInput): Promise<StreamIndex[]>`
-
-Transforms raw stream values into an "index" series normalised to a base value of **100** at a reference time. This is useful for turning any price/metric into a percentage-based index so that unrelated streams can be compared on the same scale.
+### `streamAction.getIndex(input: GetRecordInput): Promise<StreamRecord[]>`
+Transforms raw stream values into an "index" series normalised to a base value of **100** at a reference time.  This is useful for turning any price/metric into a percentage-based index so that unrelated streams can be compared on the same scale.
 
 The underlying formula (applied server-side, see `get_index` action) is:
 
@@ -179,17 +187,17 @@ where `baseValue` is the stream value obtained at `baseTime` (or the closest ava
 #### Example
 ```typescript
 const indexSeries = await streamAction.getIndex({
-	stream: marketIndexLocator,
-	from: Math.floor(Date.now() / 1000) - 30 * 24 * 60 * 60, // 30 days
-	to: Math.floor(Date.now() / 1000),
-	baseTime: Math.floor(Date.now() / 1000) - 365 * 24 * 60 * 60, // One year ago
+  stream: marketIndexLocator,
+  from: Date.now() - 30 * 24 * 60 * 60 * 1000, // 30 days
+  to: Date.now(),
+  baseTime: Date.now() - 365 * 24 * 60 * 60 * 1000 // One year ago
 });
 ```
 
-### `streamAction.getIndexChange(input: GetIndexChangeInput): Promise<StreamIndex[]>`
+### `streamAction.getIndexChange(input: GetRecordInput): Promise<StreamRecord[]>`
 Computes the **percentage change** of the index value over a fixed rolling window `timeInterval`.
 
-For each returned `eventTime` the engine looks backwards by `timeInterval` seconds and picks the closest index value **at or before** that point. The change is then calculated as:
+For each returned `eventTime` the engine looks backwards by `timeInterval` seconds and picks the closest index value **at or before** that point.  The change is then calculated as:
 
 ```
 change_t = ((index_t − index_{t−Δ}) / index_{t−Δ}) * 100
@@ -208,12 +216,12 @@ This is equivalent to the classic Δ% formula used in financial analytics.
 #### Example
 ```typescript
 const yearlyChange = await streamAction.getIndexChange({
-	stream: marketIndexLocator,
-	from: Math.floor(Date.now() / 1000) - 2 * 365 * 24 * 60 * 60, // Last 2 years
-	to: Math.floor(Date.now() / 1000),
-	timeInterval: 31536000, // 1 year in seconds
-	baseTime: null,
-	frozenAt: null,
+  stream: marketIndexLocator,
+  from: Date.now() - 2 * 365 * 24 * 60 * 60 * 1000, // Last 2 years
+  to: Date.now(),
+  timeInterval: 31536000, // 1 year in seconds
+  baseTime: null,
+  frozenAt: null
 });
 console.log("Year-on-year % change", yearlyChange);
 ```
@@ -250,7 +258,7 @@ Configures stream composition and weight distribution.
 #### Parameters
 - `options: Object`
   - `stream: StreamLocator` - Composed stream
-  - `taxonomyItems: Array<{childStream: StreamLocator, weight: string}>` 
+  - `taxonomyItems: Array<{childStream: StreamLocator, weight: string}>`
   - `startDate: number` - Effective date for taxonomy
 
 #### Example
