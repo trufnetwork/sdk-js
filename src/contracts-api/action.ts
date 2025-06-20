@@ -25,6 +25,7 @@ export interface GetRecordInput {
   to?: number;
   frozenAt?: number;
   baseTime?: DateString | number;
+  prefix?: string;
 }
 
 export interface GetFirstRecordInput {
@@ -107,8 +108,9 @@ export class Action {
    * Returns the records of the stream within the given date range
    */
   public async getRecord(input: GetRecordInput): Promise<StreamRecord[]> {
+    const prefix = input.prefix ? input.prefix : ""
     const result = await this.call<{ event_time: number; value: string }[]>(
-        "get_record",
+        prefix + "get_record",
         {
           $data_provider: input.stream.dataProvider.getAddress(),
           $stream_id: input.stream.streamId.getId(),
@@ -131,8 +133,9 @@ export class Action {
    * Returns the index of the stream within the given date range
    */
   public async getIndex(input: GetRecordInput): Promise<StreamRecord[]> {
+    const prefix = input.prefix ? input.prefix : ""
     const result = await this.call<{ event_time: number; value: string }[]>(
-      "get_index",
+      prefix + "get_index",
         {
           $data_provider: input.stream.dataProvider.getAddress(),
           $stream_id: input.stream.streamId.getId(),
