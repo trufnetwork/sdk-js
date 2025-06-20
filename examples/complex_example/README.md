@@ -18,14 +18,12 @@ This example demonstrates the complete lifecycle of stream management in the TRU
 
 ## Setup
 
-1. Install dependencies:
 ```bash
+# Install dependencies (if you haven't already)
+pnpm add @trufnetwork/sdk-js@latest
 pnpm install
-```
 
-## Running the Example
-
-```bash
+# Execute the script
 pnpm start
 ```
 

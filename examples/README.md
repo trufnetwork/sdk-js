@@ -11,6 +11,7 @@ cd examples
 
 2. Install dependencies:
 ```bash
+pnpm add @trufnetwork/sdk-js@latest
 pnpm install
 ```
 
