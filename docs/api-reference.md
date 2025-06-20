@@ -31,6 +31,17 @@ const client = createClient({
 });
 ```
 
+### Timeout
+
+All network calls have a timeout. You can override it with the `timeout` option:
+
+```typescript
+const client = new NodeTNClient({
+  // …other options…
+  timeout: 45000, // Example of setting timeout to 45 seconds
+});
+```
+
 ## Stream Identification
 
 ### `StreamId.generate(name: string): Promise<StreamId>`

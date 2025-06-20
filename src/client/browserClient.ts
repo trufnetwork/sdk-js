@@ -7,6 +7,7 @@ export class BrowserTNClient extends BaseTNClient<EnvironmentType.BROWSER> {
     super(options);
     this.kwilClient = new WebKwil({
       ...options,
+      timeout: options.timeout ?? 30000,
       kwilProvider: options.endpoint,
     });
   }

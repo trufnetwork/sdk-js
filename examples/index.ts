@@ -10,6 +10,7 @@ const client = new NodeTNClient({
         signer: wallet,
     },
     chainId: "tn-v2",
+    timeout: 30000,
 });
 
 // Create a stream locator for the AI Index
