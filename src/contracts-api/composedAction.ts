@@ -7,8 +7,6 @@ import { EthereumAddress } from "../util/EthereumAddress";
 import { StreamId } from "../util/StreamId";
 import { Action } from "./action";
 import DataType = Utils.DataType;
-import pg from "pg";
-const { Pool } = pg;
 
 export const ErrorStreamNotComposed = "stream is not a composed stream";
 
