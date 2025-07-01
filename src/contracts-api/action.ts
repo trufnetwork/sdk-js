@@ -1,8 +1,8 @@
-import {KwilSigner, NodeKwil, WebKwil} from "@kwilteam/kwil-js";
-import { ActionBody } from '@kwilteam/kwil-js/dist/core/action';
-import {NamedParams} from "@kwilteam/kwil-js/dist/core/action";
-import { GenericResponse } from "@kwilteam/kwil-js/dist/core/resreq";
-import { TxReceipt } from "@kwilteam/kwil-js/dist/core/tx";
+import {KwilSigner, NodeKwil, WebKwil} from "@trufnetwork/kwil-js";
+import { ActionBody } from '@trufnetwork/kwil-js/dist/core/action';
+import {NamedParams} from "@trufnetwork/kwil-js/dist/core/action";
+import { GenericResponse } from "@trufnetwork/kwil-js/dist/core/resreq";
+import { TxReceipt } from "@trufnetwork/kwil-js/dist/core/tx";
 import { Either } from "monads-io";
 import { DateString } from "../types/other";
 import { StreamLocator } from "../types/stream";
@@ -17,7 +17,7 @@ import {
   MetadataValueTypeForKey,
   StreamType,
 } from "./contractValues";
-import {ValueType} from "@kwilteam/kwil-js/dist/utils/types";
+import {ValueType} from "@trufnetwork/kwil-js/dist/utils/types";
 
 export interface GetRecordInput {
   stream: StreamLocator;
