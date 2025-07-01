@@ -1,4 +1,4 @@
-import { WebKwil, NodeKwil, KwilSigner } from "@kwilteam/kwil-js";
+import { WebKwil, NodeKwil, KwilSigner } from "@trufnetwork/kwil-js";
 import { GetLastTransactionsInput } from "./client";
 import { LastTransaction } from "../types/transaction";
 

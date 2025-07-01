@@ -1,8 +1,8 @@
 import {StreamType} from "./contractValues";
-import {TxReceipt} from "@kwilteam/kwil-js/dist/core/tx";
-import {Kwil} from "@kwilteam/kwil-js/dist/client/kwil";
-import {KwilSigner} from "@kwilteam/kwil-js";
-import {GenericResponse} from "@kwilteam/kwil-js/dist/core/resreq";
+import {TxReceipt} from "@trufnetwork/kwil-js/dist/core/tx";
+import {Kwil} from "@trufnetwork/kwil-js/dist/client/kwil";
+import {KwilSigner} from "@trufnetwork/kwil-js";
+import {GenericResponse} from "@trufnetwork/kwil-js/dist/core/resreq";
 import {StreamId} from "../util/StreamId";
 import pg from "pg";
 const { Pool } = pg;

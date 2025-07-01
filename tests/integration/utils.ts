@@ -1,8 +1,8 @@
 import { ethers } from "ethers";
 import { NodeTNClient } from "../../src/client/nodeClient";
 import { test } from "vitest";
-import { GenericResponse } from "@kwilteam/kwil-js/dist/core/resreq";
-import { TxReceipt } from "@kwilteam/kwil-js/dist/core/tx";
+import { GenericResponse } from "@trufnetwork/kwil-js/dist/core/resreq";
+import { TxReceipt } from "@trufnetwork/kwil-js/dist/core/tx";
 import { MANAGER_PRIVATE_KEY } from "./trufnetwork.setup";
 
 export const TEST_ENDPOINT = "http://localhost:8484";

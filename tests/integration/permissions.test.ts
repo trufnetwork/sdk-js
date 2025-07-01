@@ -3,8 +3,8 @@ import { EthereumAddress } from "../../src/util/EthereumAddress";
 import { visibility } from "../../src/util/visibility";
 import { StreamId } from "../../src/util/StreamId";
 import { createTestContexts, setupTrufNetwork, waitForTxSuccess } from "./utils";
-import { GenericResponse } from "@kwilteam/kwil-js/dist/core/resreq";
-import { TxReceipt } from "@kwilteam/kwil-js/dist/core/tx";
+import { GenericResponse } from "@trufnetwork/kwil-js/dist/core/resreq";
+import { TxReceipt } from "@trufnetwork/kwil-js/dist/core/tx";
 
 // Define roles and their private keys for permission tests
 const PERMISSION_ROLES = {

@@ -1,6 +1,6 @@
-import { KwilSigner, NodeKwil, Utils, WebKwil } from "@kwilteam/kwil-js";
-import { GenericResponse } from "@kwilteam/kwil-js/dist/core/resreq";
-import { TxReceipt } from "@kwilteam/kwil-js/dist/core/tx";
+import { KwilSigner, NodeKwil, Utils, WebKwil } from "@trufnetwork/kwil-js";
+import { GenericResponse } from "@trufnetwork/kwil-js/dist/core/resreq";
+import { TxReceipt } from "@trufnetwork/kwil-js/dist/core/tx";
 import { Action } from "./action";
 import { AreMembersOfInput, GrantRoleInput, RevokeRoleInput, WalletMembership } from "../types/role";
 import DataType = Utils.DataType;

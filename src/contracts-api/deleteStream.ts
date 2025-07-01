@@ -1,8 +1,8 @@
 import {StreamId} from "../util/StreamId";
-import {Kwil} from "@kwilteam/kwil-js/dist/client/kwil";
-import {KwilSigner} from "@kwilteam/kwil-js";
-import {TxReceipt} from "@kwilteam/kwil-js/dist/core/tx";
-import {GenericResponse} from "@kwilteam/kwil-js/dist/core/resreq";
+import {Kwil} from "@trufnetwork/kwil-js/dist/client/kwil";
+import {KwilSigner} from "@trufnetwork/kwil-js";
+import {TxReceipt} from "@trufnetwork/kwil-js/dist/core/tx";
+import {GenericResponse} from "@trufnetwork/kwil-js/dist/core/resreq";
 import {StreamLocator} from "../types/stream";
 
 /**

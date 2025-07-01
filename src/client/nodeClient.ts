@@ -1,5 +1,5 @@
-import { EnvironmentType } from "@kwilteam/kwil-js/dist/core/enums";
-import { NodeKwil } from "@kwilteam/kwil-js";
+import { EnvironmentType } from "@trufnetwork/kwil-js/dist/core/enums";
+import { NodeKwil } from "@trufnetwork/kwil-js";
 import { BaseTNClient, TNClientOptions } from "./client";
 
 export class NodeTNClient extends BaseTNClient<EnvironmentType.NODE> {
