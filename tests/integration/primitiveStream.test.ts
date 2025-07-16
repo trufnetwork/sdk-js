@@ -47,14 +47,14 @@ describe.sequential(
           await defaultClient.waitForTx(insertTx.data?.tx_hash!);
 
           // Query records
-          const records = await primitiveStream.getRecord({
-              stream: {
-                  streamId,
-                  dataProvider: defaultClient.address(),
-              },
+          const recordsResponse = await primitiveStream.getRecord(
+            { streamId, dataProvider: defaultClient.address() },
+            {
               from: new Date("2020-01-01").getTime() / 1000,
               to: new Date("2021-01-01").getTime() / 1000,
-          });
+            }
+          );
+          const records = recordsResponse.data;
 
           // Verify record content
           expect(records.length).toBe(1);
@@ -80,14 +80,14 @@ describe.sequential(
           expect(Number(customRecords[0].eventTime)).toBe(new Date("2020-01-01").getTime() / 1000);
 
           // Query index
-          const index = await primitiveStream.getIndex({
-              stream: {
-                streamId,
-                dataProvider: defaultClient.address(),
-            },
+          const indexResponse = await primitiveStream.getIndex(
+            { streamId, dataProvider: defaultClient.address() },
+            {
               from: new Date("2020-01-01").getTime() / 1000,
               to: new Date("2021-01-01").getTime() / 1000,
-          });
+            }
+          );
+          const index = indexResponse.data;
 
           // Verify index content
           expect(index.length).toBe(1);
@@ -95,12 +95,10 @@ describe.sequential(
           expect(Number(index[0].eventTime)).toBe(new Date("2020-01-01").getTime() / 1000);
 
           // Query first record
-          const firstRecord = await primitiveStream.getFirstRecord({
-            stream: {
-              streamId,
-              dataProvider: defaultClient.address(),
-            },
-          });
+          const firstRecordResponse = await primitiveStream.getFirstRecord(
+            { streamId, dataProvider: defaultClient.address() }
+          );
+          const firstRecord = firstRecordResponse.data;
           expect(firstRecord).not.toBeNull();
           expect(firstRecord?.value).toBe("1.000000000000000000");
           expect(Number(firstRecord?.eventTime)).toBe(new Date("2020-01-01").getTime() / 1000);
@@ -161,16 +159,16 @@ describe.sequential(
           await defaultClient.waitForTx(currentTx.data!.tx_hash!);
 
           // Calculate year-over-year changes
-          const changes = await primitiveStream.getIndexChange({
-              stream: {
-                  streamId,
-                  dataProvider: defaultClient.address(),
-              },
+          const changesResponse = await primitiveStream.getIndexChange(
+            { streamId, dataProvider: defaultClient.address() },
+            {
               from: new Date("2023-01-01").getTime() / 1000,
               to: new Date("2023-12-31").getTime() / 1000,
               timeInterval: 365 * 24 * 60 * 60,
               baseTime: new Date("2022-01-01").getTime() / 1000,
-          });
+            }
+          );
+          const changes = changesResponse.data;
 
           // Verify the changes
           expect(changes.length).toBe(3);
@@ -230,14 +228,14 @@ describe.sequential(
             await defaultClient.waitForTx(insertTx.data?.tx_hash!);
 
             // Query records
-            const records = await primitiveStream.getRecord({
-              stream: {
-                  streamId,
-                  dataProvider: defaultClient.address(),
-              },
-              from: 1,
-              to: 1,
-            });
+            const recordsResponse = await primitiveStream.getRecord(
+              { streamId, dataProvider: defaultClient.address() },
+              {
+                from: 1,
+                to: 1,
+              }
+            );
+            const records = recordsResponse.data;
 
             // Verify record content
             expect(records.length).toBe(1);
@@ -263,14 +261,14 @@ describe.sequential(
             expect(Number(customRecords[0].eventTime)).toBe(1);
 
             // Query index
-            const index = await primitiveStream.getIndex({
-              stream: {
-                  streamId,
-                  dataProvider: defaultClient.address(),
-              },
-              from: 1,
-              to: 1,
-            });
+            const indexResponse = await primitiveStream.getIndex(
+              { streamId, dataProvider: defaultClient.address() },
+              {
+                from: 1,
+                to: 1,
+              }
+            );
+            const index = indexResponse.data;
 
             // Verify index content
             expect(index.length).toBe(1);
@@ -278,12 +276,10 @@ describe.sequential(
             expect(Number(index[0].eventTime)).toBe(1);
 
             // Query first record
-            const firstRecord = await primitiveStream.getFirstRecord({
-                stream: {
-                    streamId,
-                    dataProvider: defaultClient.address(),
-                }
-            });
+            const firstRecordResponse = await primitiveStream.getFirstRecord(
+              { streamId, dataProvider: defaultClient.address() }
+            );
+            const firstRecord = firstRecordResponse.data;
             expect(firstRecord).not.toBeNull();
             expect(firstRecord?.value).toBe("1.000000000000000000");
             expect(Number(firstRecord?.eventTime)).toBe(1);
