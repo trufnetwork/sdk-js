@@ -95,11 +95,13 @@ const insertTx = await primitiveStream.insertRecords([
 await client.waitForTx(insertTx.data.tx_hash);
 
 // Read back records
-const records = await primitiveStream.getRecord({
-	stream: streamLocator,
-	from: Math.floor(new Date("2024-01-01").getTime() / 1000),
-	to: Math.floor(new Date("2024-01-01").getTime() / 1000),
-});
+const { data: records } = await primitiveStream.getRecord(
+	streamLocator,
+	{
+		from: Math.floor(new Date("2024-01-01").getTime() / 1000),
+		to: Math.floor(new Date("2024-01-01").getTime() / 1000),
+	}
+);
 console.log("Fetched records:", records);
 ```
 
@@ -144,11 +146,24 @@ const aiIndexLocator = {
 const stream = client.loadAction();
 
 // Get the latest records
-const records = await stream.getRecord({
-	stream: aiIndexLocator,
-});
+const { data: records } = await stream.getRecord(aiIndexLocator);
 
 console.log("AI Index records:", records);
+```
+
+### Using the cache (optional)
+
+Need faster reads? Pass `useCache: true` and inspect the extra metadata:
+
+```typescript
+const { data: cachedRecords, cache } = await stream.getRecord(
+	aiIndexLocator,
+	{ useCache: true }
+);
+
+if (cache?.hit) {
+	console.log('Served from cache at', new Date(cache.cachedAt! * 1000));
+}
 ```
 
 ## Error Handling

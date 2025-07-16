@@ -105,11 +105,14 @@ describe.sequential(
           expect(taxonomies[0].taxonomyItems.length).toBe(2);
 
           // Query records after the taxonomy start date
-          const records = await composedStream.getRecord({
-            stream: { streamId: composedStreamId, dataProvider: defaultClient.address() },
-            from: new Date("2020-02-01").getTime() / 1000,
-            to: new Date("2020-02-02").getTime() / 1000,
-          });
+          const recordsResponse = await composedStream.getRecord(
+            { streamId: composedStreamId, dataProvider: defaultClient.address() },
+            {
+              from: new Date("2020-02-01").getTime() / 1000,
+              to: new Date("2020-02-02").getTime() / 1000,
+            }
+          );
+          const records = recordsResponse.data;
 
           // Verify records
           // Formula: (value_A * weight_A + value_B * weight_B) / (weight_A + weight_B)
@@ -120,12 +123,15 @@ describe.sequential(
           expect(parseFloat(records[1].value)).toBeCloseTo(6.333333, 5);
 
           // Query index values
-          const index = await composedStream.getIndex({
-            stream: { streamId: composedStreamId, dataProvider: defaultClient.address() },
-            from: new Date("2020-01-30").getTime() / 1000,
-            to: new Date("2020-02-01").getTime() / 1000,
-            baseTime: new Date("2020-01-30").getTime() / 1000,
-          });
+          const indexResponse = await composedStream.getIndex(
+            { streamId: composedStreamId, dataProvider: defaultClient.address() },
+            {
+              from: new Date("2020-01-30").getTime() / 1000,
+              to: new Date("2020-02-01").getTime() / 1000,
+              baseTime: new Date("2020-01-30").getTime() / 1000,
+            }
+          );
+          const index = indexResponse.data;
 
           // Verify index values
           expect(index.length).toBe(2);
@@ -139,9 +145,10 @@ describe.sequential(
           return;
 
           // Query first record
-          const firstRecord = await composedStream.getFirstRecord({
-            stream: { streamId: composedStreamId, dataProvider: defaultClient.address()}
-          })
+          const firstRecordResponse = await composedStream.getFirstRecord(
+            { streamId: composedStreamId, dataProvider: defaultClient.address() }
+          );
+          const firstRecord = firstRecordResponse.data;
           expect(firstRecord).not.toBeNull();
           expect(parseFloat(firstRecord!.value)).toBeCloseTo(2.333333, 5);
           expect(Number(firstRecord!.eventTime)).toBe(new Date("2020-01-01").getTime() / 1000);
@@ -243,11 +250,14 @@ describe.sequential(
             expect(taxonomies[0].taxonomyItems.length).toBe(2);
 
             // Query records after the taxonomy start date
-            const records = await composedStream.getRecord({
-              stream: { streamId: composedStreamId, dataProvider: defaultClient.address() },
-              from: 4,
-              to: 5,
-            });
+            const recordsResponse = await composedStream.getRecord(
+              { streamId: composedStreamId, dataProvider: defaultClient.address() },
+              {
+                from: 4,
+                to: 5,
+              }
+            );
+            const records = recordsResponse.data;
 
             // Verify records
             // Formula: (value_A * weight_A + value_B * weight_B) / (weight_A + weight_B)
@@ -258,12 +268,15 @@ describe.sequential(
             expect(parseFloat(records[1].value)).toBeCloseTo(6.333333, 5);
 
             // Query index values
-            const index = await composedStream.getIndex({
-              stream: { streamId: composedStreamId, dataProvider: defaultClient.address() },
-              from: 3,
-              to: 4,
-              baseTime: 3,
-            });
+            const indexResponse = await composedStream.getIndex(
+              { streamId: composedStreamId, dataProvider: defaultClient.address() },
+              {
+                from: 3,
+                to: 4,
+                baseTime: 3,
+              }
+            );
+            const index = indexResponse.data;
 
             // Verify index values
             expect(index.length).toBe(2);
@@ -276,9 +289,10 @@ describe.sequential(
             return;
 
             // Query first record
-            const firstRecord = await composedStream.getFirstRecord({
-                stream: { streamId: composedStreamId, dataProvider: defaultClient.address() },
-            });
+            const firstRecordResponse = await composedStream.getFirstRecord(
+              { streamId: composedStreamId, dataProvider: defaultClient.address() }
+            );
+            const firstRecord = firstRecordResponse.data;
             expect(firstRecord).not.toBeNull();
             expect(parseFloat(firstRecord!.value)).toBeCloseTo(2.333333, 5);
             expect(firstRecord!.eventTime).toBe(1);

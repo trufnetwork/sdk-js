@@ -6,10 +6,13 @@ import { TxReceipt } from "@trufnetwork/kwil-js/dist/core/tx";
 import { Either } from "monads-io";
 import { DateString } from "../types/other";
 import { StreamLocator } from "../types/stream";
+import { CacheAwareResponse, GetRecordOptions, GetIndexOptions, GetIndexChangeOptions, GetFirstRecordOptions } from "../types/cache";
 import { EthereumAddress } from "../util/EthereumAddress";
 import { head } from "../util/head";
 import { StreamId } from "../util/StreamId";
 import { toVisibilityEnum, VisibilityEnum } from "../util/visibility";
+import { CacheMetadataParser } from "../util/cacheMetadataParser";
+import { CacheValidation } from "../util/cacheValidation";
 import {
   MetadataKey,
   MetadataKeyValueMap,
@@ -46,6 +49,13 @@ export interface GetIndexChangeInput extends GetRecordInput {
 export class Action {
   protected kwilClient: WebKwil | NodeKwil;
   protected kwilSigner: KwilSigner;
+  /** Track if deprecation warnings were already emitted */
+  private static _legacyWarnEmitted: Record<string, boolean> = {
+    getRecord: false,
+    getIndex: false,
+    getFirstRecord: false,
+    getIndexChange: false,
+  };
   constructor(
     kwilClient: WebKwil | NodeKwil,
     kwilSigner: KwilSigner,
@@ -105,54 +115,185 @@ export class Action {
   }
 
   /**
-   * Returns the records of the stream within the given date range
+   * @deprecated Use getRecord(stream, options?) to leverage cache support and future-proof parameter handling.
    */
-  public async getRecord(input: GetRecordInput): Promise<StreamRecord[]> {
-    const prefix = input.prefix ? input.prefix : ""
-    const result = await this.call<{ event_time: number; value: string }[]>(
-        prefix + "get_record",
-        {
-          $data_provider: input.stream.dataProvider.getAddress(),
-          $stream_id: input.stream.streamId.getId(),
-          $from: input.from,
-          $to: input.to,
-          $frozen_at: input.frozenAt,
+  public async getRecord(input: GetRecordInput): Promise<StreamRecord[]>;
+  public async getRecord(stream: StreamLocator, options?: GetRecordOptions): Promise<CacheAwareResponse<StreamRecord[]>>;
+  public async getRecord(
+    inputOrStream: GetRecordInput | StreamLocator,
+    options?: GetRecordOptions
+  ): Promise<StreamRecord[] | CacheAwareResponse<StreamRecord[]>> {
+    // Handle backward compatibility
+    if ('stream' in inputOrStream) {
+      // Legacy call format
+      const input = inputOrStream as GetRecordInput;
+      // emit deprecation warning once
+      if (!Action._legacyWarnEmitted.getRecord) {
+        Action._legacyWarnEmitted.getRecord = true;
+        if (typeof console !== 'undefined' && console.warn) {
+          console.warn('[TN SDK] Deprecated signature: getRecord(input). Use getRecord(stream, options?) instead.');
         }
+      }
+      const prefix = input.prefix ? input.prefix : ""
+      const result = await this.call<{ event_time: number; value: string }[]>(
+          prefix + "get_record",
+          {
+            $data_provider: input.stream.dataProvider.getAddress(),
+            $stream_id: input.stream.streamId.getId(),
+            $from: input.from,
+            $to: input.to,
+            $frozen_at: input.frozenAt,
+          }
+      );
+      return result
+        .mapRight((result) =>
+          result.map((row) => ({
+            eventTime: row.event_time,
+            value: row.value,
+          })),
+        )
+        .throw();
+    }
+    
+    // New cache-aware call format
+    const stream = inputOrStream as StreamLocator;
+    
+    // Validate options if provided
+    if (options) {
+      CacheValidation.validateGetRecordOptions(options);
+      CacheValidation.validateTimeRange(options.from, options.to);
+    }
+    
+    const prefix = options?.prefix ? options.prefix : ""
+    const params: any = {
+      $data_provider: stream.dataProvider.getAddress(),
+      $stream_id: stream.streamId.getId(),
+      $from: options?.from,
+      $to: options?.to,
+      $frozen_at: options?.frozenAt,
+    };
+    
+    if (options?.useCache !== undefined) {
+      params.$use_cache = options.useCache;
+    }
+    
+    const result = await this.kwilClient.call(
+      {
+        namespace: "main",
+        name: prefix + "get_record",
+        inputs: params,
+      },
+      this.kwilSigner,
     );
-    return result
-      .mapRight((result) =>
-        result.map((row) => ({
-          eventTime: row.event_time,
-          value: row.value,
-        })),
-      )
-      .throw();
+    
+    if (result.status !== 200) {
+      throw new Error(`Failed to get record: ${result.status}`);
+    }
+    
+    const data = (result.data?.result as { event_time: number; value: string }[]).map((row) => ({
+      eventTime: row.event_time,
+      value: row.value,
+    }));
+    
+    const cache = CacheMetadataParser.extractFromResponse(result);
+    
+    return {
+      data,
+      cache: cache || undefined,
+      logs: result.data ? [JSON.stringify(result.data)] : undefined
+    };
   }
 
   /**
    * Returns the index of the stream within the given date range
+   * @deprecated Use getIndex(stream, options?) to leverage cache support and future-proof parameter handling.
    */
-  public async getIndex(input: GetRecordInput): Promise<StreamRecord[]> {
-    const prefix = input.prefix ? input.prefix : ""
-    const result = await this.call<{ event_time: number; value: string }[]>(
-      prefix + "get_index",
-        {
-          $data_provider: input.stream.dataProvider.getAddress(),
-          $stream_id: input.stream.streamId.getId(),
-          $from: input.from,
-          $to: input.to,
-          $frozen_at: input.frozenAt,
-          $base_time: input.baseTime,
+  public async getIndex(input: GetRecordInput): Promise<StreamRecord[]>;
+  public async getIndex(stream: StreamLocator, options?: GetIndexOptions): Promise<CacheAwareResponse<StreamRecord[]>>;
+  public async getIndex(
+    inputOrStream: GetRecordInput | StreamLocator,
+    options?: GetIndexOptions
+  ): Promise<StreamRecord[] | CacheAwareResponse<StreamRecord[]>> {
+    // Handle backward compatibility
+    if ('stream' in inputOrStream) {
+      // Legacy call format
+      const input = inputOrStream as GetRecordInput;
+      if (!Action._legacyWarnEmitted.getIndex) {
+        Action._legacyWarnEmitted.getIndex = true;
+        if (typeof console !== 'undefined' && console.warn) {
+          console.warn('[TN SDK] Deprecated signature: getIndex(input). Use getIndex(stream, options?) instead.');
         }
+      }
+      const prefix = input.prefix ? input.prefix : ""
+      const result = await this.call<{ event_time: number; value: string }[]>(
+        prefix + "get_index",
+          {
+            $data_provider: input.stream.dataProvider.getAddress(),
+            $stream_id: input.stream.streamId.getId(),
+            $from: input.from,
+            $to: input.to,
+            $frozen_at: input.frozenAt,
+            $base_time: input.baseTime,
+          }
+      );
+      return result
+        .mapRight((result) =>
+          result.map((row) => ({
+            eventTime: row.event_time,
+            value: row.value,
+          })),
+        )
+        .throw();
+    }
+    
+    // New cache-aware call format
+    const stream = inputOrStream as StreamLocator;
+    
+    // Validate options if provided
+    if (options) {
+      CacheValidation.validateGetIndexOptions(options);
+      CacheValidation.validateTimeRange(options.from, options.to);
+    }
+    
+    const prefix = options?.prefix ? options.prefix : ""
+    const params: any = {
+      $data_provider: stream.dataProvider.getAddress(),
+      $stream_id: stream.streamId.getId(),
+      $from: options?.from,
+      $to: options?.to,
+      $frozen_at: options?.frozenAt,
+      $base_time: options?.baseTime,
+    };
+    
+    if (options?.useCache !== undefined) {
+      params.$use_cache = options.useCache;
+    }
+    
+    const result = await this.kwilClient.call(
+      {
+        namespace: "main",
+        name: prefix + "get_index",
+        inputs: params,
+      },
+      this.kwilSigner,
     );
-    return result
-      .mapRight((result) =>
-        result.map((row) => ({
-          eventTime: row.event_time,
-          value: row.value,
-        })),
-      )
-      .throw();
+    
+    if (result.status !== 200) {
+      throw new Error(`Failed to get index: ${result.status}`);
+    }
+    
+    const data = (result.data?.result as { event_time: number; value: string }[]).map((row) => ({
+      eventTime: row.event_time,
+      value: row.value,
+    }));
+    
+    const cache = CacheMetadataParser.extractFromResponse(result);
+    
+    return {
+      data,
+      cache: cache || undefined,
+      logs: result.data ? [JSON.stringify(result.data)] : undefined
+    };
   }
 
   /**
@@ -186,31 +327,97 @@ export class Action {
 
   /**
    * Returns the first record of the stream
+   * @deprecated Use getFirstRecord(stream, options?) to leverage cache support and future-proof parameter handling.
    */
   public async getFirstRecord(
     input: GetFirstRecordInput,
-  ): Promise<StreamRecord | null> {
-    const result = await this.call<{ event_time: number; value: string }[]>(
-      "get_first_record",
-        {
-            $data_provider: input.stream.dataProvider.getAddress(),
-            $stream_id: input.stream.streamId.getId(),
-            $after: input.after,
-            $frozen_at: input.frozenAt,
+  ): Promise<StreamRecord | null>;
+  public async getFirstRecord(
+    stream: StreamLocator,
+    options?: GetFirstRecordOptions
+  ): Promise<CacheAwareResponse<StreamRecord | null>>;
+  public async getFirstRecord(
+    inputOrStream: GetFirstRecordInput | StreamLocator,
+    options?: GetFirstRecordOptions
+  ): Promise<StreamRecord | null | CacheAwareResponse<StreamRecord | null>> {
+    // Handle backward compatibility
+    if ('stream' in inputOrStream) {
+      // Legacy call format
+      const input = inputOrStream as GetFirstRecordInput;
+      if (!Action._legacyWarnEmitted.getFirstRecord) {
+        Action._legacyWarnEmitted.getFirstRecord = true;
+        if (typeof console !== 'undefined' && console.warn) {
+          console.warn('[TN SDK] Deprecated signature: getFirstRecord(input). Use getFirstRecord(stream, options?) instead.');
         }
-    );
+      }
+      const result = await this.call<{ event_time: number; value: string }[]>(
+        "get_first_record",
+          {
+              $data_provider: input.stream.dataProvider.getAddress(),
+              $stream_id: input.stream.streamId.getId(),
+              $after: input.after,
+              $frozen_at: input.frozenAt,
+          }
+      );
 
-    return result
-      .mapRight(head)
-      .mapRight((result) =>
-        result
-          .map((result) => ({
-            eventTime: result.event_time,
-            value: result.value,
-          }))
-          .unwrapOr(null),
-      )
-      .throw();
+      return result
+        .mapRight(head)
+        .mapRight((result) =>
+          result
+            .map((result) => ({
+              eventTime: result.event_time,
+              value: result.value,
+            }))
+            .unwrapOr(null),
+        )
+        .throw();
+    }
+    
+    // New cache-aware call format
+    const stream = inputOrStream as StreamLocator;
+    
+    // Validate options if provided
+    if (options) {
+      CacheValidation.validateGetFirstRecordOptions(options);
+    }
+    
+    const params: any = {
+      $data_provider: stream.dataProvider.getAddress(),
+      $stream_id: stream.streamId.getId(),
+      $after: options?.after,
+      $frozen_at: options?.frozenAt,
+    };
+    
+    if (options?.useCache !== undefined) {
+      params.$use_cache = options.useCache;
+    }
+    
+    const result = await this.kwilClient.call(
+      {
+        namespace: "main",
+        name: "get_first_record",
+        inputs: params,
+      },
+      this.kwilSigner,
+    );
+    
+    if (result.status !== 200) {
+      throw new Error(`Failed to get first record: ${result.status}`);
+    }
+    
+    const rawData = result.data?.result as { event_time: number; value: string }[];
+    const data = rawData && rawData.length > 0 ? {
+      eventTime: rawData[0].event_time,
+      value: rawData[0].value,
+    } : null;
+    
+    const cache = CacheMetadataParser.extractFromResponse(result);
+    
+    return {
+      data,
+      cache: cache || undefined,
+      logs: result.data ? [JSON.stringify(result.data)] : undefined
+    };
   }
 
   protected async setMetadata<K extends MetadataKey>(
@@ -455,31 +662,101 @@ export class Action {
 
   /**
    * Returns the index change of the stream within the given date range
+   * @deprecated Use getIndexChange(stream, options) to leverage cache support and future-proof parameter handling.
    */
   public async getIndexChange(
     input: GetIndexChangeInput,
-  ): Promise<StreamRecord[]> {
-    const result = await this.call<{ event_time: number; value: string }[]>(
-      "get_index_change", 
-        {
-          $data_provider: input.stream.dataProvider.getAddress(),
-          $stream_id: input.stream.streamId.getId(),
-          $from: input.from,
-          $to: input.to,
-          $frozen_at: input.frozenAt,
-          $base_time: input.baseTime,
-          $time_interval: input.timeInterval,
+  ): Promise<StreamRecord[]>;
+  public async getIndexChange(
+    stream: StreamLocator,
+    options: GetIndexChangeOptions
+  ): Promise<CacheAwareResponse<StreamRecord[]>>;
+  public async getIndexChange(
+    inputOrStream: GetIndexChangeInput | StreamLocator,
+    options?: GetIndexChangeOptions
+  ): Promise<StreamRecord[] | CacheAwareResponse<StreamRecord[]>> {
+    // Handle backward compatibility
+    if ('stream' in inputOrStream) {
+      // Legacy call format
+      const input = inputOrStream as GetIndexChangeInput;
+      if (!Action._legacyWarnEmitted.getIndexChange) {
+        Action._legacyWarnEmitted.getIndexChange = true;
+        if (typeof console !== 'undefined' && console.warn) {
+          console.warn('[TN SDK] Deprecated signature: getIndexChange(input). Use getIndexChange(stream, options?) instead.');
         }
-    );
+      }
+      const result = await this.call<{ event_time: number; value: string }[]>(
+        "get_index_change", 
+          {
+            $data_provider: input.stream.dataProvider.getAddress(),
+            $stream_id: input.stream.streamId.getId(),
+            $from: input.from,
+            $to: input.to,
+            $frozen_at: input.frozenAt,
+            $base_time: input.baseTime,
+            $time_interval: input.timeInterval,
+          }
+      );
 
-    return result
-      .mapRight((result) =>
-        result.map((row) => ({
-          eventTime: row.event_time,
-          value: row.value,
-        })),
-      )
-      .throw();
+      return result
+        .mapRight((result) =>
+          result.map((row) => ({
+            eventTime: row.event_time,
+            value: row.value,
+          })),
+        )
+        .throw();
+    }
+    
+    // New cache-aware call format
+    const stream = inputOrStream as StreamLocator;
+    if (!options) {
+      throw new Error('Options parameter is required for cache-aware getIndexChange');
+    }
+    
+    // Validate options
+    CacheValidation.validateGetIndexChangeOptions(options);
+    CacheValidation.validateTimeRange(options.from, options.to);
+    
+    const params: any = {
+      $data_provider: stream.dataProvider.getAddress(),
+      $stream_id: stream.streamId.getId(),
+      $from: options.from,
+      $to: options.to,
+      $frozen_at: options.frozenAt,
+      $base_time: options.baseTime,
+      $time_interval: options.timeInterval,
+    };
+    
+    if (options.useCache !== undefined) {
+      params.$use_cache = options.useCache;
+    }
+    
+    const result = await this.kwilClient.call(
+      {
+        namespace: "main",
+        name: "get_index_change",
+        inputs: params,
+      },
+      this.kwilSigner,
+    );
+    
+    if (result.status !== 200) {
+      throw new Error(`Failed to get index change: ${result.status}`);
+    }
+    
+    const data = (result.data?.result as { event_time: number; value: string }[]).map((row) => ({
+      eventTime: row.event_time,
+      value: row.value,
+    }));
+    
+    const cache = CacheMetadataParser.extractFromResponse(result);
+    
+    return {
+      data,
+      cache: cache || undefined,
+      logs: result.data ? [JSON.stringify(result.data)] : undefined
+    };
   }
 
   /**

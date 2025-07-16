@@ -49,11 +49,14 @@ describe.sequential("Permissions", { timeout: 90000 }, () => {
           readerClient.loadPrimitiveAction();
 
         // Test public read access
-        const publicRecords = await readerPrimitiveStream.getRecord({
-          stream: streamLocator,
-          from: new Date("2024-01-01").getTime() / 1000,
-          to: new Date("2024-01-01").getTime() / 1000,
-        });
+        const publicRecordsResponse = await readerPrimitiveStream.getRecord(
+          streamLocator,
+          {
+            from: new Date("2024-01-01").getTime() / 1000,
+            to: new Date("2024-01-01").getTime() / 1000,
+          }
+        );
+        const publicRecords = publicRecordsResponse.data;
         expect(publicRecords.length).toBe(1);
         expect(publicRecords[0].value).toBe("100.000000000000000000");
 
@@ -62,19 +65,25 @@ describe.sequential("Permissions", { timeout: 90000 }, () => {
         await waitForTxSuccess(tx, ownerClient);
 
         // Verify owner can still read
-        const ownerRecords = await primitiveStream.getRecord({
-          stream: streamLocator,
-          from: new Date("2024-01-01").getTime() / 1000,
-          to: new Date("2024-01-01").getTime() / 1000,
-        });
+        const ownerRecordsResponse = await primitiveStream.getRecord(
+          streamLocator,
+          {
+            from: new Date("2024-01-01").getTime() / 1000,
+            to: new Date("2024-01-01").getTime() / 1000,
+          }
+        );
+        const ownerRecords = ownerRecordsResponse.data;
         expect(ownerRecords.length).toBe(1);
 
         // Verify reader gets empty array when stream is private
-        const result = await readerPrimitiveStream.getRecord({
-          stream: streamLocator,
-          from: new Date("2024-01-01").getTime() / 1000,
-          to: new Date("2024-01-01").getTime() / 1000,
-        });
+        const resultResponse = await readerPrimitiveStream.getRecord(
+          streamLocator,
+          {
+            from: new Date("2024-01-01").getTime() / 1000,
+            to: new Date("2024-01-01").getTime() / 1000,
+          }
+        );
+        const result = resultResponse.data;
         expect(result).toEqual([]);
 
         // Allow reader access
@@ -83,11 +92,14 @@ describe.sequential("Permissions", { timeout: 90000 }, () => {
         await waitForTxSuccess(tx, ownerClient);
 
         // Verify reader can now read
-        const allowedRecords = await readerPrimitiveStream.getRecord({
-          stream: streamLocator,
-          from: new Date("2024-01-01").getTime() / 1000,
-          to: new Date("2024-01-01").getTime() / 1000,
-        });
+        const allowedRecordsResponse = await readerPrimitiveStream.getRecord(
+          streamLocator,
+          {
+            from: new Date("2024-01-01").getTime() / 1000,
+            to: new Date("2024-01-01").getTime() / 1000,
+          }
+        );
+        const allowedRecords = allowedRecordsResponse.data;
         expect(allowedRecords.length).toBe(1);
 
         // Disable reader access
@@ -95,11 +107,14 @@ describe.sequential("Permissions", { timeout: 90000 }, () => {
         await waitForTxSuccess(tx, ownerClient);
 
         // Verify reader gets empty array when access is disabled
-        const disabledRecords = await readerPrimitiveStream.getRecord({
-          stream: streamLocator,
-          from: new Date("2024-01-01").getTime() / 1000,
-          to: new Date("2024-01-01").getTime() / 1000,
-        });
+        const disabledRecordsResponse = await readerPrimitiveStream.getRecord(
+          streamLocator,
+          {
+            from: new Date("2024-01-01").getTime() / 1000,
+            to: new Date("2024-01-01").getTime() / 1000,
+          }
+        );
+        const disabledRecords = disabledRecordsResponse.data;
         expect(disabledRecords).toEqual([]);
       } finally {
         await ownerClient.destroyStream({ streamId, dataProvider: ownerClient.address() }, true).catch((e) => {});
@@ -151,11 +166,14 @@ describe.sequential("Permissions", { timeout: 90000 }, () => {
         const readerComposedStream = readerClient.loadComposedAction();
 
         // Test public access
-        const publicRecords = await readerComposedStream.getRecord({
-          stream: ownerClient.ownStreamLocator(composedStreamId),
-          from: new Date("2024-01-01").getTime() / 1000,
-          to: new Date("2024-01-01").getTime() / 1000,
-        });
+        const publicRecordsResponse = await readerComposedStream.getRecord(
+          ownerClient.ownStreamLocator(composedStreamId),
+          {
+            from: new Date("2024-01-01").getTime() / 1000,
+            to: new Date("2024-01-01").getTime() / 1000,
+          }
+        );
+        const publicRecords = publicRecordsResponse.data;
         expect(publicRecords.length).toBe(1);
 
         // Set primitive stream compose visibility to private
@@ -185,11 +203,14 @@ describe.sequential("Permissions", { timeout: 90000 }, () => {
         await waitForTxSuccess(tx, ownerClient);
 
         // Verify composed stream works when allowed
-        const allowedRecords = await readerComposedStream.getRecord({
-          stream: ownerClient.ownStreamLocator(composedStreamId),
-          from: new Date("2024-01-01").getTime() / 1000,
-          to: new Date("2024-01-01").getTime() / 1000,
-        });
+        const allowedRecordsResponse = await readerComposedStream.getRecord(
+          ownerClient.ownStreamLocator(composedStreamId),
+          {
+            from: new Date("2024-01-01").getTime() / 1000,
+            to: new Date("2024-01-01").getTime() / 1000,
+          }
+        );
+        const allowedRecords = allowedRecordsResponse.data;
         expect(allowedRecords.length).toBe(1);
 
         // Set composed stream read visibility to private
@@ -197,11 +218,14 @@ describe.sequential("Permissions", { timeout: 90000 }, () => {
         await waitForTxSuccess(tx, ownerClient);
 
         // Verify reader gets empty array when stream is private
-        const result = await readerComposedStream.getRecord({
-            stream: ownerClient.ownStreamLocator(composedStreamId),
+        const resultResponse = await readerComposedStream.getRecord(
+          ownerClient.ownStreamLocator(composedStreamId),
+          {
             from: new Date("2024-01-01").getTime() / 1000,
             to: new Date("2024-01-01").getTime() / 1000,
-        });
+          }
+        );
+        const result = resultResponse.data;
         expect(result).toEqual([]);
 
         // Allow reader to access composed stream
@@ -210,11 +234,14 @@ describe.sequential("Permissions", { timeout: 90000 }, () => {
         await waitForTxSuccess(tx, ownerClient);
 
         // Verify reader can access when allowed
-        const finalRecords = await readerComposedStream.getRecord({
-          stream: ownerClient.ownStreamLocator(composedStreamId),
-          from: new Date("2024-01-01").getTime() / 1000,
-          to: new Date("2024-01-01").getTime() / 1000,
-        });
+        const finalRecordsResponse = await readerComposedStream.getRecord(
+          ownerClient.ownStreamLocator(composedStreamId),
+          {
+            from: new Date("2024-01-01").getTime() / 1000,
+            to: new Date("2024-01-01").getTime() / 1000,
+          }
+        );
+        const finalRecords = finalRecordsResponse.data;
         expect(finalRecords.length).toBe(1);
       } finally {
         await ownerClient.destroyStream({ streamId: primitiveStreamId, dataProvider: ownerClient.address() }, true).catch((e) => {
