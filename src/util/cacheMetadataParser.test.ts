@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { CacheMetadataParser } from './cacheMetadataParser';
+import type { CacheMetadata } from '../types/cache';
 
 describe('CacheMetadataParser', () => {
   describe('extractFromLogs', () => {
@@ -9,6 +10,17 @@ describe('CacheMetadataParser', () => {
       
       expect(result).toEqual({
         hit: true,
+        cachedAt: 1609459200
+      });
+    });
+
+    it('should extract enhanced cache metadata with cacheDisabled field', () => {
+      const logs = ['{"cache_hit": false, "cache_disabled": true, "cached_at": 1609459200}'];
+      const result = CacheMetadataParser.extractFromLogs(logs);
+      
+      expect(result).toEqual({
+        hit: false,
+        cacheDisabled: true,
         cachedAt: 1609459200
       });
     });
@@ -93,6 +105,26 @@ describe('CacheMetadataParser', () => {
       expect(CacheMetadataParser.isValidCacheMetadata(metadata)).toBe(true);
     });
 
+    it('should validate enhanced cache metadata with all fields', () => {
+      const metadata: CacheMetadata = {
+        hit: true,
+        cacheDisabled: false,
+        cachedAt: 1609459200,
+        streamId: 'test-stream',
+        dataProvider: '0x123456789abcdef',
+        from: 1609459100,
+        to: 1609459300,
+        frozenAt: 1609459250,
+        rowsServed: 10
+      };
+      expect(CacheMetadataParser.isValidCacheMetadata(metadata)).toBe(true);
+    });
+
+    it('should validate metadata with optional fields', () => {
+      const metadata = { hit: true, cacheDisabled: true };
+      expect(CacheMetadataParser.isValidCacheMetadata(metadata)).toBe(true);
+    });
+
     it('should reject metadata without hit field', () => {
       const metadata = { cachedAt: 1609459200 };
       expect(CacheMetadataParser.isValidCacheMetadata(metadata)).toBe(false);
@@ -106,6 +138,33 @@ describe('CacheMetadataParser', () => {
     it('should reject metadata with invalid cachedAt type', () => {
       const metadata = { hit: true, cachedAt: '1609459200' };
       expect(CacheMetadataParser.isValidCacheMetadata(metadata)).toBe(false);
+    });
+
+    it('should reject metadata with invalid cacheDisabled type', () => {
+      const metadata = { hit: true, cacheDisabled: 'false' };
+      expect(CacheMetadataParser.isValidCacheMetadata(metadata)).toBe(false);
+    });
+
+    it('should reject metadata with invalid streamId type', () => {
+      const metadata = { hit: true, streamId: 123 };
+      expect(CacheMetadataParser.isValidCacheMetadata(metadata)).toBe(false);
+    });
+
+    it('should reject metadata with invalid dataProvider type', () => {
+      const metadata = { hit: true, dataProvider: 456 };
+      expect(CacheMetadataParser.isValidCacheMetadata(metadata)).toBe(false);
+    });
+
+    it('should reject metadata with invalid numeric fields', () => {
+      const invalidFromMetadata = { hit: true, from: '123' };
+      const invalidToMetadata = { hit: true, to: '456' };
+      const invalidFrozenAtMetadata = { hit: true, frozenAt: '789' };
+      const invalidRowsServedMetadata = { hit: true, rowsServed: '10' };
+
+      expect(CacheMetadataParser.isValidCacheMetadata(invalidFromMetadata)).toBe(false);
+      expect(CacheMetadataParser.isValidCacheMetadata(invalidToMetadata)).toBe(false);
+      expect(CacheMetadataParser.isValidCacheMetadata(invalidFrozenAtMetadata)).toBe(false);
+      expect(CacheMetadataParser.isValidCacheMetadata(invalidRowsServedMetadata)).toBe(false);
     });
 
     it('should reject null or undefined', () => {
@@ -138,6 +197,109 @@ describe('CacheMetadataParser', () => {
     it('should return null for null response', () => {
       const result = CacheMetadataParser.extractFromResponse(null);
       expect(result).toBeNull();
+    });
+  });
+
+  describe('aggregate', () => {
+    it('should aggregate empty metadata list', () => {
+      const result = CacheMetadataParser.aggregate([]);
+      
+      expect(result).toEqual({
+        totalQueries: 0,
+        cacheHits: 0,
+        cacheMisses: 0,
+        cacheHitRate: 0,
+        totalRowsServed: 0,
+        entries: []
+      });
+    });
+
+    it('should aggregate single metadata entry', () => {
+      const metadata: CacheMetadata = {
+        hit: true,
+        cachedAt: 1609459200,
+        streamId: 'test-stream',
+        rowsServed: 5
+      };
+      
+      const result = CacheMetadataParser.aggregate([metadata]);
+      
+      expect(result).toEqual({
+        totalQueries: 1,
+        cacheHits: 1,
+        cacheMisses: 0,
+        cacheHitRate: 1.0,
+        totalRowsServed: 5,
+        entries: [metadata]
+      });
+    });
+
+    it('should aggregate multiple metadata entries', () => {
+      const metadata1: CacheMetadata = {
+        hit: true,
+        cachedAt: 1609459200,
+        streamId: 'stream-1',
+        rowsServed: 10
+      };
+      
+      const metadata2: CacheMetadata = {
+        hit: false,
+        streamId: 'stream-2',
+        rowsServed: 5
+      };
+      
+      const metadata3: CacheMetadata = {
+        hit: true,
+        cachedAt: 1609459300,
+        streamId: 'stream-3',
+        rowsServed: 15
+      };
+      
+      const result = CacheMetadataParser.aggregate([metadata1, metadata2, metadata3]);
+      
+      expect(result).toEqual({
+        totalQueries: 3,
+        cacheHits: 2,
+        cacheMisses: 1,
+        cacheHitRate: 2/3,
+        totalRowsServed: 30,
+        entries: [metadata1, metadata2, metadata3]
+      });
+    });
+
+    it('should handle metadata without rowsServed', () => {
+      const metadata1: CacheMetadata = { hit: true, cachedAt: 1609459200 };
+      const metadata2: CacheMetadata = { hit: false };
+      const metadata3: CacheMetadata = { hit: true, rowsServed: 8 };
+      
+      const result = CacheMetadataParser.aggregate([metadata1, metadata2, metadata3]);
+      
+      expect(result).toEqual({
+        totalQueries: 3,
+        cacheHits: 2,
+        cacheMisses: 1,
+        cacheHitRate: 2/3,
+        totalRowsServed: 8, // Only metadata3 has rowsServed
+        entries: [metadata1, metadata2, metadata3]
+      });
+    });
+
+    it('should calculate correct cache hit rate for mixed results', () => {
+      const metadataList: CacheMetadata[] = [
+        { hit: true, rowsServed: 1 },
+        { hit: false, rowsServed: 2 },
+        { hit: false, rowsServed: 3 },
+        { hit: true, rowsServed: 4 },
+        { hit: true, rowsServed: 5 }
+      ];
+      
+      const result = CacheMetadataParser.aggregate(metadataList);
+      
+      expect(result.totalQueries).toBe(5);
+      expect(result.cacheHits).toBe(3);
+      expect(result.cacheMisses).toBe(2);
+      expect(result.cacheHitRate).toBe(0.6); // 3/5 = 0.6
+      expect(result.totalRowsServed).toBe(15); // 1+2+3+4+5 = 15
     });
   });
 });

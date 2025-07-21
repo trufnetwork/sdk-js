@@ -46,10 +46,12 @@
     "prepublishOnly": "npm run build",
     "tag:dev": "pnpm version 0.0.0-dev-$(date +%Y%m%d%H%M%S) --no-git-tag-version",
     "publish:dev": "pnpm publish --tag dev --no-git-checks",
-    "test": "vitest"
+    "test": "vitest",
+    "test:unit": "vitest src/ --run",
+    "test:integration": "vitest tests/integration/ --run"
   },
   "dependencies": {
-    "@trufnetwork/kwil-js": "^0.9.5",
+    "@trufnetwork/kwil-js": "^0.9.6-rc.1",
     "crypto-hash": "^3.1.0",
     "ethers": "^6.13.5",
     "lodash": "^4.17.21",
