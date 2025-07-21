@@ -195,7 +195,20 @@ export class Action {
       value: row.value,
     }));
     
-    const cache = CacheMetadataParser.extractFromResponse(result);
+    let cache = CacheMetadataParser.extractFromResponse(result);
+    
+    // Enhance cache metadata with SDK-provided context
+    if (cache) {
+      cache = {
+        ...cache,
+        streamId: stream.streamId.getId(),
+        dataProvider: stream.dataProvider.getAddress(),
+        from: options?.from,
+        to: options?.to,
+        frozenAt: options?.frozenAt,
+        rowsServed: data.length
+      };
+    }
     
     return {
       data,
@@ -287,7 +300,20 @@ export class Action {
       value: row.value,
     }));
     
-    const cache = CacheMetadataParser.extractFromResponse(result);
+    let cache = CacheMetadataParser.extractFromResponse(result);
+    
+    // Enhance cache metadata with SDK-provided context
+    if (cache) {
+      cache = {
+        ...cache,
+        streamId: stream.streamId.getId(),
+        dataProvider: stream.dataProvider.getAddress(),
+        from: options?.from,
+        to: options?.to,
+        frozenAt: options?.frozenAt,
+        rowsServed: data.length
+      };
+    }
     
     return {
       data,
@@ -411,7 +437,18 @@ export class Action {
       value: rawData[0].value,
     } : null;
     
-    const cache = CacheMetadataParser.extractFromResponse(result);
+    let cache = CacheMetadataParser.extractFromResponse(result);
+    
+    // Enhance cache metadata with SDK-provided context
+    if (cache) {
+      cache = {
+        ...cache,
+        streamId: stream.streamId.getId(),
+        dataProvider: stream.dataProvider.getAddress(),
+        frozenAt: options?.frozenAt,
+        rowsServed: data ? 1 : 0
+      };
+    }
     
     return {
       data,
@@ -750,7 +787,20 @@ export class Action {
       value: row.value,
     }));
     
-    const cache = CacheMetadataParser.extractFromResponse(result);
+    let cache = CacheMetadataParser.extractFromResponse(result);
+    
+    // Enhance cache metadata with SDK-provided context
+    if (cache) {
+      cache = {
+        ...cache,
+        streamId: stream.streamId.getId(),
+        dataProvider: stream.dataProvider.getAddress(),
+        from: options.from,
+        to: options.to,
+        frozenAt: options.frozenAt,
+        rowsServed: data.length
+      };
+    }
     
     return {
       data,

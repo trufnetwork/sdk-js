@@ -3,6 +3,7 @@ import { CacheError } from './cache';
 import type { 
   CacheMetadata, 
   CacheAwareResponse, 
+  CacheMetadataCollection,
   GetRecordOptions, 
   GetIndexOptions, 
   GetIndexChangeOptions, 
@@ -21,6 +22,67 @@ describe('Cache Types', () => {
       const metadata: CacheMetadata = { hit: false };
       expect(metadata.hit).toBe(false);
       expect(metadata.cachedAt).toBeUndefined();
+    });
+
+    it('should allow enhanced cache metadata with all fields', () => {
+      const metadata: CacheMetadata = {
+        hit: true,
+        cacheDisabled: false,
+        cachedAt: 1609459200,
+        streamId: 'test-stream',
+        dataProvider: '0x123456789abcdef',
+        from: 1609459100,
+        to: 1609459300,
+        frozenAt: 1609459250,
+        rowsServed: 10
+      };
+      
+      expect(metadata.hit).toBe(true);
+      expect(metadata.cacheDisabled).toBe(false);
+      expect(metadata.cachedAt).toBe(1609459200);
+      expect(metadata.streamId).toBe('test-stream');
+      expect(metadata.dataProvider).toBe('0x123456789abcdef');
+      expect(metadata.from).toBe(1609459100);
+      expect(metadata.to).toBe(1609459300);
+      expect(metadata.frozenAt).toBe(1609459250);
+      expect(metadata.rowsServed).toBe(10);
+    });
+
+    it('should allow partial enhanced metadata', () => {
+      const metadata: CacheMetadata = {
+        hit: true,
+        cacheDisabled: true,
+        streamId: 'partial-stream'
+      };
+      
+      expect(metadata.hit).toBe(true);
+      expect(metadata.cacheDisabled).toBe(true);
+      expect(metadata.streamId).toBe('partial-stream');
+      expect(metadata.cachedAt).toBeUndefined();
+    });
+  });
+
+  describe('CacheMetadataCollection', () => {
+    it('should allow valid cache metadata collection', () => {
+      const collection: CacheMetadataCollection = {
+        totalQueries: 5,
+        cacheHits: 3,
+        cacheMisses: 2,
+        cacheHitRate: 0.6,
+        totalRowsServed: 100,
+        entries: [
+          { hit: true, rowsServed: 30 },
+          { hit: false, rowsServed: 25 },
+          { hit: true, rowsServed: 45 }
+        ]
+      };
+      
+      expect(collection.totalQueries).toBe(5);
+      expect(collection.cacheHits).toBe(3);
+      expect(collection.cacheMisses).toBe(2);
+      expect(collection.cacheHitRate).toBe(0.6);
+      expect(collection.totalRowsServed).toBe(100);
+      expect(collection.entries).toHaveLength(3);
     });
   });
 

@@ -10,8 +10,24 @@
 export interface CacheMetadata {
   /** Whether the data came from cache */
   hit: boolean;
+  /** Whether cache was disabled for this query */
+  cacheDisabled?: boolean;
   /** Unix timestamp when data was cached (optional) */
   cachedAt?: number;
+  
+  // SDK-provided context (optional)
+  /** Stream ID used in the query */
+  streamId?: string;
+  /** Data provider address */
+  dataProvider?: string;
+  /** Start time of the query range */
+  from?: number;
+  /** End time of the query range */
+  to?: number;
+  /** Frozen time for historical queries */
+  frozenAt?: number;
+  /** Number of rows returned */
+  rowsServed?: number;
 }
 
 /**
@@ -93,6 +109,24 @@ export interface CacheAwareResponse<T> {
   cache?: CacheMetadata;
   /** Action logs for debugging (optional) */
   logs?: string[];
+}
+
+/**
+ * Aggregated cache metadata from multiple operations
+ */
+export interface CacheMetadataCollection {
+  /** Total number of queries performed */
+  totalQueries: number;
+  /** Number of cache hits */
+  cacheHits: number;
+  /** Number of cache misses */
+  cacheMisses: number;
+  /** Cache hit rate (0-1) */
+  cacheHitRate: number;
+  /** Total rows served across all queries */
+  totalRowsServed: number;
+  /** Individual metadata entries */
+  entries: CacheMetadata[];
 }
 
 /**

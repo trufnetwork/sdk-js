@@ -275,9 +275,55 @@ The SDK can transparently use a node-side cache layer (when the node has the `tn
 * `useCache` (boolean) – optional flag in **all** data-retrieval helpers (`getRecord`, `getIndex`, `getIndexChange`, `getFirstRecord`).
 * Return type becomes `CacheAwareResponse<T>` which contains:
   * `data` – the normal payload you used to receive.
-  * `cache` – `{ hit: boolean; cachedAt?: number }` when the node emitted cache metadata.
+  * `cache` – enhanced cache metadata with SDK-provided context.
   * `logs` – raw NOTICE logs (useful for debugging).
 * Legacy signatures are still available but are **deprecated** – a one-time `console.warn` is printed if you call them.
+
+### Cache Metadata
+
+The cache metadata includes both node-provided and SDK-enhanced fields:
+
+```typescript
+interface CacheMetadata {
+  // Node-provided fields
+  hit: boolean;                    // Whether data came from cache
+  cacheDisabled?: boolean;         // Whether cache was disabled for this query
+  cachedAt?: number;              // Unix timestamp when data was cached
+  
+  // SDK-provided context fields
+  streamId?: string;              // Stream ID used in the query
+  dataProvider?: string;          // Data provider address
+  from?: number;                  // Start time of the query range
+  to?: number;                    // End time of the query range
+  frozenAt?: number;              // Frozen time for historical queries
+  rowsServed?: number;            // Number of rows returned
+}
+```
+
+### Cache Aggregation
+
+For batch operations or analytics, use `CacheMetadataParser.aggregate()` to combine multiple cache metadata entries:
+
+```typescript
+import { CacheMetadataParser } from '@trufnetwork/sdk-js';
+
+const metadataList: CacheMetadata[] = [
+  { hit: true, rowsServed: 10, streamId: 'stream-1' },
+  { hit: false, rowsServed: 5, streamId: 'stream-2' },
+  { hit: true, rowsServed: 15, streamId: 'stream-3' }
+];
+
+const aggregated = CacheMetadataParser.aggregate(metadataList);
+// Returns: CacheMetadataCollection
+// {
+//   totalQueries: 3,
+//   cacheHits: 2,
+//   cacheMisses: 1,
+//   cacheHitRate: 0.67,
+//   totalRowsServed: 30,
+//   entries: [...metadataList]
+// }
+```
 
 ### Quick example
 ```typescript
@@ -288,7 +334,10 @@ const { data: records, cache } = await streamAction.getRecord(
 );
 
 if (cache?.hit) {
-  console.log('Cache hit! data cached at', new Date(cache.cachedAt! * 1000));
+  console.log('Cache hit! Data cached at', new Date(cache.cachedAt! * 1000));
+  console.log(`Query served ${cache.rowsServed} rows from stream ${cache.streamId}`);
+} else {
+  console.log('Cache miss - data fetched fresh');
 }
 ```
 

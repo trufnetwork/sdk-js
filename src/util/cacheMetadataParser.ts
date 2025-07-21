@@ -1,4 +1,4 @@
-import { CacheMetadata } from '../types/cache';
+import { CacheMetadata, CacheMetadataCollection } from '../types/cache';
 
 /**
  * Parser for extracting cache metadata from action logs
@@ -34,6 +34,7 @@ export class CacheMetadataParser {
             if (logData.cache_hit === true) {
               return {
                 hit: true,
+                cacheDisabled: logData.cache_disabled,
                 cachedAt: logData.cached_at ? Number(logData.cached_at) : undefined
               };
             }
@@ -42,7 +43,8 @@ export class CacheMetadataParser {
             if (logData.cache_hit === false) {
               return {
                 hit: false,
-                cachedAt: undefined
+                cacheDisabled: logData.cache_disabled,
+                cachedAt: logData.cached_at ? Number(logData.cached_at) : undefined
               };
             }
             
@@ -75,7 +77,35 @@ export class CacheMetadataParser {
     }
     
     // Check optional fields
+    if (metadata.cacheDisabled !== undefined && typeof metadata.cacheDisabled !== 'boolean') {
+      return false;
+    }
+    
     if (metadata.cachedAt !== undefined && typeof metadata.cachedAt !== 'number') {
+      return false;
+    }
+    
+    if (metadata.streamId !== undefined && typeof metadata.streamId !== 'string') {
+      return false;
+    }
+    
+    if (metadata.dataProvider !== undefined && typeof metadata.dataProvider !== 'string') {
+      return false;
+    }
+    
+    if (metadata.from !== undefined && typeof metadata.from !== 'number') {
+      return false;
+    }
+    
+    if (metadata.to !== undefined && typeof metadata.to !== 'number') {
+      return false;
+    }
+    
+    if (metadata.frozenAt !== undefined && typeof metadata.frozenAt !== 'number') {
+      return false;
+    }
+    
+    if (metadata.rowsServed !== undefined && typeof metadata.rowsServed !== 'number') {
       return false;
     }
     
@@ -94,5 +124,38 @@ export class CacheMetadataParser {
     }
     
     return this.extractFromLogs(response.logs);
+  }
+  
+  /**
+   * Aggregates multiple cache metadata entries into a collection
+   * @param metadataList - Array of cache metadata entries
+   * @returns Aggregated cache metadata collection
+   */
+  static aggregate(metadataList: CacheMetadata[]): CacheMetadataCollection {
+    const totalQueries = metadataList.length;
+    let cacheHits = 0;
+    let totalRowsServed = 0;
+    
+    for (const metadata of metadataList) {
+      if (metadata.hit) {
+        cacheHits++;
+      }
+      
+      if (metadata.rowsServed) {
+        totalRowsServed += metadata.rowsServed;
+      }
+    }
+    
+    const cacheMisses = totalQueries - cacheHits;
+    const cacheHitRate = totalQueries > 0 ? cacheHits / totalQueries : 0;
+    
+    return {
+      totalQueries,
+      cacheHits,
+      cacheMisses,
+      cacheHitRate,
+      totalRowsServed,
+      entries: metadataList
+    };
   }
 }
