@@ -35,7 +35,8 @@ export class CacheMetadataParser {
               return {
                 hit: true,
                 cacheDisabled: logData.cache_disabled,
-                cachedAt: logData.cached_at ? Number(logData.cached_at) : undefined
+                cachedAt: logData.cached_at ? Number(logData.cached_at) : undefined,
+                height: logData.cached_height ? Number(logData.cached_height) : undefined
               };
             }
             
@@ -44,7 +45,8 @@ export class CacheMetadataParser {
               return {
                 hit: false,
                 cacheDisabled: logData.cache_disabled,
-                cachedAt: logData.cached_at ? Number(logData.cached_at) : undefined
+                cachedAt: undefined,
+                height: undefined
               };
             }
             
@@ -106,6 +108,10 @@ export class CacheMetadataParser {
     }
     
     if (metadata.rowsServed !== undefined && typeof metadata.rowsServed !== 'number') {
+      return false;
+    }
+
+    if (metadata.height !== undefined && typeof metadata.height !== 'number') {
       return false;
     }
     

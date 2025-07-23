@@ -21,7 +21,6 @@ describe('CacheMetadataParser', () => {
       expect(result).toEqual({
         hit: false,
         cacheDisabled: true,
-        cachedAt: 1609459200
       });
     });
 
@@ -91,6 +90,36 @@ describe('CacheMetadataParser', () => {
     it('should handle empty string logs', () => {
       const result = CacheMetadataParser.extractFromLogs(['', '   ', '\n']);
       expect(result).toBeNull();
+    });
+
+    it('should extract cache hit metadata with all fields', () => {
+      const logs = ['{"cache_hit": true, "cached_at": 1609459200, "cached_height": 123456}'];
+      const metadata = CacheMetadataParser.extractFromLogs(logs);
+      expect(metadata).toEqual({
+        hit: true,
+        cachedAt: 1609459200,
+        height: 123456
+      });
+    });
+
+    it('should extract cache hit without optional fields', () => {
+      const logs = ['{"cache_hit": true}'];
+      const metadata = CacheMetadataParser.extractFromLogs(logs);
+      expect(metadata).toEqual({
+        hit: true,
+        cachedAt: undefined,
+        height: undefined
+      });
+    });
+
+    it('should extract cache miss', () => {
+      const logs = ['{"cache_hit": false}'];
+      const metadata = CacheMetadataParser.extractFromLogs(logs);
+      expect(metadata).toEqual({
+        hit: false,
+        cachedAt: undefined,
+        height: undefined
+      });
     });
   });
 
@@ -165,6 +194,16 @@ describe('CacheMetadataParser', () => {
       expect(CacheMetadataParser.isValidCacheMetadata(invalidToMetadata)).toBe(false);
       expect(CacheMetadataParser.isValidCacheMetadata(invalidFrozenAtMetadata)).toBe(false);
       expect(CacheMetadataParser.isValidCacheMetadata(invalidRowsServedMetadata)).toBe(false);
+    });
+
+    it('should validate complete metadata', () => {
+      const metadata = { hit: true, cachedAt: 1609459200, height: 123456 };
+      expect(CacheMetadataParser.isValidCacheMetadata(metadata)).toBe(true);
+    });
+
+    it('should reject metadata with invalid height type', () => {
+      const metadata = { hit: true, height: '123456' };
+      expect(CacheMetadataParser.isValidCacheMetadata(metadata)).toBe(false);
     });
 
     it('should reject null or undefined', () => {
