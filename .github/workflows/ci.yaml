@@ -46,7 +46,7 @@ jobs:
       - name: Get node commit hash
         id: node-commit
         working-directory: tmp-node
-        run: echo "sha=$(git rev-parse HEAD)" &gt;&gt; $GITHUB_OUTPUT
+        run: echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
 
       - name: Build tn-db Docker image & kwil-cli binary
         run: |
@@ -91,6 +91,6 @@ jobs:
 
       - name: Cleanup
         # not act 
-        if: always() && ${{ !env.ACT }}
+        if: always() && !env.ACT
         run: |
           docker system prune -af 
