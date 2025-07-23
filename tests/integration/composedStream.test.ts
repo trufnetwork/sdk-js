@@ -11,9 +11,6 @@ describe.sequential(
     // Spin up/tear down the local TN+Postgres containers once for this suite.
     setupTrufNetwork();
 
-    // Skip in CI, because it needs a local node
-    testWithDefaultWallet.skipIf(process.env.CI);
-
     testWithDefaultWallet(
       "should deploy, initialize and use a composed stream",
       async ({ defaultClient }) => {

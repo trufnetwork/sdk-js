@@ -6,7 +6,7 @@ describe.sequential("Get Database Size", { timeout: 90000 }, () => {
   // Spin up/tear down the local TN+Postgres containers once for this suite.
   setupTrufNetwork();
 
-  testWithDefaultWallet.skipIf(process.env.CI)(
+  testWithDefaultWallet(
     "should get database size",
     async ({ defaultClient }) => {
       const actions = defaultClient.loadAction()

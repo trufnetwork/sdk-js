@@ -7,7 +7,7 @@ describe.sequential("Get List Streams", { timeout: 90000 }, () => {
   // Spin up/tear down the local TN+Postgres containers once for this suite.
   setupTrufNetwork();
 
-  testWithDefaultWallet.skipIf(process.env.CI)(
+  testWithDefaultWallet(
     "should list all streams",
     async ({ defaultClient }) => {
       await using disposables = new AsyncDisposableStack();
@@ -62,7 +62,7 @@ describe.sequential("Get List Streams", { timeout: 90000 }, () => {
     },
   );
 
-  testWithDefaultWallet.skipIf(process.env.CI)(
+  testWithDefaultWallet(
     "should list streams for specific owner",
     async ({ defaultClient }) => {
       await using disposables = new AsyncDisposableStack();
