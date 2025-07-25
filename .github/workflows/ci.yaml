@@ -24,7 +24,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: ${{ !env.ACT && 'pnpm' || '' }}  # Disable cache if running in act
+          cache: 'pnpm'
           cache-dependency-path: pnpm-lock.yaml
 
       - name: Set up Go
