@@ -275,7 +275,7 @@ The SDK can transparently use a node-side cache layer (when the node has the `tn
 * `useCache` (boolean) – optional flag in **all** data-retrieval helpers (`getRecord`, `getIndex`, `getIndexChange`, `getFirstRecord`).
 * Return type becomes `CacheAwareResponse<T>` which contains:
   * `data` – the normal payload you used to receive.
-  * `cache` – `{ hit: boolean; cachedAt?: number; height?: number }` when the node emitted cache metadata.
+  * `cache` – `{ hit: boolean; height?: number }` when the node emitted cache metadata.
   * `logs` – raw NOTICE logs (useful for debugging).
 * Legacy signatures are still available but are **deprecated** – a one-time `console.warn` is printed if you call them.
 
@@ -288,7 +288,6 @@ interface CacheMetadata {
   // Node-provided fields
   hit: boolean;                    // Whether data came from cache
   cacheDisabled?: boolean;         // Whether cache was disabled for this query
-  cachedAt?: number;              // Unix timestamp when data was cached
   
   // SDK-provided context fields
   streamId?: string;              // Stream ID used in the query
@@ -334,8 +333,7 @@ const { data: records, cache } = await streamAction.getRecord(
 );
 
 if (cache?.hit) {
-  console.log('Cache hit! data cached at', new Date(cache.cachedAt! * 1000));
-  console.log('Cached at block height:', cache.height);
+  console.log('Cache hit!');
 }
 ```
 

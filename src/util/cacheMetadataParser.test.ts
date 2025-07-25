@@ -5,22 +5,24 @@ import type { CacheMetadata } from '../types/cache';
 describe('CacheMetadataParser', () => {
   describe('extractFromLogs', () => {
     it('should extract cache hit metadata from valid log', () => {
-      const logs = ['{"cache_hit": true, "cached_at": 1609459200}'];
+      const logs = ['{"cache_hit": true, "cache_height": 123456}'];
       const result = CacheMetadataParser.extractFromLogs(logs);
       
       expect(result).toEqual({
         hit: true,
-        cachedAt: 1609459200
+        cacheDisabled: undefined,
+        height: 123456
       });
     });
 
     it('should extract enhanced cache metadata with cacheDisabled field', () => {
-      const logs = ['{"cache_hit": false, "cache_disabled": true, "cached_at": 1609459200}'];
+      const logs = ['{"cache_hit": false, "cache_disabled": true}'];
       const result = CacheMetadataParser.extractFromLogs(logs);
       
       expect(result).toEqual({
         hit: false,
         cacheDisabled: true,
+        height: undefined
       });
     });
 
@@ -30,41 +32,45 @@ describe('CacheMetadataParser', () => {
       
       expect(result).toEqual({
         hit: false,
-        cachedAt: undefined
+        cacheDisabled: undefined,
+        height: undefined
       });
     });
 
-    it('should handle cache hit without cached_at field', () => {
+    it('should handle cache hit without height field', () => {
       const logs = ['{"cache_hit": true}'];
       const result = CacheMetadataParser.extractFromLogs(logs);
       
       expect(result).toEqual({
         hit: true,
-        cachedAt: undefined
+        cacheDisabled: undefined,
+        height: undefined
       });
     });
 
     it('should handle single string log with newlines', () => {
-      const log = 'other log entry\n{"cache_hit": true, "cached_at": 1609459200}\nmore logs';
+      const log = 'other log entry\n{"cache_hit": true, "cache_height": 123456}\nmore logs';
       const result = CacheMetadataParser.extractFromLogs(log);
       
       expect(result).toEqual({
         hit: true,
-        cachedAt: 1609459200
+        cacheDisabled: undefined,
+        height: 123456
       });
     });
 
     it('should handle array of logs', () => {
       const logs = [
         'normal log entry',
-        '{"cache_hit": true, "cached_at": 1609459200}',
+        '{"cache_hit": true, "cache_height": 123456}',
         'another log'
       ];
       const result = CacheMetadataParser.extractFromLogs(logs);
       
       expect(result).toEqual({
         hit: true,
-        cachedAt: 1609459200
+        cacheDisabled: undefined,
+        height: 123456
       });
     });
 
@@ -93,11 +99,11 @@ describe('CacheMetadataParser', () => {
     });
 
     it('should extract cache hit metadata with all fields', () => {
-      const logs = ['{"cache_hit": true, "cached_at": 1609459200, "cached_height": 123456}'];
+      const logs = ['{"cache_hit": true, "cache_height": 123456}'];
       const metadata = CacheMetadataParser.extractFromLogs(logs);
       expect(metadata).toEqual({
         hit: true,
-        cachedAt: 1609459200,
+        cacheDisabled: undefined,
         height: 123456
       });
     });
@@ -107,7 +113,7 @@ describe('CacheMetadataParser', () => {
       const metadata = CacheMetadataParser.extractFromLogs(logs);
       expect(metadata).toEqual({
         hit: true,
-        cachedAt: undefined,
+        cacheDisabled: undefined,
         height: undefined
       });
     });
@@ -117,7 +123,7 @@ describe('CacheMetadataParser', () => {
       const metadata = CacheMetadataParser.extractFromLogs(logs);
       expect(metadata).toEqual({
         hit: false,
-        cachedAt: undefined,
+        cacheDisabled: undefined,
         height: undefined
       });
     });
@@ -125,11 +131,11 @@ describe('CacheMetadataParser', () => {
 
   describe('isValidCacheMetadata', () => {
     it('should validate correct cache metadata', () => {
-      const metadata = { hit: true, cachedAt: 1609459200 };
+      const metadata = { hit: true, height: 123456 };
       expect(CacheMetadataParser.isValidCacheMetadata(metadata)).toBe(true);
     });
 
-    it('should validate metadata without cachedAt', () => {
+    it('should validate metadata without height', () => {
       const metadata = { hit: false };
       expect(CacheMetadataParser.isValidCacheMetadata(metadata)).toBe(true);
     });
@@ -138,7 +144,7 @@ describe('CacheMetadataParser', () => {
       const metadata: CacheMetadata = {
         hit: true,
         cacheDisabled: false,
-        cachedAt: 1609459200,
+        height: 123456,
         streamId: 'test-stream',
         dataProvider: '0x123456789abcdef',
         from: 1609459100,
@@ -155,17 +161,12 @@ describe('CacheMetadataParser', () => {
     });
 
     it('should reject metadata without hit field', () => {
-      const metadata = { cachedAt: 1609459200 };
+      const metadata = { height: 123456 };
       expect(CacheMetadataParser.isValidCacheMetadata(metadata)).toBe(false);
     });
 
     it('should reject metadata with invalid hit type', () => {
-      const metadata = { hit: 'true', cachedAt: 1609459200 };
-      expect(CacheMetadataParser.isValidCacheMetadata(metadata)).toBe(false);
-    });
-
-    it('should reject metadata with invalid cachedAt type', () => {
-      const metadata = { hit: true, cachedAt: '1609459200' };
+      const metadata = { hit: 'true', height: 123456 };
       expect(CacheMetadataParser.isValidCacheMetadata(metadata)).toBe(false);
     });
 
@@ -197,7 +198,7 @@ describe('CacheMetadataParser', () => {
     });
 
     it('should validate complete metadata', () => {
-      const metadata = { hit: true, cachedAt: 1609459200, height: 123456 };
+      const metadata = { hit: true, height: 123456 };
       expect(CacheMetadataParser.isValidCacheMetadata(metadata)).toBe(true);
     });
 
@@ -216,13 +217,14 @@ describe('CacheMetadataParser', () => {
     it('should extract from response with logs', () => {
       const response = {
         data: { result: [] },
-        logs: ['{"cache_hit": true, "cached_at": 1609459200}']
+        logs: ['{"cache_hit": true, "cache_height": 123456}']
       };
       const result = CacheMetadataParser.extractFromResponse(response);
       
       expect(result).toEqual({
         hit: true,
-        cachedAt: 1609459200
+        cacheDisabled: undefined,
+        height: 123456
       });
     });
 
@@ -256,7 +258,7 @@ describe('CacheMetadataParser', () => {
     it('should aggregate single metadata entry', () => {
       const metadata: CacheMetadata = {
         hit: true,
-        cachedAt: 1609459200,
+        height: 123456,
         streamId: 'test-stream',
         rowsServed: 5
       };
@@ -276,7 +278,7 @@ describe('CacheMetadataParser', () => {
     it('should aggregate multiple metadata entries', () => {
       const metadata1: CacheMetadata = {
         hit: true,
-        cachedAt: 1609459200,
+        height: 123456,
         streamId: 'stream-1',
         rowsServed: 10
       };
@@ -289,7 +291,7 @@ describe('CacheMetadataParser', () => {
       
       const metadata3: CacheMetadata = {
         hit: true,
-        cachedAt: 1609459300,
+        height: 123457,
         streamId: 'stream-3',
         rowsServed: 15
       };
@@ -307,7 +309,7 @@ describe('CacheMetadataParser', () => {
     });
 
     it('should handle metadata without rowsServed', () => {
-      const metadata1: CacheMetadata = { hit: true, cachedAt: 1609459200 };
+      const metadata1: CacheMetadata = { hit: true, height: 123456 };
       const metadata2: CacheMetadata = { hit: false };
       const metadata3: CacheMetadata = { hit: true, rowsServed: 8 };
       

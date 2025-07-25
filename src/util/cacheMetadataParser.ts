@@ -35,8 +35,7 @@ export class CacheMetadataParser {
               return {
                 hit: true,
                 cacheDisabled: logData.cache_disabled,
-                cachedAt: logData.cached_at ? Number(logData.cached_at) : undefined,
-                height: logData.cached_height ? Number(logData.cached_height) : undefined
+                height: logData.cache_height ? Number(logData.cache_height) : undefined
               };
             }
             
@@ -45,7 +44,6 @@ export class CacheMetadataParser {
               return {
                 hit: false,
                 cacheDisabled: logData.cache_disabled,
-                cachedAt: undefined,
                 height: undefined
               };
             }
@@ -80,10 +78,6 @@ export class CacheMetadataParser {
     
     // Check optional fields
     if (metadata.cacheDisabled !== undefined && typeof metadata.cacheDisabled !== 'boolean') {
-      return false;
-    }
-    
-    if (metadata.cachedAt !== undefined && typeof metadata.cachedAt !== 'number') {
       return false;
     }
     

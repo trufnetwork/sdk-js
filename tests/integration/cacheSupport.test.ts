@@ -60,12 +60,9 @@ describe.sequential(
         expect(response.cache).toHaveProperty('hit');
         // at these tests, we won't have a cache hit as we don't set the cache, but here we're prepared for it
         if (response.cache.hit) {
-          expect(response.cache).toHaveProperty('cachedAt');
-          expect(response.cache.cachedAt).toBeGreaterThan(0);
           expect(response.cache).toHaveProperty('height');
           expect(response.cache.height).toBeGreaterThan(0);
         } else {
-          expect(response.cache.cachedAt).toBeUndefined();
           expect(response.cache.height).toBeUndefined();
         }
       } else {

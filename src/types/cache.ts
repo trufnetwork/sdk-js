@@ -12,8 +12,6 @@ export interface CacheMetadata {
   hit: boolean;
   /** Whether cache was disabled for this query */
   cacheDisabled?: boolean;
-  /** Unix timestamp when data was cached (optional) */
-  cachedAt?: number;
   /** Block height when data was cached (optional) */
   height?: number;
   
