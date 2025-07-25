@@ -87,7 +87,7 @@ jobs:
         run: |
           pnpm test:integration
         env:
-          NODE_REPO_DIR: tmp-node
+          NODE_REPO_DIR: ${{ github.workspace }}/tmp-node
 
       - name: Cleanup
         # not act 
