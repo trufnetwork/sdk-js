@@ -19,9 +19,6 @@ describe.sequential("Permissions", { timeout: 90000 }, () => {
   // Spin up/tear down the local TN+Postgres containers once for this suite.
   setupTrufNetwork();
 
-  // Skip in CI, because it needs a local node
-  tnTest.skipIf(process.env.CI);
-
   tnTest(
     "should manage primitive stream permissions",
     async ({ ownerClient, readerClient, readerWallet }) => {

@@ -13,22 +13,28 @@ import type {
 describe('Cache Types', () => {
   describe('CacheMetadata', () => {
     it('should allow valid cache metadata', () => {
-      const metadata: CacheMetadata = { hit: true, cachedAt: 1609459200 };
+      const metadata: CacheMetadata = { hit: true, height: 123456 };
       expect(metadata.hit).toBe(true);
-      expect(metadata.cachedAt).toBe(1609459200);
+      expect(metadata.height).toBe(123456);
     });
 
-    it('should allow cache metadata without cachedAt', () => {
+    it('should create cache metadata with all fields', () => {
+      const metadata: CacheMetadata = { hit: true, height: 123456 };
+      expect(metadata.hit).toBe(true);
+      expect(metadata.height).toBe(123456);
+    });
+
+    it('should allow cache metadata without optional fields', () => {
       const metadata: CacheMetadata = { hit: false };
       expect(metadata.hit).toBe(false);
-      expect(metadata.cachedAt).toBeUndefined();
+      expect(metadata.height).toBeUndefined();
     });
 
     it('should allow enhanced cache metadata with all fields', () => {
       const metadata: CacheMetadata = {
         hit: true,
         cacheDisabled: false,
-        cachedAt: 1609459200,
+        height: 123456,
         streamId: 'test-stream',
         dataProvider: '0x123456789abcdef',
         from: 1609459100,
@@ -39,7 +45,7 @@ describe('Cache Types', () => {
       
       expect(metadata.hit).toBe(true);
       expect(metadata.cacheDisabled).toBe(false);
-      expect(metadata.cachedAt).toBe(1609459200);
+      expect(metadata.height).toBe(123456);
       expect(metadata.streamId).toBe('test-stream');
       expect(metadata.dataProvider).toBe('0x123456789abcdef');
       expect(metadata.from).toBe(1609459100);
@@ -58,7 +64,7 @@ describe('Cache Types', () => {
       expect(metadata.hit).toBe(true);
       expect(metadata.cacheDisabled).toBe(true);
       expect(metadata.streamId).toBe('partial-stream');
-      expect(metadata.cachedAt).toBeUndefined();
+      expect(metadata.height).toBeUndefined();
     });
   });
 
@@ -90,13 +96,25 @@ describe('Cache Types', () => {
     it('should allow response with cache metadata', () => {
       const response: CacheAwareResponse<string[]> = {
         data: ['test1', 'test2'],
-        cache: { hit: true, cachedAt: 1609459200 },
+        cache: { hit: true, height: 123456 },
         logs: ['log1', 'log2']
       };
       
       expect(response.data).toEqual(['test1', 'test2']);
       expect(response.cache?.hit).toBe(true);
       expect(response.logs).toEqual(['log1', 'log2']);
+    });
+
+    it('should create cache aware response with all fields', () => {
+      const response: CacheAwareResponse<string> = {
+        data: 'test',
+        cache: { hit: true, height: 123456 },
+        logs: ['log1']
+      };
+      expect(response.data).toBe('test');
+      expect(response.cache?.hit).toBe(true);
+      expect(response.cache?.height).toBe(123456);
+      expect(response.logs).toEqual(['log1']);
     });
 
     it('should allow response without cache metadata', () => {

@@ -1,17 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { ethers } from "ethers";
-import { NodeTNClient } from "./nodeClient";
+import { NodeTNClient } from "../../src/client/nodeClient";
+import { setupTrufNetwork } from "./utils";
 
 describe.sequential("Client", { timeout: 30000 }, () => {
-  // Skip in CI, because it needs a local node
-  it.skipIf(process.env.CI);
+  // Spin up/tear down the local TN+Postgres containers once for this suite.
+  setupTrufNetwork();
 
   const wallet = new ethers.Wallet(
-    "0x0000000000000000000000000000000000000000000000000000000000000001",
+    "0x0000000000000000000000000000000000000000000000000000000000000001"
   );
   it("should create a client", async () => {
     const chainId = await NodeTNClient.getDefaultChainId(
-      "http://localhost:8484",
+      "http://localhost:8484"
     );
     if (!chainId) {
       throw new Error("Chain id not found");

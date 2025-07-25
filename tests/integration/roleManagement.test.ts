@@ -24,11 +24,6 @@ describe.sequential("Role Management", { timeout: 120000 }, () => {
   // Spin up/tear down the local TN+Postgres containers once for this suite.
   setupTrufNetwork();
 
-  // Skip in CI since the tests require a local Kwil+TN stack running via
-  // the `setupTrufNetwork` helper which is not available in the CI
-  // environment.
-  roleTest.skipIf(process.env.CI);
-
   roleTest(
     "should grant, revoke and validate the system:network_writer role",
     async ({ managerClient, newWriterClient, randomUserClient }) => {

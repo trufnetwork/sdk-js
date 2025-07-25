@@ -12,8 +12,8 @@ export interface CacheMetadata {
   hit: boolean;
   /** Whether cache was disabled for this query */
   cacheDisabled?: boolean;
-  /** Unix timestamp when data was cached (optional) */
-  cachedAt?: number;
+  /** Block height when data was cached (optional) */
+  height?: number;
   
   // SDK-provided context (optional)
   /** Stream ID used in the query */
@@ -136,5 +136,8 @@ export class CacheError extends Error {
   constructor(message: string, public cause?: Error) {
     super(message);
     this.name = 'CacheError';
+
+    // Fix prototype chain
+    Object.setPrototypeOf(this, CacheError.prototype);
   }
 }

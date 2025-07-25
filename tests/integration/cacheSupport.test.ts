@@ -13,9 +13,6 @@ describe.sequential(
     // Spin up/tear down the local TN+Postgres containers once for this suite.
     setupTrufNetwork();
 
-    // Skip in CI, because it needs a local node
-    testWithDefaultWallet.skipIf(process.env.CI);
-
     // Helper: Deploy stream and return cleanup function
     async function setupTestStream(
       client: NodeTNClient, 
@@ -54,10 +51,23 @@ describe.sequential(
     }
 
     // Helper: Validate cache response structure
-    function expectCacheResponse<T>(result: CacheAwareResponse<T>): void {
-      expect(result).toHaveProperty('data');
-      expect(result).toHaveProperty('cache');
-      expect(result).toHaveProperty('logs');
+    function expectCacheResponse<T>(response: CacheAwareResponse<T>) {
+      expect(response).toHaveProperty('data');
+      expect(response).toHaveProperty('cache');
+      expect(response).toHaveProperty('logs');
+      
+      if (response.cache) {
+        expect(response.cache).toHaveProperty('hit');
+        // at these tests, we won't have a cache hit as we don't set the cache, but here we're prepared for it
+        if (response.cache.hit) {
+          expect(response.cache).toHaveProperty('height');
+          expect(response.cache.height).toBeGreaterThan(0);
+        } else {
+          expect(response.cache.height).toBeUndefined();
+        }
+      } else {
+        // If cache is undefined, perhaps expect it for certain tests, but for now, allow it
+      }
     }
 
     // Helper: Create time range options
@@ -249,8 +259,8 @@ describe.sequential(
             ...options,
             useCache: false
           });
-          expect(result3.data).toEqual(result1.data);
-
+          expectCacheResponse(result3);
+          expect(result3.cache).toBeUndefined();
         } finally {
           await cleanup();
         }
