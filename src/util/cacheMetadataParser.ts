@@ -10,7 +10,7 @@ export class CacheMetadataParser {
    * @param logsInput - The logs string or array to parse
    * @returns Array of clean log lines
    */
-  private static parseLogsForMetadata(logsInput: string | string[]): string[] {
+  static parseLogsForMetadata(logsInput: string | string[]): string[] {
     const logs: string[] = [];
     const logArray = Array.isArray(logsInput) ? logsInput : [logsInput];
     
@@ -151,12 +151,17 @@ export class CacheMetadataParser {
    * @returns Cache metadata if found, null otherwise
    */
   static extractFromResponse(response: any): CacheMetadata | null {
-    // Check if response has logs
-    if (!response || !response.logs) {
-      return null;
+    // Check if response has logs (new structure from kwil-js)
+    if (response && response.data && response.data.logs) {
+      return this.extractFromLogs(response.data.logs);
     }
     
-    return this.extractFromLogs(response.logs);
+    // Fallback: check if response has logs directly (for backward compatibility)
+    if (response && response.logs) {
+      return this.extractFromLogs(response.logs);
+    }
+    
+    return null;
   }
   
   /**

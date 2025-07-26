@@ -213,7 +213,7 @@ export class Action {
     return {
       data,
       cache: cache || undefined,
-      logs: result.data ? [JSON.stringify(result.data)] : undefined
+      logs: result.data?.logs ? CacheMetadataParser.parseLogsForMetadata(result.data.logs) : undefined,
     };
   }
 
