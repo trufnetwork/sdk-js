@@ -127,6 +127,45 @@ describe('CacheMetadataParser', () => {
         height: undefined
       });
     });
+
+    it('should handle logs with prepended numeric prefixes', () => {
+      const logs = ['1. {"cache_hit": true, "cache_height": 123456}\n2. some other log\n3. {"cache_hit": false}'];
+      const metadata = CacheMetadataParser.extractFromLogs(logs);
+      // Should extract the first cache metadata found (cache hit)
+      expect(metadata).toEqual({
+        hit: true,
+        cacheDisabled: undefined,
+        height: 123456
+      });
+    });
+
+    it('should handle array of logs with prepended numeric prefixes', () => {
+      const logs = [
+        '1. normal log line',
+        '2. {"cache_hit": false, "cache_disabled": true}',
+        '3. another log line'
+      ];
+      const metadata = CacheMetadataParser.extractFromLogs(logs);
+      expect(metadata).toEqual({
+        hit: false,
+        cacheDisabled: true,
+        height: undefined
+      });
+    });
+
+    it('should handle mixed format logs (some with prefixes, some without)', () => {
+      const logs = [
+        'normal log without prefix',
+        '1. {"cache_hit": true}',
+        'another log without prefix'
+      ];
+      const metadata = CacheMetadataParser.extractFromLogs(logs);
+      expect(metadata).toEqual({
+        hit: true,
+        cacheDisabled: undefined,
+        height: undefined
+      });
+    });
   });
 
   describe('isValidCacheMetadata', () => {
