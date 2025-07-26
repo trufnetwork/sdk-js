@@ -3,6 +3,7 @@ import { Action } from './action';
 import { EthereumAddress } from '../util/EthereumAddress';
 import { StreamId } from '../util/StreamId';
 import type { StreamLocator } from '../types/stream';
+import { CacheMetadata } from '../types/cache';
 
 // Mock Kwil client
 const mockKwilClient = {
@@ -35,7 +36,8 @@ describe('Cache Integration Tests', () => {
           result: [
             { event_time: 1609459200, value: '100' },
             { event_time: 1609459260, value: '101' }
-          ]
+          ],
+          logs: '1. cache_hit: true\n2. other log\n111. cache_miss: false'
         }
       };
 
@@ -69,7 +71,7 @@ describe('Cache Integration Tests', () => {
           { eventTime: 1609459260, value: '101' }
         ],
         cache: undefined,
-        logs: [JSON.stringify(mockResponse.data)]
+        logs: ['cache_hit: true', 'other log', 'cache_miss: false']
       });
     });
 
@@ -79,7 +81,8 @@ describe('Cache Integration Tests', () => {
         data: {
           result: [
             { event_time: 1609459200, value: '100' }
-          ]
+          ],
+          logs: '1. {"cache_hit":true,"cache_disabled":false,"cache_height":148670}'
         }
       };
 
@@ -97,6 +100,20 @@ describe('Cache Integration Tests', () => {
       expect(result.data).toEqual([
         { eventTime: 1609459200, value: '100' }
       ]);
+
+      expect(result.cache).toMatchObject({
+        hit: true,
+        cacheDisabled: false,
+        height: 148670,
+        dataProvider: '0x1234567890123456789012345678901234567890',
+        from: undefined,
+        frozenAt: undefined,
+        rowsServed: 1,
+        streamId: 'test-stream',
+        to: undefined
+      } as CacheMetadata);
+
+      expect(result.logs).toMatchObject(['{"cache_hit":true,"cache_disabled":false,"cache_height":148670}']);
     });
 
     it('should omit useCache parameter when not provided', async () => {
