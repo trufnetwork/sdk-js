@@ -1,6 +1,6 @@
 {
   "name": "@trufnetwork/sdk-js",
-  "version": "0.3.5",
+  "version": "0.4.2",
   "description": "TRUF.NETWORK SDK for JavaScript/TypeScript",
   "type": "module",
   "keywords": [
@@ -51,7 +51,7 @@
     "test:integration": "vitest tests/integration/ --run"
   },
   "dependencies": {
-    "@trufnetwork/kwil-js": "^0.9.6-rc.2",
+    "@trufnetwork/kwil-js": "~0.9.6",
     "crypto-hash": "^3.1.0",
     "ethers": "^6.13.5",
     "lodash": "^4.17.21",
