@@ -29,6 +29,45 @@ export interface DescribeTaxonomiesParams {
   latestGroupSequence: boolean;
 }
 
+export interface ListTaxonomiesByHeightParams {
+  /** Start height (inclusive). If null, uses earliest available. */
+  fromHeight?: number;
+  /** End height (inclusive). If null, uses current height. */
+  toHeight?: number;
+  /** Maximum number of results to return. Default: 1000 */
+  limit?: number;
+  /** Number of results to skip for pagination. Default: 0 */
+  offset?: number;
+  /** If true, returns only latest group_sequence per stream. Default: false */
+  latestOnly?: boolean;
+}
+
+export interface GetTaxonomiesForStreamsParams {
+  /** Array of stream locators to query */
+  streams: StreamLocator[];
+  /** If true, returns only latest group_sequence per stream. Default: false */
+  latestOnly?: boolean;
+}
+
+export interface TaxonomyQueryResult {
+  /** Parent stream data provider */
+  dataProvider: EthereumAddress;
+  /** Parent stream ID */
+  streamId: StreamId;
+  /** Child stream data provider */
+  childDataProvider: EthereumAddress;
+  /** Child stream ID */
+  childStreamId: StreamId;
+  /** Weight of the child stream in the taxonomy */
+  weight: string;
+  /** Block height when taxonomy was created */
+  createdAt: number;
+  /** Group sequence number for this taxonomy set */
+  groupSequence: number;
+  /** Start time timestamp for this taxonomy */
+  startTime: number;
+}
+
 export class ComposedAction extends Action {
   constructor(
     kwilClient: WebKwil | NodeKwil,
@@ -145,6 +184,129 @@ export class ComposedAction extends Action {
         }});
 
     return txHash;
+  }
+
+  /**
+   * Lists taxonomies by block height range for incremental synchronization.
+   * Enables efficient detection of taxonomy changes since a specific block height.
+   * 
+   * @param params Height range and pagination parameters
+   * @returns Promise resolving to taxonomy query results
+   * 
+   * @example
+   * ```typescript
+   * const taxonomies = await composedAction.listTaxonomiesByHeight({
+   *   fromHeight: 1000,
+   *   toHeight: 2000,
+   *   limit: 100,
+   *   latestOnly: true
+   * });
+   * ```
+   */
+  public async listTaxonomiesByHeight(
+    params: ListTaxonomiesByHeightParams = {},
+  ): Promise<TaxonomyQueryResult[]> {
+    type TaxonomyRawResult = {
+      data_provider: string;
+      stream_id: string;
+      child_data_provider: string;
+      child_stream_id: string;
+      weight: string;
+      created_at: number;
+      group_sequence: number;
+      start_time: number;
+    }[];
+
+    const result = await this.call<TaxonomyRawResult>(
+      "list_taxonomies_by_height",
+      {
+        $from_height: params.fromHeight ?? null,
+        $to_height: params.toHeight ?? null,
+        $limit: params.limit ?? null,
+        $offset: params.offset ?? null,
+        $latest_only: params.latestOnly ?? null,
+      },
+    );
+
+    return result
+      .mapRight((records) => 
+        records.map(record => ({
+          dataProvider: EthereumAddress.fromString(record.data_provider).throw(),
+          streamId: StreamId.fromString(record.stream_id).throw(),
+          childDataProvider: EthereumAddress.fromString(record.child_data_provider).throw(),
+          childStreamId: StreamId.fromString(record.child_stream_id).throw(),
+          weight: record.weight,
+          createdAt: record.created_at,
+          groupSequence: record.group_sequence,
+          startTime: record.start_time,
+        }))
+      )
+      .throw();
+  }
+
+  /**
+   * Gets taxonomies for specific streams in batch.
+   * Useful for validating taxonomy data for known streams.
+   * 
+   * @param params Stream locators and filtering options
+   * @returns Promise resolving to taxonomy query results
+   * 
+   * @example
+   * ```typescript
+   * const taxonomies = await composedAction.getTaxonomiesForStreams({
+   *   streams: [
+   *     { dataProvider: provider1, streamId: streamId1 },
+   *     { dataProvider: provider2, streamId: streamId2 }
+   *   ],
+   *   latestOnly: true
+   * });
+   * ```
+   */
+  public async getTaxonomiesForStreams(
+    params: GetTaxonomiesForStreamsParams,
+  ): Promise<TaxonomyQueryResult[]> {
+    // Validate input
+    if (!params.streams || params.streams.length === 0) {
+      return [];
+    }
+
+    const dataProviders = params.streams.map(s => s.dataProvider.getAddress());
+    const streamIds = params.streams.map(s => s.streamId.getId());
+
+    type TaxonomyRawResult = {
+      data_provider: string;
+      stream_id: string;
+      child_data_provider: string;
+      child_stream_id: string;
+      weight: string;
+      created_at: number;
+      group_sequence: number;
+      start_time: number;
+    }[];
+
+    const result = await this.call<TaxonomyRawResult>(
+      "get_taxonomies_for_streams",
+      {
+        $data_providers: dataProviders,
+        $stream_ids: streamIds,
+        $latest_only: params.latestOnly ?? null,
+      },
+    );
+
+    return result
+      .mapRight((records) => 
+        records.map(record => ({
+          dataProvider: EthereumAddress.fromString(record.data_provider).throw(),
+          streamId: StreamId.fromString(record.stream_id).throw(),
+          childDataProvider: EthereumAddress.fromString(record.child_data_provider).throw(),
+          childStreamId: StreamId.fromString(record.child_stream_id).throw(),
+          weight: record.weight,
+          createdAt: record.created_at,
+          groupSequence: record.group_sequence,
+          startTime: record.start_time,
+        }))
+      )
+      .throw();
   }
 
   /**

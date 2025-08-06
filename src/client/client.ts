@@ -6,7 +6,7 @@ import { EnvironmentType } from "@trufnetwork/kwil-js/dist/core/enums";
 import { GenericResponse } from "@trufnetwork/kwil-js/dist/core/resreq";
 import { TxReceipt } from "@trufnetwork/kwil-js/dist/core/tx";
 import { TxInfoReceipt } from "@trufnetwork/kwil-js/dist/core/txQuery";
-import { ComposedAction } from "../contracts-api/composedAction";
+import { ComposedAction, ListTaxonomiesByHeightParams, GetTaxonomiesForStreamsParams, TaxonomyQueryResult } from "../contracts-api/composedAction";
 import { deployStream } from "../contracts-api/deployStream";
 import { deleteStream } from "../contracts-api/deleteStream";
 import { PrimitiveAction } from "../contracts-api/primitiveAction";
@@ -233,6 +233,52 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
     async getLastTransactions(input: GetLastTransactionsInput): Promise<any[]> {
         return getLastTransactions(this.getKwilClient() as WebKwil | NodeKwil,this.getKwilSigner(),input);
     }
+
+  /**
+   * Lists taxonomies by height range for incremental synchronization.
+   * High-level wrapper for ComposedAction.listTaxonomiesByHeight()
+   * 
+   * @param params Height range and pagination parameters  
+   * @returns Promise resolving to taxonomy query results
+   * 
+   * @example
+   * ```typescript
+   * const taxonomies = await client.listTaxonomiesByHeight({
+   *   fromHeight: 1000,
+   *   toHeight: 2000,
+   *   limit: 100,
+   *   latestOnly: true
+   * });
+   * ```
+   */
+  async listTaxonomiesByHeight(params: ListTaxonomiesByHeightParams = {}): Promise<TaxonomyQueryResult[]> {
+    const composedAction = this.loadComposedAction();
+    return composedAction.listTaxonomiesByHeight(params);
+  }
+
+  /**
+   * Gets taxonomies for specific streams in batch.
+   * High-level wrapper for ComposedAction.getTaxonomiesForStreams()
+   * 
+   * @param params Stream locators and options
+   * @returns Promise resolving to taxonomy query results
+   * 
+   * @example
+   * ```typescript
+   * const streams = [
+   *   { dataProvider: provider1, streamId: streamId1 },
+   *   { dataProvider: provider2, streamId: streamId2 }
+   * ];
+   * const taxonomies = await client.getTaxonomiesForStreams({
+   *   streams,
+   *   latestOnly: true
+   * });
+   * ```
+   */
+  async getTaxonomiesForStreams(params: GetTaxonomiesForStreamsParams): Promise<TaxonomyQueryResult[]> {
+    const composedAction = this.loadComposedAction();
+    return composedAction.getTaxonomiesForStreams(params);
+  }
 
   /**
    * Get the default chain id for a provider. Use with caution, as this decreases the security of the TN.
