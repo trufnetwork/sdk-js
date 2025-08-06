@@ -28,3 +28,55 @@ const records = await stream.getRecord({
 });
 
 console.log("AI Index records:", records);
+
+// Example: Query recent taxonomies using the new taxonomy querying functionality
+console.log("\n=== Taxonomy Querying Examples ===");
+
+try {
+    // Get recent taxonomies with the new SDK methods
+    const recentTaxonomies = await client.listTaxonomiesByHeight({
+        fromHeight: 180000,
+        toHeight: 190000,
+        limit: 5,
+        latestOnly: true
+    });
+    
+    console.log(`Found ${recentTaxonomies.length} recent taxonomies:`);
+    recentTaxonomies.forEach((taxonomy, index) => {
+        console.log(`${index + 1}. Stream: ${taxonomy.streamId.getId()}`);
+        console.log(`   Child: ${taxonomy.childStreamId.getId()}`);
+        console.log(`   Weight: ${taxonomy.weight}`);
+        console.log(`   Block Height: ${taxonomy.createdAt}`);
+    });
+
+    // Example: Get taxonomies for specific streams (batch processing)
+    console.log("\n--- Batch Processing Example ---");
+
+    // Use first few unique streams from results
+    const uniqueStreams = new Map();
+    recentTaxonomies.forEach(t => {
+        const key = `${t.dataProvider.getAddress()}_${t.streamId.getId()}`;
+        if (!uniqueStreams.has(key)) {
+            uniqueStreams.set(key, {
+                dataProvider: t.dataProvider,
+                streamId: t.streamId
+            });
+        }
+    });
+
+    const streamsToQuery = Array.from(uniqueStreams.values()).slice(0, 2);
+
+    if (streamsToQuery.length > 0) {
+        const batchResults = await client.getTaxonomiesForStreams({
+            streams: streamsToQuery,
+            latestOnly: true
+        });
+
+        console.log(`Batch query results for ${streamsToQuery.length} streams:`);
+        batchResults.forEach((result) => {
+            console.log(`- ${result.streamId.getId()} -> ${result.childStreamId.getId()} (${result.weight})`);
+        });
+    }
+} catch (error) {
+    console.log("Taxonomy querying example error (expected if no taxonomies exist):", error.message);
+}

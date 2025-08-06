@@ -5,7 +5,7 @@ import { GenericResponse } from "@trufnetwork/kwil-js/dist/core/resreq";
 import { TxReceipt } from "@trufnetwork/kwil-js/dist/core/tx";
 import { MANAGER_PRIVATE_KEY } from "./trufnetwork.setup";
 
-export const TEST_ENDPOINT = "http://localhost:8484";
+export const TEST_ENDPOINT = process.env.TEST_ENDPOINT || "http://localhost:8484";
 
 export const testWithDefaultWallet = createTestContexts({
   default: "0x0000000000000000000000000000000000000000100000000100000000000001",

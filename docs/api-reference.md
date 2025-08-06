@@ -360,6 +360,95 @@ await composedAction.setTaxonomy({
 });
 ```
 
+### `composedAction.listTaxonomiesByHeight(params?: ListTaxonomiesByHeightParams): Promise<TaxonomyQueryResult[]>`
+Queries taxonomies within a specific block height range for efficient incremental synchronization. This method enables detecting taxonomy changes since a specific block height without expensive full-stream scanning.
+
+#### Parameters
+- `params?: Object` - Optional query parameters
+  - `fromHeight?: number` - Start height (inclusive). If null, uses earliest available.
+  - `toHeight?: number` - End height (inclusive). If null, uses current height.
+  - `limit?: number` - Maximum number of results to return. Default: 1000
+  - `offset?: number` - Number of results to skip for pagination. Default: 0
+  - `latestOnly?: boolean` - If true, returns only latest group_sequence per stream. Default: false
+
+#### Returns
+- `Promise<TaxonomyQueryResult[]>` - Array of taxonomy entries with:
+  - `dataProvider: EthereumAddress` - Parent stream data provider
+  - `streamId: StreamId` - Parent stream ID
+  - `childDataProvider: EthereumAddress` - Child stream data provider  
+  - `childStreamId: StreamId` - Child stream ID
+  - `weight: string` - Weight of the child stream in the taxonomy
+  - `createdAt: number` - Block height when taxonomy was created
+  - `groupSequence: number` - Group sequence number for this taxonomy set
+  - `startTime: number` - Start time timestamp for this taxonomy
+
+#### Example
+```typescript
+// Get taxonomies created between blocks 1000 and 2000
+const taxonomies = await composedAction.listTaxonomiesByHeight({
+  fromHeight: 1000,
+  toHeight: 2000,
+  limit: 100,
+  latestOnly: true
+});
+
+// Get latest taxonomies with pagination
+const latestTaxonomies = await composedAction.listTaxonomiesByHeight({
+  latestOnly: true,
+  limit: 50,
+  offset: 100
+});
+```
+
+### `composedAction.getTaxonomiesForStreams(params: GetTaxonomiesForStreamsParams): Promise<TaxonomyQueryResult[]>`
+Batch fetches taxonomies for specific streams. Useful for validating taxonomy data for known streams or processing multiple streams efficiently.
+
+#### Parameters
+- `params: Object` - Query parameters (required)
+  - `streams: StreamLocator[]` - Array of stream locators to query
+  - `latestOnly?: boolean` - If true, returns only latest group_sequence per stream. Default: false
+
+#### Returns
+- `Promise<TaxonomyQueryResult[]>` - Array of taxonomy entries (same format as `listTaxonomiesByHeight`)
+
+#### Example
+```typescript
+const streams = [
+  { dataProvider: provider1, streamId: streamId1 },
+  { dataProvider: provider2, streamId: streamId2 }
+];
+
+const taxonomies = await composedAction.getTaxonomiesForStreams({
+  streams,
+  latestOnly: true
+});
+
+// Process results for each stream
+taxonomies.forEach(taxonomy => {
+  console.log(`Stream ${taxonomy.streamId.getId()} has child ${taxonomy.childStreamId.getId()} with weight ${taxonomy.weight}`);
+});
+```
+
+### High-Level Client Methods
+
+The new taxonomy querying methods are also available directly on the client for convenience:
+
+```typescript
+// Equivalent to composedAction.listTaxonomiesByHeight()
+const taxonomies = await client.listTaxonomiesByHeight({
+  fromHeight: 1000,
+  toHeight: 2000,
+  limit: 100,
+  latestOnly: true
+});
+
+// Equivalent to composedAction.getTaxonomiesForStreams()
+const streamTaxonomies = await client.getTaxonomiesForStreams({
+  streams: [streamLocator1, streamLocator2],
+  latestOnly: true
+});
+```
+
 ## Visibility and Permissions
 
 ### `streamAction.setReadVisibility(streamLocator: StreamLocator, visibility: Visibility)`

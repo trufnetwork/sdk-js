@@ -7,7 +7,7 @@ export type { StreamLocator } from "./types/stream";
 export type { StreamRecord } from "./contracts-api/action";
 export type { GetRecordInput, GetFirstRecordInput } from "./contracts-api/action";
 export type { InsertRecordInput } from "./contracts-api/primitiveAction";
-export type { TaxonomySet, TaxonomyItem } from "./contracts-api/composedAction";
+export type { TaxonomySet, TaxonomyItem, ListTaxonomiesByHeightParams, GetTaxonomiesForStreamsParams, TaxonomyQueryResult } from "./contracts-api/composedAction";
 
 // Utility types and classes
 export { StreamId } from "./util/StreamId";
