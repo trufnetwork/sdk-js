@@ -162,6 +162,17 @@ await composedAction.setTaxonomy({
 	],
 	startDate: Math.floor(Date.now() / 1000), // When this taxonomy becomes effective
 });
+
+// Get taxonomy information for the composed stream
+const taxonomies = await composedAction.getTaxonomiesForStreams({
+	streams: [client.ownStreamLocator(parentStreamId)],
+	latestOnly: true
+});
+
+console.log("Current taxonomy:");
+taxonomies.forEach(taxonomy => {
+	console.log(`Child: ${taxonomy.childStreamId.getId()}, Weight: ${taxonomy.weight}`);
+});
 ```
 
 #### Stream Visibility and Permissions
@@ -263,6 +274,27 @@ module.exports = {
 
 For other bundlers or serverless platforms, consult their documentation on module aliasing or replacement.
 
+## Quick Reference
+
+### Common Operations
+
+| Operation | Method |
+|-----------|--------|
+| Deploy primitive stream | `client.deployStream(streamId, StreamType.Primitive)` |
+| Deploy composed stream | `client.deployStream(streamId, StreamType.Composed)` |
+| Insert records | `primitiveAction.insertRecord({stream, eventTime, value})` |
+| Get stream data | `streamAction.getRecord({stream, from, to})` |
+| Set stream taxonomy | `composedAction.setTaxonomy({stream, taxonomyItems, startDate})` |
+| Get stream taxonomy | `composedAction.getTaxonomiesForStreams({streams, latestOnly})` |
+| Destroy stream | `client.destroyStream(streamLocator)` |
+
+### Key Types
+
+- `StreamType.Primitive` - Raw data streams
+- `StreamType.Composed` - Aggregated streams with taxonomy
+- `StreamLocator` - Stream identifier with data provider
+- `TaxonomyQueryResult` - Taxonomy information with weights
+
 ## Further Resources & Next Steps
 
 To continue learning and building with the TN SDK, explore the following resources:
@@ -271,7 +303,7 @@ To continue learning and building with the TN SDK, explore the following resourc
   - [Getting Started Guide](./docs/getting-started.md): A detailed walkthrough for setting up and making your first interactions with the SDK.
   - [Core Concepts Explained](./docs/core-concepts.md): Understand the fundamental building blocks of the TRUF.NETWORK and the SDK.
 - **Detailed Documentation**:
-  - [API Reference](./docs/api-reference.md): Comprehensive details on all SDK classes, methods, types, and parameters.
+  - [API Reference](./docs/api-reference.md): Comprehensive details on all SDK classes, methods, types, and parameters including taxonomy operations.
 - **Examples & Demos**:
   - [Local Examples Directory](./examples)
 - **Whitepaper**:
