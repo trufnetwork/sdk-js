@@ -400,8 +400,8 @@ const latestTaxonomies = await composedAction.listTaxonomiesByHeight({
 });
 ```
 
-### `composedAction.getTaxonomiesForStreams(params: GetTaxonomiesForStreamsParams): Promise<TaxonomyQueryResult[]>`
-Batch fetches taxonomies for specific streams. Useful for validating taxonomy data for known streams or processing multiple streams efficiently.
+### `composedAction.getTaxonomiesForStreams(params: GetTaxonomiesForStreamsParams): Promise<TaxonomyQueryResult[]>` 🔍
+Batch fetches taxonomies for specific streams. This is the primary method for discovering stream composition relationships. Useful for validating taxonomy data for known streams or processing multiple streams efficiently.
 
 #### Parameters
 - `params: Object` - Query parameters (required)
@@ -409,7 +409,15 @@ Batch fetches taxonomies for specific streams. Useful for validating taxonomy da
   - `latestOnly?: boolean` - If true, returns only latest group_sequence per stream. Default: false
 
 #### Returns
-- `Promise<TaxonomyQueryResult[]>` - Array of taxonomy entries (same format as `listTaxonomiesByHeight`)
+- `Promise<TaxonomyQueryResult[]>` - Array of taxonomy entries containing:
+  - `dataProvider: EthereumAddress` - Parent stream data provider
+  - `streamId: StreamId` - Parent stream ID
+  - `childDataProvider: EthereumAddress` - Child stream data provider  
+  - `childStreamId: StreamId` - Child stream ID
+  - `weight: string` - Weight of the child stream (0.0 to 1.0)
+  - `createdAt: number` - Block height when taxonomy was created
+  - `groupSequence: number` - Group sequence number for this taxonomy set
+  - `startTime: number` - Start time timestamp for this taxonomy
 
 #### Example
 ```typescript
@@ -426,6 +434,19 @@ const taxonomies = await composedAction.getTaxonomiesForStreams({
 // Process results for each stream
 taxonomies.forEach(taxonomy => {
   console.log(`Stream ${taxonomy.streamId.getId()} has child ${taxonomy.childStreamId.getId()} with weight ${taxonomy.weight}`);
+});
+
+// Example: Build a taxonomy map for visualization
+const taxonomyMap = new Map();
+taxonomies.forEach(taxonomy => {
+  const parentId = taxonomy.streamId.getId();
+  if (!taxonomyMap.has(parentId)) {
+    taxonomyMap.set(parentId, []);
+  }
+  taxonomyMap.get(parentId).push({
+    childId: taxonomy.childStreamId.getId(),
+    weight: parseFloat(taxonomy.weight)
+  });
 });
 ```
 
