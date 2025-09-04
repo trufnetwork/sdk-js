@@ -200,6 +200,55 @@ await streamAction.allowReadWallet(
 - Weights in composed streams must sum to 1.0.
 - Streams can be made public or private, with fine-grained access control.
 
+### Transaction Lifecycle and Best Practices ⚠️
+
+**Critical Understanding**: TN operations return success when transactions enter the mempool, NOT when they're executed on-chain. For operations where order matters, you must wait for transactions to be mined before proceeding.
+
+> 💡 **See Complete Example**: For a comprehensive demonstration of transaction lifecycle patterns, see [`examples/transaction-lifecycle-example/index.ts`](./examples/transaction-lifecycle-example/index.ts)
+
+#### The Race Condition Problem
+
+```typescript
+// ❌ DANGEROUS - Race condition possible
+const deployResult = await client.deployStream(streamId, StreamType.Primitive);
+// Stream might not be ready yet!
+await primitiveAction.insertRecord({ stream: client.ownStreamLocator(streamId), ... }); // Could fail
+
+const destroyResult = await client.destroyStream(client.ownStreamLocator(streamId));
+// Stream might not be destroyed yet!
+await primitiveAction.insertRecord({ stream: client.ownStreamLocator(streamId), ... }); // Could succeed unexpectedly
+```
+
+#### Solution: Use waitForTx (Recommended for Critical Operations)
+
+```typescript
+// ✅ SAFE - Explicit transaction confirmation
+const deployResult = await client.deployStream(streamId, StreamType.Primitive);
+if (!deployResult.data) {
+  throw new Error('Deploy failed');
+}
+
+// Wait for deployment to complete
+await client.waitForTx(deployResult.data.tx_hash);
+
+// Now safe to proceed
+await primitiveAction.insertRecord({
+  stream: client.ownStreamLocator(streamId),
+  eventTime: Math.floor(Date.now() / 1000),
+  value: "100.50"
+});
+```
+
+#### When to Use Synchronous Patterns:
+- ✅ **Stream deployment before data insertion**
+- ✅ **Stream deletion before cleanup verification**  
+- ✅ **Sequential operations with dependencies**
+- ✅ **Testing and development scenarios**
+
+#### When Async is Acceptable:
+- ⚡ **High-throughput data insertion** (independent records)
+- ⚡ **Fire-and-forget operations** (with proper error handling)
+
 ### Using the SDK with Your Local Node
 
 If you are running your own TRUF.NETWORK node, you can configure the SDK to interact with your local instance by changing the `endpoint` in the client configuration, as shown in the [Basic Client Initialization](#basic-client-initialization) section. This is useful for development, testing, or when operating within a private network.
@@ -287,6 +336,14 @@ For other bundlers or serverless platforms, consult their documentation on modul
 | Set stream taxonomy | `composedAction.setTaxonomy({stream, taxonomyItems, startDate})` |
 | Get stream taxonomy | `composedAction.getTaxonomiesForStreams({streams, latestOnly})` |
 | Destroy stream | `client.destroyStream(streamLocator)` |
+
+**Safe Operation Pattern:**
+```typescript
+const result = await client.deployStream(streamId, StreamType.Primitive);
+if (!result.data) throw new Error('Deploy failed');
+await client.waitForTx(result.data.tx_hash); // Wait for confirmation
+// Now safe to proceed with dependent operations
+```
 
 ### Key Types
 

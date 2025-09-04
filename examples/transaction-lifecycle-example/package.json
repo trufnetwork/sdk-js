@@ -1,0 +1,17 @@
+{
+  "name": "transaction-lifecycle-example",
+  "version": "1.0.0",
+  "description": "Transaction lifecycle best practices demo for TN SDK",
+  "main": "index.ts",
+  "scripts": {
+    "start": "tsx index.ts",
+    "dev": "tsx watch index.ts"
+  },
+  "dependencies": {
+    "@trufnetwork/sdk-js": "*",
+    "ethers": "^6.8.0"
+  },
+  "devDependencies": {
+    "tsx": "*"
+  }
+}
