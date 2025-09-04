@@ -496,17 +496,63 @@ await streamAction.allowReadWallet(
 
 ## Transaction Handling
 
+### Understanding Async Transaction Behavior ⚠️
+
+**Critical Understanding**: TN operations return success when transactions enter the mempool, NOT when they're executed on-chain. For operations where order matters, you must wait for transactions to be mined before proceeding.
+
+> 💡 **See Complete Example**: For a comprehensive demonstration of transaction lifecycle patterns, see [Transaction Lifecycle Example](../examples/transaction-lifecycle-example/index.ts)
+
+#### The Race Condition Problem
+
+```typescript
+// ❌ DANGEROUS - Race condition possible
+const deployResult = await client.deployStream(streamId, StreamType.Primitive);
+// Stream might not be ready yet!
+await primitiveAction.insertRecord({ stream: client.ownStreamLocator(streamId), ... }); // Could fail
+
+const destroyResult = await client.destroyStream(client.ownStreamLocator(streamId));
+// Stream might not be destroyed yet!
+await primitiveAction.insertRecord({ stream: client.ownStreamLocator(streamId), ... }); // Could succeed unexpectedly
+```
+
 ### `client.waitForTx(txHash: string, timeout?: number): Promise<TransactionReceipt>`
-Waits for transaction confirmation with optional timeout.
+Waits for transaction confirmation with optional timeout. Use this for operations where order matters.
 
 #### Parameters
-- `txHash: string` - Transaction hash
-- `timeout?: number` - Maximum wait time in milliseconds
+- `txHash: string` - Transaction hash from operation result
+- `timeout?: number` - Maximum wait time in milliseconds (default: 30000)
 
-#### Example
+#### Returns
+- `Promise<TransactionReceipt>` - Transaction receipt with confirmation status
+
+#### Safe Pattern Example
 ```typescript
-const txReceipt = await client.waitForTx(txHash, 30000);
+// ✅ SAFE - Explicit transaction confirmation
+const deployResult = await client.deployStream(streamId, StreamType.Primitive);
+if (!deployResult.data) {
+  throw new Error('Deploy failed');
+}
+
+// Wait for deployment to complete
+await client.waitForTx(deployResult.data.tx_hash);
+
+// Now safe to proceed
+await primitiveAction.insertRecord({
+  stream: client.ownStreamLocator(streamId),
+  eventTime: Math.floor(Date.now() / 1000),
+  value: "100.50"
+});
 ```
+
+#### When to Use waitForTx:
+- ✅ **Stream deployment** before data insertion
+- ✅ **Stream deletion** before cleanup verification  
+- ✅ **Sequential operations** with dependencies
+- ✅ **Testing and development** scenarios
+
+#### When Async is Acceptable:
+- ⚡ **High-throughput data insertion** (independent records)
+- ⚡ **Fire-and-forget operations** (with proper error handling)
 
 ## Performance Recommendations
 - Use batch record insertions
