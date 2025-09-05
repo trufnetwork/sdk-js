@@ -13,7 +13,7 @@ const client = new NodeTNClient({
     address: wallet.address,
     signer: wallet,
   },
-  chainId: "tn-v2",
+  chainId: "tn-v2.1",
 });
 
 // Load the Action API

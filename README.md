@@ -55,7 +55,7 @@ const client = new NodeTNClient({
 		address: wallet.address,
 		signer: wallet, // Any object that implements signMessage
 	},
-	chainId: "tn-v2", // or use NodeTNClient.getDefaultChainId(endpoint)
+	chainId: "tn-v2.1", // or use NodeTNClient.getDefaultChainId(endpoint)
 });
 ```
 
