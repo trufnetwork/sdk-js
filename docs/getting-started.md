@@ -36,7 +36,7 @@ const wallet = new Wallet(process.env.PRIVATE_KEY!);
 
 // Mainnet configuration
 const endpoint = "https://gateway.mainnet.truf.network";
-const chainId = "tn-v2";
+const chainId = "tn-v2.1";
 
 // Initialize TN client
 const client = new NodeTNClient({

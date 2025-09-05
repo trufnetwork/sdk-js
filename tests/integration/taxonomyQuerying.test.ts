@@ -13,7 +13,7 @@ describe('Taxonomy Querying Integration Tests', () => {
     // Use a simple setup that doesn't require node repo dependencies
     const wallet = new Wallet("0x0000000000000000000000000000000000000000100000000100000000000001");
     const endpoint = process.env.TEST_ENDPOINT || "https://gateway.mainnet.truf.network";
-    const chainId = process.env.TEST_CHAIN_ID || "tn-v2";
+    const chainId = process.env.TEST_CHAIN_ID || "tn-v2.1";
 
     client = new NodeTNClient({
       endpoint,

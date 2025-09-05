@@ -10,7 +10,7 @@ import { ComposedAction, ListTaxonomiesByHeightParams, GetTaxonomiesForStreamsPa
 import { deployStream } from "../contracts-api/deployStream";
 import { deleteStream } from "../contracts-api/deleteStream";
 import { PrimitiveAction } from "../contracts-api/primitiveAction";
-import { Action } from "../contracts-api/action";
+import { Action, ListMetadataByHeightParams, MetadataQueryResult } from "../contracts-api/action";
 import { StreamType } from "../contracts-api/contractValues";
 import { StreamLocator, TNStream } from "../types/stream";
 import { EthereumAddress } from "../util/EthereumAddress";
@@ -254,6 +254,11 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
   async listTaxonomiesByHeight(params: ListTaxonomiesByHeightParams = {}): Promise<TaxonomyQueryResult[]> {
     const composedAction = this.loadComposedAction();
     return composedAction.listTaxonomiesByHeight(params);
+  }
+
+  async listMetadataByHeight(params: ListMetadataByHeightParams = {}): Promise<MetadataQueryResult[]> {
+    const action = this.loadAction();
+    return action.listMetadataByHeight(params);
   }
 
   /**

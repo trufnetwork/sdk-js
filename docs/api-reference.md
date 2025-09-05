@@ -25,7 +25,7 @@ const client = createClient({
   privateKey: process.env.PRIVATE_KEY,
   network: {
     endpoint: 'http://localhost:8484',
-    chainId: 'tn-v2' // Or left empty for local nodes
+    chainId: 'tn-v2.1' // Or left empty for local nodes
   },
   timeout: 45000  // Optional custom timeout
 });

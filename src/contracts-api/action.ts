@@ -46,6 +46,32 @@ export interface GetIndexChangeInput extends GetRecordInput {
   timeInterval: number;
 }
 
+export interface ListMetadataByHeightParams {
+  /** Key reference filter. Default: empty string */
+  key?: string;
+  /** Value reference filter. Default: null */
+  value?: string;
+  /** Start height (inclusive). If null, uses earliest available. */
+  fromHeight?: number;
+  /** End height (inclusive). If null, uses current height. */
+  toHeight?: number;
+  /** Maximum number of results to return. Default: 1000 */
+  limit?: number;
+  /** Number of results to skip for pagination. Default: 0 */
+  offset?: number;
+}
+
+export interface MetadataQueryResult {
+  streamRef: number;
+  rowId: string;
+  valueInt: number | null;
+  valueFloat: string | null;
+  valueBoolean: boolean | null;
+  valueString: string | null;
+  valueRef: string | null;
+  createdAt: number;
+}
+
 export class Action {
   protected kwilClient: WebKwil | NodeKwil;
   protected kwilSigner: KwilSigner;
@@ -512,6 +538,47 @@ export class Action {
           ] as MetadataValueTypeForKey<K>,
           createdAt: row.created_at,
         })),
+      )
+      .throw();
+  }
+
+  public async listMetadataByHeight<K extends MetadataKey>(
+    params: ListMetadataByHeightParams = {},
+  ): Promise<MetadataQueryResult[]> {
+     type MetadataRawResult = {
+        stream_ref: number;
+        row_id: string;
+        value_i: number | null;
+        value_f: string | null;
+        value_b: boolean | null;
+        value_s: string | null;
+        value_ref: string | null;
+        created_at: number;
+    }[];
+    const result = await this.call<MetadataRawResult>(
+      "list_metadata_by_height",
+      {
+        $key: params.key ?? "",
+        $ref: params.value ?? null,
+        $from_height: params.fromHeight ?? null,
+        $to_height: params.toHeight ?? null,
+        $limit: params.limit ?? null,
+        $offset: params.offset ?? null,
+      },
+    );
+
+    return result
+      .mapRight((records) => 
+        records.map(record => ({
+          streamRef: record.stream_ref,
+          rowId: record.row_id,
+          valueInt: record.value_i,
+          valueFloat: record.value_f,
+          valueBoolean: record.value_b,
+          valueString: record.value_s,
+          valueRef: record.value_ref,
+          createdAt: record.created_at,
+        }))
       )
       .throw();
   }

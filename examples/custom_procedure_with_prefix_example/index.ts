@@ -9,7 +9,7 @@ const client = new NodeTNClient({
         address: wallet.address,
         signer: wallet,
     },
-    chainId: "tn-v2",
+    chainId: "tn-v2.1",
 });
 
 // Create a stream locator for the AI Index

@@ -43,7 +43,7 @@ Use `.env` or environment variables to customize test behavior:
 ```bash
 # Default: Uses mainnet
 TEST_ENDPOINT=https://gateway.mainnet.truf.network
-TEST_CHAIN_ID=tn-v2
+TEST_CHAIN_ID=tn-v2.1
 
 # Or use local node
 TEST_ENDPOINT=http://localhost:8484
