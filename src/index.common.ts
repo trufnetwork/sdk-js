@@ -4,7 +4,7 @@ export type { SignerInfo as EthProvider } from "./client/client";
 
 // Stream types and interfaces
 export type { StreamLocator } from "./types/stream";
-export type { StreamRecord } from "./contracts-api/action";
+export type { StreamRecord, ListMetadataByHeightParams, MetadataQueryResult } from "./contracts-api/action";
 export type { GetRecordInput, GetFirstRecordInput } from "./contracts-api/action";
 export type { InsertRecordInput } from "./contracts-api/primitiveAction";
 export type { TaxonomySet, TaxonomyItem, ListTaxonomiesByHeightParams, GetTaxonomiesForStreamsParams, TaxonomyQueryResult } from "./contracts-api/composedAction";

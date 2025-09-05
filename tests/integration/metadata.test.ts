@@ -37,7 +37,8 @@ describe('Metadata Tests', () => {
 
       // If we have results, verify structure
       const firstResult = result[0];
-      expect(firstResult).toHaveProperty('streamRef');
+      expect(firstResult).toHaveProperty('streamId');
+      expect(firstResult).toHaveProperty('dataProvider');
       expect(firstResult).toHaveProperty('rowId');
       expect(firstResult).toHaveProperty('valueInt');
       expect(firstResult).toHaveProperty('valueFloat');
