@@ -64,11 +64,11 @@ export interface ListMetadataByHeightParams {
 export interface MetadataQueryResult {
   streamRef: number;
   rowId: string;
-  valueInt: number;
-  valueFloat: string;
-  valueBoolean: boolean;
-  valueString: string;
-  valueRef: string;
+  valueInt: number | null;
+  valueFloat: string | null;
+  valueBoolean: boolean | null;
+  valueString: string | null;
+  valueRef: string | null;
   createdAt: number;
 }
 
@@ -548,11 +548,11 @@ export class Action {
      type MetadataRawResult = {
         stream_ref: number;
         row_id: string;
-        value_i: number;
-        value_f: string;
-        value_b: boolean;
-        value_s: string;
-        value_ref: string;
+        value_i: number | null;
+        value_f: string | null;
+        value_b: boolean | null;
+        value_s: string | null;
+        value_ref: string | null;
         created_at: number;
     }[];
     const result = await this.call<MetadataRawResult>(

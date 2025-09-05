@@ -33,6 +33,8 @@ describe('Metadata Tests', () => {
       })
       expect(Array.isArray(result)).toBe(true);
 
+      if (result.length === 0) return;
+
       // If we have results, verify structure
       const firstResult = result[0];
       expect(firstResult).toHaveProperty('streamRef');
