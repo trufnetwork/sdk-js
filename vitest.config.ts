@@ -8,5 +8,6 @@ export default defineConfig({
     setupFiles: ['dotenv/config', 'disposablestack/auto'],
     maxConcurrency: 1, // Disable concurrency to avoid nonce errors
     fileParallelism: false,
+    hookTimeout: 60000, // 60 seconds for setup hooks
   },
 })
