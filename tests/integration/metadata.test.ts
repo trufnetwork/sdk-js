@@ -7,7 +7,7 @@ import { visibility } from "../../src/util/visibility";
 import { Action } from "../../src";
 import { Wallet } from 'ethers'
 
-describe.sequential("Metadata Tests", { timeout: 90000 }, () => {
+describe('Metadata Tests', () => {
   let client: NodeTNClient;
   let action: Action;
 
@@ -30,7 +30,7 @@ describe.sequential("Metadata Tests", { timeout: 90000 }, () => {
     action = client.loadAction();
   });
 
-  testWithDefaultWallet("should list all metadata", async () => {
+  test('listMetadataByHeight returns expected structure', async () => {
       const primitiveStreamId = await StreamId.generate("test-list-primitive");
 
       await client.deployStream(primitiveStreamId, StreamType.Primitive, true);
