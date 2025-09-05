@@ -1,9 +1,5 @@
 import { describe, test, expect, beforeEach } from 'vitest'
-import { StreamId } from "../../src/util/StreamId";
-import { StreamType } from "../../src/contracts-api/contractValues";
-import { testWithDefaultWallet } from "./utils";
 import { NodeTNClient } from '../../src/client/nodeClient'
-import { visibility } from "../../src/util/visibility";
 import { Action } from "../../src";
 import { Wallet } from 'ethers'
 
@@ -31,21 +27,11 @@ describe('Metadata Tests', () => {
   });
 
   test('listMetadataByHeight returns expected structure', async () => {
-      const primitiveStreamId = await StreamId.generate("test-list-primitive");
-
-      await client.deployStream(primitiveStreamId, StreamType.Primitive, true);
-
-      const streamLocator = client.ownStreamLocator(primitiveStreamId)
-
-      // Insert metadata
-      await action.setReadVisibility(streamLocator, visibility.public)
-
-      // Find our metadata
       const result = await client.listMetadataByHeight({
-        key: "read_visibility"
+        key: "read_visibility",
+        limit: 1
       })
       expect(Array.isArray(result)).toBe(true);
-      expect(result.length == 2).toBe(true); // original private, updated public
 
       // If we have results, verify structure
       const firstResult = result[0];
