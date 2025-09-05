@@ -62,7 +62,8 @@ export interface ListMetadataByHeightParams {
 }
 
 export interface MetadataQueryResult {
-  streamRef: number;
+  streamId: string;
+  dataProvider: string;
   rowId: string;
   valueInt: number | null;
   valueFloat: string | null;
@@ -546,7 +547,8 @@ export class Action {
     params: ListMetadataByHeightParams = {},
   ): Promise<MetadataQueryResult[]> {
      type MetadataRawResult = {
-        stream_ref: number;
+        stream_id: string;
+        data_provider: string;
         row_id: string;
         value_i: number | null;
         value_f: string | null;
@@ -570,7 +572,8 @@ export class Action {
     return result
       .mapRight((records) => 
         records.map(record => ({
-          streamRef: record.stream_ref,
+          streamId: record.stream_id,
+          dataProvider: record.data_provider,
           rowId: record.row_id,
           valueInt: record.value_i,
           valueFloat: record.value_f,
