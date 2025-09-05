@@ -45,4 +45,72 @@ describe('Metadata Tests', () => {
       expect(firstResult).toHaveProperty('createdAt');
     },
   );
+
+  test('listMetadataByHeight handles pagination parameters', async () => {
+    const page1 = await action.listMetadataByHeight({
+      key: "read_visibility",
+      limit: 5,
+      offset: 0
+    });
+    
+    const page2 = await action.listMetadataByHeight({
+      key: "read_visibility",
+      limit: 5,
+      offset: 5
+    });
+
+    expect(page1.length).toBeLessThanOrEqual(5);
+    expect(page2.length).toBeLessThanOrEqual(5);
+  });
+
+  test('listMetadataByHeight handles height range filtering', async () => {
+    // Use a fixed height range that we know has data
+    const filteredResults = await action.listMetadataByHeight({
+      key: "read_visibility",
+      fromHeight: 180000,
+      toHeight: 185000,
+      limit: 10
+    });
+    
+    expect(Array.isArray(filteredResults)).toBe(true);
+    
+    // If we have results, verify they're in range
+    for (const result of filteredResults) {
+      const height = Number(result.createdAt); // Handle string/number conversion
+      expect(height).toBeGreaterThanOrEqual(180000);
+      expect(height).toBeLessThanOrEqual(185000);
+    }
+  });
+
+  test('client high-level methods work correctly', async () => {
+    const clientResult = await client.listMetadataByHeight({
+      key: "read_visibility",
+      limit: 10
+    });
+    expect(Array.isArray(clientResult)).toBe(true);
+    
+    const actionResult = await action.listMetadataByHeight({
+      key: "read_visibility",
+      limit: 10
+    });
+    expect(clientResult.length).toBe(actionResult.length);
+  });
+
+  test('error handling works for invalid parameters', async () => {
+    const result = await action.listMetadataByHeight({
+      key: "read_visibility",
+      fromHeight: 10,
+      toHeight: 5
+    });
+    
+    // Should return empty array for non-existent height range
+    expect(Array.isArray(result)).toBe(true);
+    expect(result.length).toBe(0);
+  });
+
+  test('handle null/undefined parameters gracefully', async () => {
+    // Test with minimal parameters
+    const result = await action.listMetadataByHeight({});
+    expect(Array.isArray(result)).toBe(true);
+  });
 });
