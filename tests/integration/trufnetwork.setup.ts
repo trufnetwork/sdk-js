@@ -80,8 +80,14 @@ async function runDockerCommand(args: string[], check = false) {
 }
 
 async function startContainer(spec: ContainerSpec, network: string) {
-  // Remove existing container if any
-  await runDockerCommand(["rm", "-f", spec.name]);
+  // Check if container exists and remove it
+  const { stdout } = await runDockerCommand(["ps", "-aq", "--filter", `name=${spec.name}`]);
+  if (stdout.trim()) {
+    console.info(`Removing existing container: ${spec.name}`);
+    await runDockerCommand(["rm", "-f", spec.name], true);
+    // Wait a bit for container to be fully removed
+    await new Promise((r) => setTimeout(r, 2000));
+  }
 
   const args: string[] = [
     "run",
@@ -119,7 +125,12 @@ async function startContainer(spec: ContainerSpec, network: string) {
 }
 
 async function stopContainer(name: string) {
-  await runDockerCommand(["stop", name]);
+  // Check if container exists before trying to stop/remove it
+  const { stdout } = await runDockerCommand(["ps", "-aq", "--filter", `name=${name}`]);
+  if (stdout.trim()) {
+    console.info(`Stopping and removing container: ${name}`);
+    await runDockerCommand(["rm", "-f", name], true);
+  }
 }
 
 async function waitForPostgresHealth(maxAttempts = 30) {
@@ -184,14 +195,28 @@ async function runMigrationTask() {
 }
 
 async function createDockerNetwork() {
-  // Remove existing network (ignore errors)
-  await runDockerCommand(["network", "rm", NETWORK_NAME]);
-  // Create network
+  // Clean up any existing containers and network
+  await stopContainer(POSTGRES_CONTAINER.name);
+  await stopContainer(TN_DB_CONTAINER.name);
+  
+  // Wait for containers to be fully removed
+  await new Promise((r) => setTimeout(r, 2000));
+  
+  // Remove existing network if any
+  await removeDockerNetwork();
+  
+  // Create fresh network
+  console.info(`Creating network: ${NETWORK_NAME}`);
   await runDockerCommand(["network", "create", NETWORK_NAME], true);
 }
 
 async function removeDockerNetwork() {
-  await runDockerCommand(["network", "rm", NETWORK_NAME]);
+  // Check if network exists before trying to remove it
+  const { stdout } = await runDockerCommand(["network", "ls", "--filter", `name=${NETWORK_NAME}`, "--format", "{{.Name}}"]);
+  if (stdout.trim() === NETWORK_NAME) {
+    console.info(`Removing network: ${NETWORK_NAME}`);
+    await runDockerCommand(["network", "rm", NETWORK_NAME], true);
+  }
 }
 
 // ------------------- Helper -------------------
@@ -237,6 +262,10 @@ export function setupTrufNetwork() {
       console.info("Tearing down TrufNetwork test environment...");
       await stopContainer(TN_DB_CONTAINER.name);
       await stopContainer(POSTGRES_CONTAINER.name);
+      
+      // Wait for containers to be fully removed before removing network
+      await new Promise((r) => setTimeout(r, 2000));
+      
       await removeDockerNetwork();
       containersStarted = false;
     }
