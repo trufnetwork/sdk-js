@@ -559,7 +559,7 @@ export class Action {
       "list_metadata_by_height",
       {
         $key: params.key ?? "",
-        $value: params.value ?? null,
+        $ref: params.value ?? null,
         $from_height: params.fromHeight ?? null,
         $to_height: params.toHeight ?? null,
         $limit: params.limit ?? null,
