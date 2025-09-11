@@ -949,4 +949,42 @@ export class Action {
         return asBigInt;
       }).throw();
   }
+
+  /**
+   * Gets the wallet balance on any supported blockchain network
+   * @param chain The chain identifier (e.g., "sepolia", "mainnet", "polygon", etc.)
+   * @param walletAddress The wallet address to check balance for
+   * @returns Promise that resolves to the balance as a string, or throws on error
+   */
+  public async getWalletBalance(
+    chain: string,
+    walletAddress: string
+  ): Promise<string> {
+    const result = await this.call<{ balance?: string; error?: string }[]>(
+      "sepolia_wallet_balance",
+      {
+        $chain: chain,
+        $wallet_address: walletAddress,
+      }
+    );
+
+    return result
+      .mapRight((rows) => {
+        if (rows.length === 0) {
+          throw new Error("No result returned from wallet balance query");
+        }
+        
+        const row = rows[0];
+        if (row.error) {
+          throw new Error(`Wallet balance error: ${row.error}`);
+        }
+        
+        if (row.balance === undefined) {
+          throw new Error("No balance returned from wallet balance query");
+        }
+        
+        return row.balance;
+      })
+      .throw();
+  }
 }
