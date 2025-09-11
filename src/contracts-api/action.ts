@@ -983,4 +983,40 @@ export class Action {
       })
       .throw();
   }
+
+  /**
+   * Locks tokens on a blockchain network
+   * @param chain The chain identifier (e.g., "sepolia", "mainnet", "polygon", etc.)
+   * @param amount The amount to lock
+   * @param walletAddress The wallet address to lock tokens from
+   * @returns Promise that resolves to GenericResponse<TxReceipt>
+   */
+  public async lockTokens(
+    chain: string,
+    amount: string,
+    walletAddress: string
+  ): Promise<GenericResponse<TxReceipt>> {
+    return await this.executeWithNamedParams(`${chain}_admin_lock_tokens`, [{
+      $amount: amount,
+      $wallet_address: walletAddress,
+    }]);
+  }
+
+  /**
+   * Issues tokens on a blockchain network
+   * @param chain The chain identifier (e.g., "sepolia", "mainnet", "polygon", etc.)
+   * @param amount The amount to issue
+   * @param walletAddress The wallet address to issue tokens to
+   * @returns Promise that resolves to GenericResponse<TxReceipt>
+   */
+  public async issueTokens(
+    chain: string,
+    amount: string,
+    walletAddress: string
+  ): Promise<GenericResponse<TxReceipt>> {
+    return await this.executeWithNamedParams(`${chain}_admin_issue_tokens`, [{
+      $amount: amount,
+      $wallet_address: walletAddress,
+    }]);
+  }
 }
