@@ -261,6 +261,11 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
     return action.listMetadataByHeight(params);
   }
 
+  async getWalletBalance(chain: string, walletAddress: string) {
+    const action = this.loadAction();
+    return action.getWalletBalance(chain, walletAddress);
+  }
+
   /**
    * Gets taxonomies for specific streams in batch.
    * High-level wrapper for ComposedAction.getTaxonomiesForStreams()
