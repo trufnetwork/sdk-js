@@ -997,8 +997,8 @@ export class Action {
     walletAddress: string
   ): Promise<GenericResponse<TxReceipt>> {
     return await this.executeWithNamedParams(`${chain}_admin_lock_tokens`, [{
-      $amount: amount,
       $wallet_address: walletAddress,
+      $amount: amount,
     }]);
   }
 
@@ -1015,8 +1015,8 @@ export class Action {
     walletAddress: string
   ): Promise<GenericResponse<TxReceipt>> {
     return await this.executeWithNamedParams(`${chain}_admin_issue_tokens`, [{
+      $to_address: walletAddress,
       $amount: amount,
-      $wallet_address: walletAddress,
     }]);
   }
 }
