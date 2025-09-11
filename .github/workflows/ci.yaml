@@ -89,6 +89,7 @@ jobs:
           pnpm test:integration
         env:
           NODE_REPO_DIR: ${{ github.workspace }}/tmp-node
+          TEST_PRIVATE_KEY: ${{ secrets.TEST_PRIVATE_KEY }}
 
       - name: Cleanup
         # not act 

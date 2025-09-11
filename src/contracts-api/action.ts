@@ -960,10 +960,9 @@ export class Action {
     chain: string,
     walletAddress: string
   ): Promise<string> {
-    const result = await this.call<{ balance?: string; error?: string }[]>(
-      "sepolia_wallet_balance",
+    const result = await this.call<{ balance?: string; }[]>(
+      `${chain}_wallet_balance`,
       {
-        $chain: chain,
         $wallet_address: walletAddress,
       }
     );
@@ -971,13 +970,10 @@ export class Action {
     return result
       .mapRight((rows) => {
         if (rows.length === 0) {
-          throw new Error("No result returned from wallet balance query");
+          throw new Error("You don't have necessary permissions to execute this query");
         }
         
         const row = rows[0];
-        if (row.error) {
-          throw new Error(`Wallet balance error: ${row.error}`);
-        }
         
         if (row.balance === undefined) {
           throw new Error("No balance returned from wallet balance query");
