@@ -1,0 +1,35 @@
+{
+  "name": "tn-sdk-wallet-integration-examples",
+  "version": "1.0.0",
+  "description": "Examples demonstrating wallet integration with TN SDK",
+  "main": "main.ts",
+  "scripts": {
+    "start": "ts-node main.ts",
+    "test-wallet": "ts-node test-wallet-example.ts",
+    "connected-wallet": "ts-node connected-wallet-example.ts",
+    "viem-wallet": "ts-node viem-wallet-example.ts",
+    "build": "tsc",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "truf",
+    "tn-sdk",
+    "wallet",
+    "ethereum",
+    "web3",
+    "blockchain"
+  ],
+  "author": "TrufNetwork",
+  "license": "MIT",
+  "dependencies": {
+    "@trufnetwork/sdk-js": "file:../..",
+    "@trufnetwork/kwil-js": "^0.9.6-rc.2",
+    "ethers": "^6.14.3",
+    "viem": "^2.33.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.0.0"
+  }
+}
