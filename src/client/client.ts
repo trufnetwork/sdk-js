@@ -267,43 +267,29 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
   }
 
   /**
-   * Performs a withdrawal operation by locking tokens and then issuing tokens
+   * Performs a withdrawal operation by bridging tokens
    * @param chain The chain identifier (e.g., "sepolia", "mainnet", "polygon", etc.)
    * @param amount The amount to withdraw
-   * @param walletAddress The wallet address for the withdrawal
-   * @returns Promise that resolves to the final transaction hash, or throws on error
+   * @returns Promise that resolves to the transaction hash, or throws on error
    */
-  async withdraw(chain: string, amount: string, walletAddress: string): Promise<string> {
+  async withdraw(chain: string, amount: string): Promise<string> {
     const action = this.loadAction();
     
-    // Step 1: Lock tokens
-    const lockResult = await action.lockTokens(chain, amount, walletAddress);
-    if (!lockResult.data?.tx_hash) {
-      throw new Error("Lock tokens operation failed: no transaction hash returned");
+    // Bridge tokens in a single operation
+    const bridgeResult = await action.bridgeTokens(chain, amount);
+    if (!bridgeResult.data?.tx_hash) {
+      throw new Error("Bridge tokens operation failed: no transaction hash returned");
     }
     
-    // Wait for lock transaction to be mined - let waitForTx errors bubble up
+    // Wait for bridge transaction to be mined - let waitForTx errors bubble up
     try {
-      await this.waitForTx(lockResult.data.tx_hash);
+      await this.waitForTx(bridgeResult.data.tx_hash);
     } catch (error) {
-      throw new Error(`Lock tokens transaction failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`Bridge tokens transaction failed: ${error instanceof Error ? error.message : String(error)}`);
     }
     
-    // Step 2: Issue tokens
-    const issueResult = await action.issueTokens(chain, amount, walletAddress);
-    if (!issueResult.data?.tx_hash) {
-      throw new Error("Issue tokens operation failed: no transaction hash returned");
-    }
-    
-    // Wait for issue transaction to be mined - let waitForTx errors bubble up
-    try {
-      await this.waitForTx(issueResult.data.tx_hash);
-    } catch (error) {
-      throw new Error(`Issue tokens transaction failed: ${error instanceof Error ? error.message : String(error)}`);
-    }
-    
-    // Return the final transaction hash
-    return issueResult.data.tx_hash;
+    // Return the transaction hash
+    return bridgeResult.data.tx_hash;
   }
 
   /**

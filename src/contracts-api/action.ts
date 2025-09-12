@@ -1013,37 +1013,16 @@ export class Action {
   }
 
   /**
-   * Locks tokens on a blockchain network
+   * Bridges tokens on a blockchain network
    * @param chain The chain identifier (e.g., "sepolia", "mainnet", "polygon", etc.)
-   * @param amount The amount to lock
-   * @param walletAddress The wallet address to lock tokens from
+   * @param amount The amount to bridge
    * @returns Promise that resolves to GenericResponse<TxReceipt>
    */
-  public async lockTokens(
+  public async bridgeTokens(
     chain: string,
-    amount: string,
-    walletAddress: string
+    amount: string
   ): Promise<GenericResponse<TxReceipt>> {
-    return await this.executeWithNamedParams(`${chain}_admin_lock_tokens`, [{
-      $wallet_address: walletAddress,
-      $amount: amount,
-    }]);
-  }
-
-  /**
-   * Issues tokens on a blockchain network
-   * @param chain The chain identifier (e.g., "sepolia", "mainnet", "polygon", etc.)
-   * @param amount The amount to issue
-   * @param walletAddress The wallet address to issue tokens to
-   * @returns Promise that resolves to GenericResponse<TxReceipt>
-   */
-  public async issueTokens(
-    chain: string,
-    amount: string,
-    walletAddress: string
-  ): Promise<GenericResponse<TxReceipt>> {
-    return await this.executeWithNamedParams(`${chain}_admin_issue_tokens`, [{
-      $to_address: walletAddress,
+    return await this.executeWithNamedParams(`${chain}_admin_bridge_tokens`, [{
       $amount: amount,
     }]);
   }
