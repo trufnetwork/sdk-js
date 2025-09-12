@@ -1011,4 +1011,25 @@ export class Action {
       })
       .throw();
   }
+
+  /**
+   * Bridges tokens on a blockchain network
+   * @param chain The chain identifier (e.g., "sepolia", "mainnet", "polygon", etc.)
+   * @param amount The amount to bridge
+   * @returns Promise that resolves to GenericResponse<TxReceipt>
+   */
+  public async bridgeTokens(
+    chain: string,
+    amount: string
+  ): Promise<GenericResponse<TxReceipt>> {
+    // Validate amount is greater than 0
+    const numAmount = parseFloat(amount);
+    if (isNaN(numAmount) || numAmount <= 0) {
+      throw new Error(`Invalid amount: ${amount}. Amount must be greater than 0.`);
+    }
+
+    return await this.executeWithNamedParams(`${chain}_admin_bridge_tokens`, [{
+      $amount: amount,
+    }]);
+  }
 }

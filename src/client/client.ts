@@ -267,6 +267,32 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
   }
 
   /**
+   * Performs a withdrawal operation by bridging tokens
+   * @param chain The chain identifier (e.g., "sepolia", "mainnet", "polygon", etc.)
+   * @param amount The amount to withdraw
+   * @returns Promise that resolves to the transaction hash, or throws on error
+   */
+  async withdraw(chain: string, amount: string): Promise<string> {
+    const action = this.loadAction();
+    
+    // Bridge tokens in a single operation
+    const bridgeResult = await action.bridgeTokens(chain, amount);
+    if (!bridgeResult.data?.tx_hash) {
+      throw new Error("Bridge tokens operation failed: no transaction hash returned");
+    }
+    
+    // Wait for bridge transaction to be mined - let waitForTx errors bubble up
+    try {
+      await this.waitForTx(bridgeResult.data.tx_hash);
+    } catch (error) {
+      throw new Error(`Bridge tokens transaction failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    
+    // Return the transaction hash
+    return bridgeResult.data.tx_hash;
+  }
+
+  /**
    * Gets taxonomies for specific streams in batch.
    * High-level wrapper for ComposedAction.getTaxonomiesForStreams()
    * 

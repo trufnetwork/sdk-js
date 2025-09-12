@@ -41,10 +41,10 @@ describe('ERC20 Bridge Tests', () => {
     await expect(async () => {
       await unauthorizedClient.getWalletBalance("sepolia", "0x9160BBD07295b77BB168FF6295D66C74E575B5BE");
     }).rejects.toThrow("You don't have necessary permissions to execute this query");
-  });
+  }, 20000);
 
   test('get wallet balance - should pass with authorized client', async () => {
     const balance = await authorizedClient.getWalletBalance("sepolia", "0x9160BBD07295b77BB168FF6295D66C74E575B5BE");
     expect(Number(balance)).toBeGreaterThanOrEqual(0);
-  });
+  }, 20000);
 });
