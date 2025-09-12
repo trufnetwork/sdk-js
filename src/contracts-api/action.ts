@@ -983,4 +983,32 @@ export class Action {
       })
       .throw();
   }
+
+  /**
+   * Calls the whoami action to get the caller's wallet address
+   * This is useful for verifying wallet authentication with TN
+   * @returns Promise that resolves to the caller's wallet address
+   */
+  public async whoami(): Promise<string> {
+    const result = await this.call<{ caller: string }[]>(
+      "whoami",
+      {}
+    );
+
+    return result
+      .mapRight((rows) => {
+        if (rows.length === 0) {
+          throw new Error("No response from whoami action");
+        }
+        
+        const row = rows[0];
+        
+        if (!row.caller) {
+          throw new Error("No caller address returned from whoami");
+        }
+        
+        return row.caller;
+      })
+      .throw();
+  }
 }
