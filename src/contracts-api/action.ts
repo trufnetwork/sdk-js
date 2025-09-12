@@ -1022,6 +1022,12 @@ export class Action {
     chain: string,
     amount: string
   ): Promise<GenericResponse<TxReceipt>> {
+    // Validate amount is greater than 0
+    const numAmount = parseFloat(amount);
+    if (isNaN(numAmount) || numAmount <= 0) {
+      throw new Error(`Invalid amount: ${amount}. Amount must be greater than 0.`);
+    }
+
     return await this.executeWithNamedParams(`${chain}_admin_bridge_tokens`, [{
       $amount: amount,
     }]);
