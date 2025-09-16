@@ -1028,7 +1028,7 @@ export class Action {
       throw new Error(`Invalid amount: ${amount}. Amount must be greater than 0.`);
     }
 
-    return await this.executeWithNamedParams(`${chain}_admin_bridge_tokens`, [{
+    return await this.executeWithNamedParams(`${chain}_bridge_tokens`, [{
       $amount: amount,
     }]);
   }
