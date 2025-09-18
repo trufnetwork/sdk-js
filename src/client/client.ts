@@ -1,11 +1,4 @@
-import { Client, KwilSigner, NodeKwil, WebKwil } from "@trufnetwork/kwil-js";
-import { KwilConfig } from "@trufnetwork/kwil-js/dist/api_client/config";
-import { Kwil } from "@trufnetwork/kwil-js/dist/client/kwil";
-import { EthSigner } from "@trufnetwork/kwil-js/dist/core/signature";
-import { EnvironmentType } from "@trufnetwork/kwil-js/dist/core/enums";
-import { GenericResponse } from "@trufnetwork/kwil-js/dist/core/resreq";
-import { TxReceipt } from "@trufnetwork/kwil-js/dist/core/tx";
-import { TxInfoReceipt } from "@trufnetwork/kwil-js/dist/core/txQuery";
+import { Client, KwilSigner, NodeKwil, WebKwil, Types, EnvironmentType } from "@trufnetwork/kwil-js";
 import { ComposedAction, ListTaxonomiesByHeightParams, GetTaxonomiesForStreamsParams, TaxonomyQueryResult } from "../contracts-api/composedAction";
 import { deployStream } from "../contracts-api/deployStream";
 import { deleteStream } from "../contracts-api/deleteStream";
@@ -23,13 +16,13 @@ import { OwnerIdentifier } from "../types/role";
 export interface SignerInfo {
   // we need to have the address upfront to create the KwilSigner, instead of relying on the signer to return it asynchronously
   address: string;
-  signer: EthSigner;
+  signer: Types.EthSigner;
 }
 
 export type TNClientOptions = {
   endpoint: string;
   signerInfo: SignerInfo;
-} & Omit<KwilConfig, "kwilProvider">;
+} & Omit<Types.KwilConfig, "kwilProvider">;
 
 export interface ListStreamsInput {
     dataProvider?: string;
@@ -49,7 +42,7 @@ export interface GetLastTransactionsInput {
 }
 
 export abstract class BaseTNClient<T extends EnvironmentType> {
-  protected kwilClient: Kwil<T> | undefined;
+  protected kwilClient: Types.Kwil<T> | undefined;
   protected signerInfo: SignerInfo;
 
   protected constructor(options: TNClientOptions) {
@@ -62,8 +55,8 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
    * @param timeout - The timeout in milliseconds.
    * @returns A promise that resolves to the transaction info receipt.
    */
-  async waitForTx(txHash: string, timeout = 12000): Promise<TxInfoReceipt> {
-    return new Promise<TxInfoReceipt>(async (resolve, reject) => {
+  async waitForTx(txHash: string, timeout = 12000): Promise<Types.TxInfoReceipt> {
+    return new Promise<Types.TxInfoReceipt>(async (resolve, reject) => {
       const interval = setInterval(async () => {
         const receipt = await this.getKwilClient()
           ["txInfoClient"](txHash)
@@ -112,7 +105,7 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
    * @returns An instance of Kwil.
    * @throws If the Kwil client is not initialized.
    */
-  getKwilClient(): Kwil<EnvironmentType> {
+  getKwilClient(): Types.Kwil<EnvironmentType> {
     if (!this.kwilClient) {
       throw new Error("Kwil client not initialized");
     }
@@ -131,7 +124,7 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
     streamId: StreamId,
     streamType: StreamType,
     synchronous?: boolean,
-  ): Promise<GenericResponse<TxReceipt>> {
+  ): Promise<Types.GenericResponse<Types.TxReceipt>> {
     return await deployStream({
       streamId,
       streamType,
@@ -150,7 +143,7 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
   async destroyStream(
     stream: StreamLocator,
     synchronous?: boolean,
-  ): Promise<GenericResponse<TxReceipt>> {
+  ): Promise<Types.GenericResponse<Types.TxReceipt>> {
     return await deleteStream({
       stream,
       synchronous,

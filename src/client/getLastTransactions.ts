@@ -1,5 +1,5 @@
 import { WebKwil, NodeKwil, KwilSigner } from "@trufnetwork/kwil-js";
-import { GetLastTransactionsInput } from "./client";
+import { GetLastTransactionsInput } from "../internal";
 import { LastTransaction } from "../types/transaction";
 
 const INDEXER_BASE = "https://indexer.infra.truf.network";

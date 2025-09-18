@@ -1,14 +1,14 @@
-import { EnvironmentType } from "@trufnetwork/kwil-js/dist/core/enums";
-import { WebKwil } from "@trufnetwork/kwil-js";
-import { BaseTNClient, TNClientOptions } from "./client";
+import { EnvironmentType, WebKwil } from "@trufnetwork/kwil-js";
+import { BaseTNClient, TNClientOptions } from "../internal";
 
 export class BrowserTNClient extends BaseTNClient<EnvironmentType.BROWSER> {
   constructor(options: TNClientOptions) {
     super(options);
+    const { endpoint, signerInfo, ...kwilOptions } = options;
     this.kwilClient = new WebKwil({
-      ...options,
+      ...kwilOptions,
       timeout: options.timeout ?? 30000,
-      kwilProvider: options.endpoint,
+      kwilProvider: endpoint,
     });
   }
 }

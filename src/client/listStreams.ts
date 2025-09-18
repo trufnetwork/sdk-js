@@ -1,9 +1,8 @@
 import {TNStream} from "../types/stream";
 import {EthereumAddress} from "../util/EthereumAddress";
 import {StreamId} from "../util/StreamId";
-import {Database} from "@trufnetwork/kwil-js/dist/core/database";
-import {ListStreamsInput} from "./client";
-import {KwilSigner, NodeKwil, WebKwil} from "@trufnetwork/kwil-js";
+import {ListStreamsInput} from "../internal";
+import {KwilSigner, NodeKwil, WebKwil, Types} from "@trufnetwork/kwil-js";
 
 /**
  * List all streams from the TN network.

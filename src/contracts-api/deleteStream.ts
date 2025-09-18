@@ -1,8 +1,5 @@
 import {StreamId} from "../util/StreamId";
-import {Kwil} from "@trufnetwork/kwil-js/dist/client/kwil";
-import {KwilSigner} from "@trufnetwork/kwil-js";
-import {TxReceipt} from "@trufnetwork/kwil-js/dist/core/tx";
-import {GenericResponse} from "@trufnetwork/kwil-js/dist/core/resreq";
+import {KwilSigner, Types} from "@trufnetwork/kwil-js";
 import {StreamLocator} from "../types/stream";
 
 /**
@@ -10,7 +7,7 @@ import {StreamLocator} from "../types/stream";
  */
 export interface DestroyStreamInput {
   stream: StreamLocator;
-  kwilClient: Kwil<any>;
+  kwilClient: Types.Kwil<any>;
   kwilSigner: KwilSigner;
   synchronous?: boolean;
 }
@@ -19,7 +16,7 @@ export interface DestroyStreamInput {
  * Output after deleting a stream.
  */
 export interface DeleteStreamOutput {
-  receipt: TxReceipt;
+  receipt: Types.TxReceipt;
 }
 
 /**
@@ -29,7 +26,7 @@ export interface DeleteStreamOutput {
  */
 export async function deleteStream(
   input: DestroyStreamInput,
-): Promise<GenericResponse<TxReceipt>> {
+): Promise<Types.GenericResponse<Types.TxReceipt>> {
   try {
     return await input.kwilClient.execute({
           description: `TN SDK - Deleting stream: ${input.stream.streamId.getId()} from data provider: ${input.stream.dataProvider.getAddress()}`,

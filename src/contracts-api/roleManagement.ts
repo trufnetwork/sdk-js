@@ -1,11 +1,11 @@
-import { KwilSigner, NodeKwil, Utils, WebKwil } from "@trufnetwork/kwil-js";
-import { GenericResponse } from "@trufnetwork/kwil-js/dist/core/resreq";
-import { TxReceipt } from "@trufnetwork/kwil-js/dist/core/tx";
+import { KwilSigner, NodeKwil, Utils, WebKwil, Types } from "@trufnetwork/kwil-js";
 import { Action } from "./action";
 import { AreMembersOfInput, GrantRoleInput, RevokeRoleInput, WalletMembership } from "../types/role";
-import DataType = Utils.DataType;
 import { OwnerIdentifier } from "../types/role";
 import { EthereumAddress } from "../util/EthereumAddress";
+
+// Use kwil-js DataType directly
+const DataType = Utils.DataType;
 
 /**
  * RoleManagement provides convenient wrappers around the on-chain SQL actions
@@ -33,7 +33,7 @@ export class RoleManagement extends Action {
   public async grantRole(
     input: GrantRoleInput,
     synchronous = false,
-  ): Promise<GenericResponse<TxReceipt>> {
+  ): Promise<Types.GenericResponse<Types.TxReceipt>> {
     return this.executeWithActionBody(
       {
         namespace: "main",
@@ -62,7 +62,7 @@ export class RoleManagement extends Action {
   public async revokeRole(
     input: RevokeRoleInput,
     synchronous = false,
-  ): Promise<GenericResponse<TxReceipt>> {
+  ): Promise<Types.GenericResponse<Types.TxReceipt>> {
     return this.executeWithActionBody(
       {
         namespace: "main",

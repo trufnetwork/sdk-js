@@ -1,10 +1,10 @@
-import {KwilSigner, NodeKwil, Utils, WebKwil} from "@trufnetwork/kwil-js";
-import {GenericResponse} from "@trufnetwork/kwil-js/dist/core/resreq";
-import {TxReceipt} from "@trufnetwork/kwil-js/dist/core/tx";
+import {KwilSigner, NodeKwil, Utils, WebKwil, Types} from "@trufnetwork/kwil-js";
 import {StreamType} from "./contractValues";
 import {Action} from "./action";
 import {StreamLocator} from "../types/stream";
-import DataType = Utils.DataType;
+
+// Use kwil-js DataType directly
+const DataType = Utils.DataType;
 
 const ErrorStreamNotPrimitive = "stream is not a primitive stream";
 
@@ -23,7 +23,7 @@ export class PrimitiveAction extends Action {
    */
   public async insertRecord(
       input: InsertRecordInput,
-  ): Promise<GenericResponse<TxReceipt>> {
+  ): Promise<Types.GenericResponse<Types.TxReceipt>> {
     return await this.executeWithActionBody({
           namespace: 'main',
           name: 'insert_record',
@@ -51,7 +51,7 @@ export class PrimitiveAction extends Action {
     public async insertRecords(
         inputs: InsertRecordInput[],
         synchronous?: boolean,
-    ): Promise<GenericResponse<TxReceipt>> {
+    ): Promise<Types.GenericResponse<Types.TxReceipt>> {
       return await this.executeWithActionBody({
         namespace: 'main',
         name: 'insert_records',
