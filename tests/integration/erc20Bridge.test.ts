@@ -43,7 +43,7 @@ describe('ERC20 Bridge Tests', () => {
     const result = await unauthorizedClient.getWalletBalance("sepolia", "0x9160BBD07295b77BB168FF6295D66C74E575B5BE");
     expect(typeof result).toBe("string");
     expect(Number(result)).toBeGreaterThanOrEqual(0);
-  }, 20000);
+  }, 60000);
 
   test('get wallet balance - should pass with authorized client', async () => {
     try {
@@ -57,5 +57,5 @@ describe('ERC20 Bridge Tests', () => {
       }
       throw error;
     }
-  }, 20000);
+  }, 60000);
 });

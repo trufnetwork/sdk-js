@@ -44,6 +44,7 @@ export async function createWalletContext(
       signer: wallet,
     },
     chainId,
+    timeout: 60000,
   });
 
   // Ensure the wallet can deploy streams (requires network_writer role) unless disabled.
@@ -150,6 +151,7 @@ export async function ensureNetworkWriterRole(client: NodeTNClient): Promise<voi
       signer: managerWallet,
     },
     chainId,
+    timeout: 60000,
   });
 
   // Grant the role and wait for confirmation.

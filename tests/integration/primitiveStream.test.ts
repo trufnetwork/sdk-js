@@ -122,7 +122,7 @@ describe.sequential(
             dataProvider: defaultClient.address(),
           }, true);
         }
-      }, 60000,
+      }, 90000,
     );
 
     testWithDefaultWallet(
@@ -188,7 +188,7 @@ describe.sequential(
             dataProvider: defaultClient.address(),
           }, true);
         }
-      }, 60000,
+      }, 90000,
     );
 
     testWithDefaultWallet(
@@ -287,7 +287,7 @@ describe.sequential(
               dataProvider: defaultClient.address(),
             }, true);
           }
-        }, 60000,
+        }, 90000,
     );
   },
 );
