@@ -3,8 +3,7 @@ import { EthereumAddress } from "../../src/util/EthereumAddress";
 import { visibility } from "../../src/util/visibility";
 import { StreamId } from "../../src/util/StreamId";
 import { createTestContexts, setupTrufNetwork, waitForTxSuccess } from "./utils";
-import { GenericResponse } from "@trufnetwork/kwil-js/dist/core/resreq";
-import { TxReceipt } from "@trufnetwork/kwil-js/dist/core/tx";
+import { Types } from "@trufnetwork/kwil-js";
 
 // Define roles and their private keys for permission tests
 const PERMISSION_ROLES = {
@@ -33,7 +32,7 @@ describe.sequential("Permissions", { timeout: 90000 }, () => {
         const primitiveStream = ownerClient.loadPrimitiveAction();
 
         // tx is used to wait for tx success on each call
-        let tx: GenericResponse<TxReceipt>;
+        let tx: Types.GenericResponse<Types.TxReceipt>;
 
         // Insert test data
         tx = await primitiveStream.insertRecords([
@@ -136,7 +135,7 @@ describe.sequential("Permissions", { timeout: 90000 }, () => {
         const primitiveStream = ownerClient.loadPrimitiveAction();
 
         // tx is used to wait for tx success on each call
-        let tx: GenericResponse<TxReceipt>;
+        let tx: Types.GenericResponse<Types.TxReceipt>;
 
         tx = await primitiveStream.insertRecords([
           { stream: ownerClient.ownStreamLocator(primitiveStreamId), eventTime: new Date("2024-01-01").getTime() / 1000, value: "100.000000000000000000" },
