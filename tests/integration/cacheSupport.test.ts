@@ -8,7 +8,7 @@ import { CacheAwareResponse } from "../../src/types/cache";
 
 describe.sequential(
   "Cache Support E2E Tests",
-  { timeout: 60000 },
+  { timeout: 360000 },
   () => {
     // Spin up/tear down the local TN+Postgres containers once for this suite.
     setupTrufNetwork();

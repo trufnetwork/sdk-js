@@ -14,7 +14,7 @@ const PERMISSION_ROLES = {
 // Create permission-specific test context
 const tnTest = createTestContexts(PERMISSION_ROLES);
 
-describe.sequential("Permissions", { timeout: 90000 }, () => {
+describe.sequential("Permissions", { timeout: 360000 }, () => {
   // Spin up/tear down the local TN+Postgres containers once for this suite.
   setupTrufNetwork();
 

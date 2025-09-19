@@ -3,7 +3,7 @@ import { ethers } from "ethers";
 import { NodeTNClient } from "../../src/client/nodeClient";
 import { setupTrufNetwork } from "./utils";
 
-describe.sequential("Client", { timeout: 90000 }, () => {
+describe.sequential("Client", { timeout: 360000 }, () => {
   // Spin up/tear down the local TN+Postgres containers once for this suite.
   setupTrufNetwork();
 

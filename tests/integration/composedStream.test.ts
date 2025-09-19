@@ -6,7 +6,7 @@ import {InsertRecordInput} from "../../src";
 
 describe.sequential(
   "ComposedStream Integration Tests",
-  { timeout: 90000 },
+  { timeout: 360000 },
   () => {
     // Spin up/tear down the local TN+Postgres containers once for this suite.
     setupTrufNetwork();

@@ -3,7 +3,7 @@ import { StreamId } from "../../src/util/StreamId";
 import { StreamType } from "../../src/contracts-api/contractValues";
 import { setupTrufNetwork, testWithDefaultWallet } from "./utils";
 
-describe.sequential("Get List Streams", { timeout: 90000 }, () => {
+describe.sequential("Get List Streams", { timeout: 360000 }, () => {
   // Spin up/tear down the local TN+Postgres containers once for this suite.
   setupTrufNetwork();
 

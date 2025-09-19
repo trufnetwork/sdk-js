@@ -14,7 +14,7 @@ import { InsertRecordInput, StreamRecord } from "../../src";
  */
 describe.sequential(
   "Deprecated API Backward Compatibility Tests",
-  { timeout: 60000 },
+  { timeout: 360000 },
   () => {
     // Spin up/tear down the local TN+Postgres containers once for this suite.
     setupTrufNetwork();
