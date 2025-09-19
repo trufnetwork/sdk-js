@@ -7,7 +7,13 @@ export default defineConfig({
     setupFiles: ['dotenv/config', 'disposablestack/auto'],
     maxConcurrency: 1, // Disable concurrency to avoid nonce errors
     fileParallelism: false,
-    hookTimeout: 120000, // 120 seconds for setup hooks (Docker containers)
+    pool: 'forks',
+    poolOptions: {
+      forks: {
+        singleFork: true,
+      },
+    },
+    hookTimeout: 300000, // 300 seconds for setup hooks (Docker containers in CI)
   },
   ssr: {
     noExternal: ['@trufnetwork/kwil-js'],
