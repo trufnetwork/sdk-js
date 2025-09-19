@@ -1,12 +1,12 @@
-import {KwilSigner, NodeKwil, Utils, WebKwil} from "@trufnetwork/kwil-js";
-import { GenericResponse } from "@trufnetwork/kwil-js/dist/core/resreq";
-import { TxReceipt } from "@trufnetwork/kwil-js/dist/core/tx";
+import {KwilSigner, NodeKwil, Utils, WebKwil, Types} from "@trufnetwork/kwil-js";
 import { DateString } from "../types/other";
 import { StreamLocator } from "../types/stream";
 import { EthereumAddress } from "../util/EthereumAddress";
 import { StreamId } from "../util/StreamId";
 import { Action } from "./action";
-import DataType = Utils.DataType;
+
+// Use kwil-js DataType directly
+const DataType = Utils.DataType;
 
 export const ErrorStreamNotComposed = "stream is not a composed stream";
 
@@ -149,7 +149,7 @@ export class ComposedAction extends Action {
    */
   public async setTaxonomy(
     taxonomy: TaxonomySet,
-  ): Promise<GenericResponse<TxReceipt>> {
+  ): Promise<Types.GenericResponse<Types.TxReceipt>> {
     const childDataProviders: string[] = [];
     const childStreamIds: string[] = [];
     const weights: string[] = [];

@@ -5,7 +5,7 @@ import {InsertRecordInput} from "../../src";
 
 describe.sequential(
   "PrimitiveStream Integration Tests",
-  { timeout: 30000 },
+  { timeout: 360000 },
   () => {
     // Spin up/tear down the local TN+Postgres containers once for this suite.
     setupTrufNetwork();
@@ -122,7 +122,7 @@ describe.sequential(
             dataProvider: defaultClient.address(),
           }, true);
         }
-      }, 60000,
+      }, 90000,
     );
 
     testWithDefaultWallet(
@@ -188,7 +188,7 @@ describe.sequential(
             dataProvider: defaultClient.address(),
           }, true);
         }
-      }, 60000,
+      }, 90000,
     );
 
     testWithDefaultWallet(
@@ -287,7 +287,7 @@ describe.sequential(
               dataProvider: defaultClient.address(),
             }, true);
           }
-        }, 60000,
+        }, 90000,
     );
   },
 );

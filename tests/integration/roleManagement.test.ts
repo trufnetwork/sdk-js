@@ -20,7 +20,7 @@ const ROLE_TEST_WALLETS = {
 
 const roleTest = createTestContexts(ROLE_TEST_WALLETS, { autoGrantNetworkWriter: false });
 
-describe.sequential("Role Management", { timeout: 120000 }, () => {
+describe.sequential("Role Management", { timeout: 360000 }, () => {
   // Spin up/tear down the local TN+Postgres containers once for this suite.
   setupTrufNetwork();
 

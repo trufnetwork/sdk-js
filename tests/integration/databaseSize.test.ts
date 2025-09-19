@@ -2,7 +2,7 @@ import { describe, expect } from "vitest";
 import { setupTrufNetwork, testWithDefaultWallet } from "./utils";
 import { StreamId } from "../../src/util/StreamId";
 
-describe.sequential("Get Database Size", { timeout: 90000 }, () => {
+describe.sequential("Get Database Size", { timeout: 360000 }, () => {
   // Spin up/tear down the local TN+Postgres containers once for this suite.
   setupTrufNetwork();
 

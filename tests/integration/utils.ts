@@ -1,8 +1,7 @@
 import { ethers } from "ethers";
 import { NodeTNClient } from "../../src/client/nodeClient";
 import { test } from "vitest";
-import { GenericResponse } from "@trufnetwork/kwil-js/dist/core/resreq";
-import { TxReceipt } from "@trufnetwork/kwil-js/dist/core/tx";
+import { Types } from "@trufnetwork/kwil-js";
 import { MANAGER_PRIVATE_KEY } from "./trufnetwork.setup";
 
 export const TEST_ENDPOINT = process.env.TEST_ENDPOINT || "http://localhost:8484";
@@ -45,6 +44,7 @@ export async function createWalletContext(
       signer: wallet,
     },
     chainId,
+    timeout: 60000,
   });
 
   // Ensure the wallet can deploy streams (requires network_writer role) unless disabled.
@@ -112,9 +112,9 @@ export function createTestContexts<T extends string>(
 }
 
 export async function waitForTxSuccess(
-  tx: GenericResponse<TxReceipt>,
+  tx: Types.GenericResponse<Types.TxReceipt>,
   client: NodeTNClient,
-) {
+): Promise<Types.TxInfoReceipt> {
   if (!tx.data?.tx_hash) {
     throw new Error("Tx hash not found");
   }
@@ -151,6 +151,7 @@ export async function ensureNetworkWriterRole(client: NodeTNClient): Promise<voi
       signer: managerWallet,
     },
     chainId,
+    timeout: 60000,
   });
 
   // Grant the role and wait for confirmation.

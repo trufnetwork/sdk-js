@@ -125,11 +125,24 @@ async function startContainer(spec: ContainerSpec, network: string) {
 }
 
 async function stopContainer(name: string) {
-  // Check if container exists before trying to stop/remove it
-  const { stdout } = await runDockerCommand(["ps", "-aq", "--filter", `name=${name}`]);
-  if (stdout.trim()) {
-    console.info(`Stopping and removing container: ${name}`);
-    await runDockerCommand(["rm", "-f", name], true);
+  try {
+    // Check if container exists before trying to stop/remove it
+    const { stdout } = await runDockerCommand(["ps", "-aq", "--filter", `name=${name}`]);
+    if (stdout.trim()) {
+      console.info(`Stopping and removing container: ${name}`);
+      await runDockerCommand(["rm", "-f", name], true);
+    }
+  } catch (error: any) {
+    // Ignore "already in progress" errors - another test is handling cleanup
+    if (error.message?.includes("removal of container") && error.message?.includes("already in progress")) {
+      console.info(`Container ${name} is already being removed by another process`);
+      return;
+    }
+    // Ignore "no such container" errors - container already gone
+    if (error.message?.includes("No such container")) {
+      return;
+    }
+    throw error;
   }
 }
 
@@ -211,11 +224,19 @@ async function createDockerNetwork() {
 }
 
 async function removeDockerNetwork() {
-  // Check if network exists before trying to remove it
-  const { stdout } = await runDockerCommand(["network", "ls", "--filter", `name=${NETWORK_NAME}`, "--format", "{{.Name}}"]);
-  if (stdout.trim() === NETWORK_NAME) {
-    console.info(`Removing network: ${NETWORK_NAME}`);
-    await runDockerCommand(["network", "rm", NETWORK_NAME], true);
+  try {
+    // Check if network exists before trying to remove it
+    const { stdout } = await runDockerCommand(["network", "ls", "--filter", `name=${NETWORK_NAME}`, "--format", "{{.Name}}"]);
+    if (stdout.trim() === NETWORK_NAME) {
+      console.info(`Removing network: ${NETWORK_NAME}`);
+      await runDockerCommand(["network", "rm", NETWORK_NAME], true);
+    }
+  } catch (error: any) {
+    // Ignore "network not found" errors - already removed
+    if (error.message?.includes("No such network") || error.message?.includes("not found")) {
+      return;
+    }
+    throw error;
   }
 }
 

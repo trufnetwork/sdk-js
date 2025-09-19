@@ -1,8 +1,4 @@
-import {KwilSigner, NodeKwil, WebKwil} from "@trufnetwork/kwil-js";
-import { ActionBody } from '@trufnetwork/kwil-js/dist/core/action';
-import {NamedParams} from "@trufnetwork/kwil-js/dist/core/action";
-import { GenericResponse } from "@trufnetwork/kwil-js/dist/core/resreq";
-import { TxReceipt } from "@trufnetwork/kwil-js/dist/core/tx";
+import {KwilSigner, NodeKwil, WebKwil, Types} from "@trufnetwork/kwil-js";
 import { Either } from "monads-io";
 import { DateString } from "../types/other";
 import { StreamLocator } from "../types/stream";
@@ -20,7 +16,7 @@ import {
   MetadataValueTypeForKey,
   StreamType,
 } from "./contractValues";
-import {ValueType} from "@trufnetwork/kwil-js/dist/utils/types";
+// ValueType is available as Types.ValueType
 
 export interface GetRecordInput {
   stream: StreamLocator;
@@ -96,8 +92,8 @@ export class Action {
    */
   protected async executeWithNamedParams(
     method: string,
-    inputs: NamedParams[],
-  ): Promise<GenericResponse<TxReceipt>> {
+    inputs: Types.NamedParams[],
+  ): Promise<Types.GenericResponse<Types.TxReceipt>> {
     return this.kwilClient.execute({
           namespace: "main",
           name: method,
@@ -112,9 +108,9 @@ export class Action {
      * Executes a method on the stream
      */
     protected async executeWithActionBody(
-        inputs: ActionBody,
+        inputs: Types.ActionBody,
         synchronous: boolean = false,
-    ): Promise<GenericResponse<TxReceipt>> {
+    ): Promise<Types.GenericResponse<Types.TxReceipt>> {
         return this.kwilClient.execute(inputs, this.kwilSigner, synchronous);
     }
 
@@ -123,7 +119,7 @@ export class Action {
    */
   protected async call<T>(
     method: string,
-    inputs: NamedParams,
+    inputs: Types.NamedParams,
   ): Promise<Either<number, T>> {
     const result = await this.kwilClient.call(
       {
@@ -488,7 +484,7 @@ export class Action {
     stream: StreamLocator,
     key: K,
     value: MetadataValueTypeForKey<K>,
-  ): Promise<GenericResponse<TxReceipt>> {
+  ): Promise<Types.GenericResponse<Types.TxReceipt>> {
     return await this.executeWithNamedParams("insert_metadata", [{
         $data_provider: stream.dataProvider.getAddress(),
         $stream_id: stream.streamId.getId(),
@@ -592,7 +588,7 @@ export class Action {
   public async setReadVisibility(
     stream: StreamLocator,
     visibility: VisibilityEnum,
-  ): Promise<GenericResponse<TxReceipt>> {
+  ): Promise<Types.GenericResponse<Types.TxReceipt>> {
     return await this.setMetadata(
         stream,
       MetadataKey.ReadVisibilityKey,
@@ -621,7 +617,7 @@ export class Action {
   public async setComposeVisibility(
     stream: StreamLocator,
     visibility: VisibilityEnum,
-  ): Promise<GenericResponse<TxReceipt>> {
+  ): Promise<Types.GenericResponse<Types.TxReceipt>> {
     return await this.setMetadata(
       stream,
       MetadataKey.ComposeVisibilityKey,
@@ -650,7 +646,7 @@ export class Action {
   public async allowReadWallet(
     stream: StreamLocator,
     wallet: EthereumAddress,
-  ): Promise<GenericResponse<TxReceipt>> {
+  ): Promise<Types.GenericResponse<Types.TxReceipt>> {
     return await this.setMetadata(
       stream,
       MetadataKey.AllowReadWalletKey,
@@ -664,7 +660,7 @@ export class Action {
   public async disableReadWallet(
     stream: StreamLocator,
     wallet: EthereumAddress,
-  ): Promise<GenericResponse<TxReceipt>> {
+  ): Promise<Types.GenericResponse<Types.TxReceipt>> {
     const result = await this.getMetadata(
       stream,
       MetadataKey.AllowReadWalletKey,
@@ -688,7 +684,7 @@ export class Action {
   public async allowComposeStream(
     stream: StreamLocator,
     wallet: StreamLocator,
-  ): Promise<GenericResponse<TxReceipt>> {
+  ): Promise<Types.GenericResponse<Types.TxReceipt>> {
     return await this.setMetadata(
       stream,
       MetadataKey.AllowComposeStreamKey,
@@ -702,7 +698,7 @@ export class Action {
   public async disableComposeStream(
     stream: StreamLocator,
     wallet: StreamLocator,
-  ): Promise<GenericResponse<TxReceipt>> {
+  ): Promise<Types.GenericResponse<Types.TxReceipt>> {
     const result = await this.getMetadata(
       stream,
       MetadataKey.AllowComposeStreamKey,
@@ -723,7 +719,7 @@ export class Action {
   protected async disableMetadata(
     stream: StreamLocator,
     rowId: string,
-  ): Promise<GenericResponse<TxReceipt>> {
+  ): Promise<Types.GenericResponse<Types.TxReceipt>> {
     return await this.executeWithNamedParams("disable_metadata", [{
             $data_provider: stream.dataProvider.getAddress(),
             $stream_id: stream.streamId.getId(),
@@ -921,7 +917,7 @@ export class Action {
    */
   public async customProcedureWithArgs(
     procedure: string,
-    args: Record<string, ValueType | ValueType[]>,
+    args: Record<string, Types.ValueType | Types.ValueType[]>,
   ){
       const result = await this.call<{ event_time: number; value: string }[]>(
           procedure,
@@ -1021,7 +1017,7 @@ export class Action {
   public async bridgeTokens(
     chain: string,
     amount: string
-  ): Promise<GenericResponse<TxReceipt>> {
+  ): Promise<Types.GenericResponse<Types.TxReceipt>> {
     // Validate amount is greater than 0
     const numAmount = parseFloat(amount);
     if (isNaN(numAmount) || numAmount <= 0) {
