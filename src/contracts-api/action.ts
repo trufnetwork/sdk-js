@@ -1016,7 +1016,8 @@ export class Action {
    */
   public async bridgeTokens(
     chain: string,
-    amount: string
+    amount: string,
+    recipient: string
   ): Promise<Types.GenericResponse<Types.TxReceipt>> {
     // Validate amount is greater than 0
     const numAmount = parseFloat(amount);
@@ -1025,7 +1026,8 @@ export class Action {
     }
 
     return await this.executeWithNamedParams(`${chain}_bridge_tokens`, [{
-      $amount: amount,
+      $recipient: recipient,
+      $amount: amount
     }]);
   }
 }

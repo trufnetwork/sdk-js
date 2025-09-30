@@ -265,11 +265,11 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
    * @param amount The amount to withdraw
    * @returns Promise that resolves to the transaction hash, or throws on error
    */
-  async withdraw(chain: string, amount: string): Promise<string> {
+  async withdraw(chain: string, amount: string, recipient: string): Promise<string> {
     const action = this.loadAction();
     
     // Bridge tokens in a single operation
-    const bridgeResult = await action.bridgeTokens(chain, amount);
+    const bridgeResult = await action.bridgeTokens(chain, amount, recipient);
     if (!bridgeResult.data?.tx_hash) {
       throw new Error("Bridge tokens operation failed: no transaction hash returned");
     }
