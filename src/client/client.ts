@@ -286,6 +286,18 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
   }
 
   /**
+   * Lists wallet rewards for a specific wallet address on a blockchain network
+   * @param chain The chain identifier (e.g., "sepolia", "mainnet", "polygon", etc.)
+   * @param wallet The wallet address to list rewards for
+   * @param withPending Whether to include pending rewards
+   * @returns Promise that resolves to an array of rewards data
+   */
+  async listWalletRewards(chain: string, wallet: string, withPending: boolean): Promise<any[]> {
+    const action = this.loadAction();
+    return action.listWalletRewards(chain, wallet, withPending);
+  }
+
+  /**
    * Gets taxonomies for specific streams in batch.
    * High-level wrapper for ComposedAction.getTaxonomiesForStreams()
    * 
