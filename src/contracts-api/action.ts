@@ -1048,8 +1048,8 @@ export class Action {
         namespace: `${chain}_bridge`,
         name: "list_wallet_rewards",
         inputs: {
-          $wallet: wallet,
-          $with_pending: withPending,
+          $param_1: wallet,
+          $param_2: withPending,
         },
       },
       this.kwilSigner,
