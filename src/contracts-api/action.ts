@@ -1030,4 +1030,35 @@ export class Action {
       $amount: amount
     }]);
   }
+
+  /**
+   * Lists wallet rewards on a blockchain network
+   * @param chain The chain identifier (e.g., "sepolia", "mainnet", "polygon", etc.)
+   * @param wallet The wallet address to list rewards for
+   * @param withPending Whether to include pending rewards
+   * @returns Promise that resolves to the rewards data
+   */
+  public async listWalletRewards(
+    chain: string,
+    wallet: string,
+    withPending: boolean
+  ): Promise<any[]> {
+    const result = await this.kwilClient.call(
+      {
+        namespace: `${chain}_bridge`,
+        name: "list_wallet_rewards",
+        inputs: {
+          $param_1: wallet,
+          $param_2: withPending,
+        },
+      },
+      this.kwilSigner,
+    );
+
+    if (result.status !== 200) {
+      throw new Error(`Failed to list wallet rewards: ${result.status}`);
+    }
+
+    return result.data?.result || [];
+  }
 }

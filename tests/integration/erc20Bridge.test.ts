@@ -58,4 +58,25 @@ describe('ERC20 Bridge Tests', () => {
       throw error;
     }
   }, 60000);
+
+  test('get wallet rewards', async () => {
+    try {
+      const rewards = await authorizedClient.listWalletRewards(
+        "sepolia",
+        "0x041AEfDc96655d3Dbf7788767dcEEB635eCD315C",
+        true
+      );
+
+      expect(Array.isArray(rewards)).toBe(true);
+
+      } catch (error: any) {
+        // Skip test if backend is unavailable in test environment
+        if (error.message?.includes("no available backend")) {
+          console.info("Skipping test: blockchain backend unavailable in test environment");
+          return;
+        }
+        throw error;
+      }
+    }, 60000);
+
 });
