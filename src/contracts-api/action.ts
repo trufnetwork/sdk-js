@@ -937,13 +937,23 @@ export class Action {
    * Returns the size of database
    */
   public async getDatabaseSize(): Promise<BigInt> {
-    const result = await this.call<{ database_size: BigInt }[]>("get_database_size", {})
+    const result = await this.call<{ database_size: BigInt }[]>("get_database_size_v2", {})
     return result
       .map((rows) => {
         const raw = rows[0].database_size;
         const asBigInt = BigInt(raw.toString());
         return asBigInt;
       }).throw();
+  }
+
+  /**
+   * Returns the size of database in human-readable format (e.g., "22 GB", "1.5 TB")
+   */
+  public async getDatabaseSizePretty(): Promise<string> {
+    const result = await this.call<{ database_size_pretty: string }[]>("get_database_size_v2_pretty", {})
+    return result
+      .map((rows) => rows[0].database_size_pretty)
+      .throw();
   }
 
   /**

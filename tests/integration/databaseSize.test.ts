@@ -22,4 +22,17 @@ describe.sequential("Get Database Size", { timeout: 360000 }, () => {
       expect(databaseSize).toBeGreaterThan(0n)
     }
   )
+
+  testWithDefaultWallet(
+    "should get database size in human-readable format",
+    async ({ defaultClient }) => {
+      const actions = defaultClient.loadAction()
+      const databaseSizePretty = await actions.getDatabaseSizePretty()
+
+      expect(databaseSizePretty).toBeTruthy()
+      expect(typeof databaseSizePretty).toBe("string")
+      // Should contain a number followed by a unit (e.g., "22 GB", "1.5 MB")
+      expect(databaseSizePretty).toMatch(/\d+.*\s*(bytes|kB|MB|GB|TB)/i)
+    }
+  )
 });
