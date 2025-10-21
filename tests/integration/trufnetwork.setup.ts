@@ -26,16 +26,16 @@ export const MANAGER_PRIVATE_KEY = "0x111111111111111111111111111111111111111111
 
 /**
  * Validates Docker image name to prevent shell injection
- * Allows only safe characters: lowercase letters, digits, dots, slashes, colons, hyphens
+ * Allows only safe characters: letters, digits, dots, underscores, slashes, colons, hyphens, at-signs
  * @param image - Docker image name to validate
  * @throws Error if image name contains unsafe characters
  */
 function validateDockerImage(image: string): void {
-  // Allow only [a-z0-9./:-] characters
-  const safeImageRegex = /^[a-z0-9.\/:-]+$/;
+  // Allow [A-Za-z0-9._@\/:-] characters (supports uppercase, underscores, and digest syntax with @)
+  const safeImageRegex = /^[A-Za-z0-9._@\/:-]+$/;
   if (!safeImageRegex.test(image)) {
     throw new Error(
-      `Invalid Docker image name: "${image}". Only lowercase letters, digits, dots, slashes, colons, and hyphens are allowed.`
+      `Invalid Docker image name: "${image}". Only letters, digits, dots, underscores, slashes, colons, hyphens, and at-signs are allowed.`
     );
   }
 }

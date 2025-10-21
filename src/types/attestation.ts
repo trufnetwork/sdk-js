@@ -457,12 +457,20 @@ if (import.meta.vitest) {
       ).toThrow('offset must be non-negative');
     });
 
-    it('should reject requester > 20 bytes', () => {
+    it('should reject requester != 20 bytes (too long)', () => {
       expect(() =>
         validateListAttestationsInput({
           requester: new Uint8Array(21),
         })
-      ).toThrow('requester must be at most 20 bytes');
+      ).toThrow('requester must be exactly 20 bytes');
+    });
+
+    it('should reject requester != 20 bytes (too short)', () => {
+      expect(() =>
+        validateListAttestationsInput({
+          requester: new Uint8Array(19),
+        })
+      ).toThrow('requester must be exactly 20 bytes');
     });
 
     it('should reject invalid orderBy', () => {
