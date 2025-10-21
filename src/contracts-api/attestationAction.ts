@@ -149,15 +149,21 @@ export class AttestationAction extends Action {
   async getSignedAttestation(
     input: GetSignedAttestationInput
   ): Promise<SignedAttestationResult> {
-    // Validate input
-    if (!input.requestTxId || input.requestTxId.trim() === '') {
+    // Validate and normalize input
+    const trimmed = input.requestTxId?.trim() || '';
+    if (trimmed === '') {
       throw new Error('request_tx_id is required');
     }
+
+    // Strip optional "0x" prefix and lowercase for normalization
+    const normalizedRequestTxId = trimmed.startsWith('0x')
+      ? trimmed.slice(2).toLowerCase()
+      : trimmed.toLowerCase();
 
     // Call get_signed_attestation view action
     const result = await this.call<Array<{ payload: string | Uint8Array }>>(
       'get_signed_attestation',
-      { $request_tx_id: input.requestTxId }
+      { $request_tx_id: normalizedRequestTxId }
     );
 
     // Extract the right value from Either, or throw if Left

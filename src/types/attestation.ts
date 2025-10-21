@@ -243,8 +243,8 @@ export function validateListAttestationsInput(input: ListAttestationsInput): voi
 
   // Validate requester length
   if (input.requester !== undefined) {
-    if (input.requester.length > 20) {
-      throw new Error('requester must be at most 20 bytes');
+    if (input.requester.length !== 20) {
+      throw new Error('requester must be exactly 20 bytes');
     }
   }
 

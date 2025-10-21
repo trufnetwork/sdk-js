@@ -1,10 +1,11 @@
 import { beforeAll, afterAll } from "vitest";
-import { exec as execCb } from "node:child_process";
+import { exec as execCb, execFile as execFileCb } from "node:child_process";
 import { promisify } from "node:util";
 import process from "node:process";
 import { Wallet } from "ethers";
 
 const exec = promisify(execCb);
+const execFile = promisify(execFileCb);
 
 interface ContainerSpec {
   name: string;
@@ -23,6 +24,22 @@ const DB_PRIVATE_KEY = "00000000000000000000000000000000000000000000000000000000
 // Use a distinct manager wallet for role-management tests.
 export const MANAGER_PRIVATE_KEY = "0x1111111111111111111111111111111111111111111111111111111111111111";
 
+/**
+ * Validates Docker image name to prevent shell injection
+ * Allows only safe characters: lowercase letters, digits, dots, slashes, colons, hyphens
+ * @param image - Docker image name to validate
+ * @throws Error if image name contains unsafe characters
+ */
+function validateDockerImage(image: string): void {
+  // Allow only [a-z0-9./:-] characters
+  const safeImageRegex = /^[a-z0-9.\/:-]+$/;
+  if (!safeImageRegex.test(image)) {
+    throw new Error(
+      `Invalid Docker image name: "${image}". Only lowercase letters, digits, dots, slashes, colons, and hyphens are allowed.`
+    );
+  }
+}
+
 const POSTGRES_CONTAINER: ContainerSpec = {
   name: "test-kwil-postgres",
   image: "kwildb/postgres:latest",
@@ -33,6 +50,8 @@ const POSTGRES_CONTAINER: ContainerSpec = {
 
 // Use official image or environment override
 const TN_DB_IMAGE = process.env.TN_DB_IMAGE || "ghcr.io/trufnetwork/node:latest";
+// Validate image name to prevent shell injection
+validateDockerImage(TN_DB_IMAGE);
 
 const TN_DB_CONTAINER: ContainerSpec = {
   name: "test-tn-db",
@@ -67,9 +86,9 @@ const TN_DB_CONTAINER: ContainerSpec = {
 };
 
 async function runDockerCommand(args: string[], check = false) {
-  const command = `docker ${args.join(" ")}`;
+  // Use execFile with argument array to prevent shell injection
   try {
-    const { stdout, stderr } = await exec(command);
+    const { stdout, stderr } = await execFile("docker", args);
     if (stderr) {
       console.debug(stderr);
     }
