@@ -12,6 +12,7 @@ export { Action } from "./contracts-api/action";
 export { PrimitiveAction } from "./contracts-api/primitiveAction";
 export { ComposedAction } from "./contracts-api/composedAction";
 export { RoleManagement } from "./contracts-api/roleManagement";
+export { AttestationAction } from "./contracts-api/attestationAction";
 export { deployStream } from "./contracts-api/deployStream";
 export { deleteStream } from "./contracts-api/deleteStream";
 
@@ -54,6 +55,16 @@ export type {
   AreMembersOfInput,
   WalletMembership
 } from "./types/role";
+
+// Attestation types
+export type {
+  RequestAttestationInput,
+  RequestAttestationResult,
+  GetSignedAttestationInput,
+  SignedAttestationResult,
+  ListAttestationsInput,
+  AttestationMetadata
+} from "./types/attestation";
 
 // Visibility types
 export type { VisibilityEnum } from "./util/visibility";

@@ -88,7 +88,10 @@ export class Action {
   }
 
   /**
-   * Executes a method on the stream
+   * Executes a stream method with named parameters
+   * @param method - The action name to execute
+   * @param inputs - Named parameters for the action
+   * @returns Transaction receipt
    */
   protected async executeWithNamedParams(
     method: string,
@@ -104,15 +107,18 @@ export class Action {
         );
   }
 
-    /**
-     * Executes a method on the stream
-     */
-    protected async executeWithActionBody(
-        inputs: Types.ActionBody,
-        synchronous: boolean = false,
-    ): Promise<Types.GenericResponse<Types.TxReceipt>> {
-        return this.kwilClient.execute(inputs, this.kwilSigner, synchronous);
-    }
+  /**
+   * Executes a stream action with a complete ActionBody
+   * @param inputs - Complete action body with all execution parameters
+   * @param synchronous - Whether to wait for transaction to be mined
+   * @returns Transaction receipt
+   */
+  protected async executeWithActionBody(
+    inputs: Types.ActionBody,
+    synchronous: boolean = false,
+  ): Promise<Types.GenericResponse<Types.TxReceipt>> {
+    return this.kwilClient.execute(inputs, this.kwilSigner, synchronous);
+  }
 
   /**
    * Calls a method on the stream

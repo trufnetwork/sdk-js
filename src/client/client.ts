@@ -11,6 +11,7 @@ import { StreamId } from "../util/StreamId";
 import { listStreams } from "./listStreams";
 import { getLastTransactions } from "./getLastTransactions";
 import { RoleManagement } from "../contracts-api/roleManagement";
+import { AttestationAction } from "../contracts-api/attestationAction";
 import { OwnerIdentifier } from "../types/role";
 
 export interface SignerInfo {
@@ -186,6 +187,17 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
     return RoleManagement.fromClient(
         this.getKwilClient() as WebKwil | NodeKwil,
         this.getKwilSigner(),
+    );
+  }
+
+  /**
+   * Loads the attestation action API, permitting attestation operations.
+   * @returns An instance of AttestationAction.
+   */
+  loadAttestationAction(): AttestationAction {
+    return new AttestationAction(
+      this.getKwilClient() as WebKwil | NodeKwil,
+      this.getKwilSigner(),
     );
   }
 

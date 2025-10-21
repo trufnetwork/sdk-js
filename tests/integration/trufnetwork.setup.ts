@@ -31,9 +31,12 @@ const POSTGRES_CONTAINER: ContainerSpec = {
   ports: { "5432": "5432" },
 };
 
+// Use official image or environment override
+const TN_DB_IMAGE = process.env.TN_DB_IMAGE || "ghcr.io/trufnetwork/node:latest";
+
 const TN_DB_CONTAINER: ContainerSpec = {
   name: "test-tn-db",
-  image: "tn-db:local",
+  image: TN_DB_IMAGE,
   tmpfsPath: "/root/.kwild",
   entrypoint: "/app/kwild",
   args: [
@@ -262,7 +265,7 @@ export function setupTrufNetwork() {
       throw new Error("Postgres failed to become healthy");
     }
 
-    console.info("Starting TN-DB container...");
+    console.info(`Starting TN-DB container with image: ${TN_DB_IMAGE}...`);
     await startContainer(TN_DB_CONTAINER, NETWORK_NAME);
     const tnHealthy = await waitForTnHealth();
     if (!tnHealthy) {
