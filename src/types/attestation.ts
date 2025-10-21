@@ -197,27 +197,25 @@ export function validateAttestationRequest(input: RequestAttestationInput): void
 }
 
 /**
- * Whitelist of valid orderBy values
+ * Whitelist of valid orderBy values (lowercase canonical form)
  */
 const VALID_ORDER_BY_VALUES = [
   'created_height asc',
   'created_height desc',
   'signed_height asc',
   'signed_height desc',
-  'created_height ASC',
-  'created_height DESC',
-  'signed_height ASC',
-  'signed_height DESC',
 ];
 
 /**
- * Validates orderBy parameter
+ * Validates orderBy parameter (case-insensitive)
  *
  * @param orderBy - The orderBy value to validate
  * @returns true if valid, false otherwise
  */
 export function isValidOrderBy(orderBy: string): boolean {
-  return VALID_ORDER_BY_VALUES.includes(orderBy);
+  // Normalize to lowercase for case-insensitive comparison
+  const normalized = orderBy.trim().toLowerCase();
+  return VALID_ORDER_BY_VALUES.includes(normalized);
 }
 
 /**
@@ -407,6 +405,13 @@ if (import.meta.vitest) {
       expect(isValidOrderBy('created_height DESC')).toBe(true);
       expect(isValidOrderBy('signed_height ASC')).toBe(true);
       expect(isValidOrderBy('signed_height DESC')).toBe(true);
+    });
+
+    it('should accept mixed case and trim whitespace', () => {
+      expect(isValidOrderBy('  created_height ASC  ')).toBe(true);
+      expect(isValidOrderBy('Created_Height Desc')).toBe(true);
+      expect(isValidOrderBy('SIGNED_HEIGHT asc')).toBe(true);
+      expect(isValidOrderBy(' signed_height DESC ')).toBe(true);
     });
 
     it('should reject invalid orderBy', () => {
