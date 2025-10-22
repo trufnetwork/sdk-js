@@ -1,10 +1,11 @@
 import { beforeAll, afterAll } from "vitest";
-import { exec as execCb } from "node:child_process";
+import { exec as execCb, execFile as execFileCb } from "node:child_process";
 import { promisify } from "node:util";
 import process from "node:process";
 import { Wallet } from "ethers";
 
 const exec = promisify(execCb);
+const execFile = promisify(execFileCb);
 
 interface ContainerSpec {
   name: string;
@@ -23,6 +24,22 @@ const DB_PRIVATE_KEY = "00000000000000000000000000000000000000000000000000000000
 // Use a distinct manager wallet for role-management tests.
 export const MANAGER_PRIVATE_KEY = "0x1111111111111111111111111111111111111111111111111111111111111111";
 
+/**
+ * Validates Docker image name to prevent shell injection
+ * Allows only safe characters: letters, digits, dots, underscores, slashes, colons, hyphens, at-signs
+ * @param image - Docker image name to validate
+ * @throws Error if image name contains unsafe characters
+ */
+function validateDockerImage(image: string): void {
+  // Allow [A-Za-z0-9._@\/:-] characters (supports uppercase, underscores, and digest syntax with @)
+  const safeImageRegex = /^[A-Za-z0-9._@\/:-]+$/;
+  if (!safeImageRegex.test(image)) {
+    throw new Error(
+      `Invalid Docker image name: "${image}". Only letters, digits, dots, underscores, slashes, colons, hyphens, and at-signs are allowed.`
+    );
+  }
+}
+
 const POSTGRES_CONTAINER: ContainerSpec = {
   name: "test-kwil-postgres",
   image: "kwildb/postgres:latest",
@@ -31,9 +48,14 @@ const POSTGRES_CONTAINER: ContainerSpec = {
   ports: { "5432": "5432" },
 };
 
+// Use official image or environment override
+const TN_DB_IMAGE = process.env.TN_DB_IMAGE || "ghcr.io/trufnetwork/node:latest";
+// Validate image name to prevent shell injection
+validateDockerImage(TN_DB_IMAGE);
+
 const TN_DB_CONTAINER: ContainerSpec = {
   name: "test-tn-db",
-  image: "tn-db:local",
+  image: TN_DB_IMAGE,
   tmpfsPath: "/root/.kwild",
   entrypoint: "/app/kwild",
   args: [
@@ -64,9 +86,9 @@ const TN_DB_CONTAINER: ContainerSpec = {
 };
 
 async function runDockerCommand(args: string[], check = false) {
-  const command = `docker ${args.join(" ")}`;
+  // Use execFile with argument array to prevent shell injection
   try {
-    const { stdout, stderr } = await exec(command);
+    const { stdout, stderr } = await execFile("docker", args);
     if (stderr) {
       console.debug(stderr);
     }
@@ -262,7 +284,7 @@ export function setupTrufNetwork() {
       throw new Error("Postgres failed to become healthy");
     }
 
-    console.info("Starting TN-DB container...");
+    console.info(`Starting TN-DB container with image: ${TN_DB_IMAGE}...`);
     await startContainer(TN_DB_CONTAINER, NETWORK_NAME);
     const tnHealthy = await waitForTnHealth();
     if (!tnHealthy) {

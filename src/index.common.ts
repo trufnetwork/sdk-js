@@ -27,3 +27,14 @@ export { ComposedAction } from "./contracts-api/composedAction";
 export { RoleManagement } from "./contracts-api/roleManagement";
 export type { GrantRoleInput, RevokeRoleInput, AreMembersOfInput, WalletMembership } from "./types/role";
 
+// Attestation exports
+export { AttestationAction } from "./contracts-api/attestationAction";
+export type {
+  RequestAttestationInput,
+  RequestAttestationResult,
+  GetSignedAttestationInput,
+  SignedAttestationResult,
+  ListAttestationsInput,
+  AttestationMetadata
+} from "./types/attestation";
+

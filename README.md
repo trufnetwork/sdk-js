@@ -200,6 +200,97 @@ await streamAction.allowReadWallet(
 - Weights in composed streams must sum to 1.0.
 - Streams can be made public or private, with fine-grained access control.
 
+
+### Data Attestations
+
+Data attestations enable validators to cryptographically sign query results, providing verifiable proofs that can be consumed by smart contracts and external applications.
+
+#### Requesting an Attestation
+
+```typescript
+// Load the attestation action
+const attestationAction = client.loadAttestationAction();
+
+// Request a signed attestation of query results
+const result = await attestationAction.requestAttestation({
+	dataProvider: "0x4710a8d8f0d845da110086812a32de6d90d7ff5c",
+	streamId: "stai0000000000000000000000000000",
+	actionName: "get_record", // Action to attest
+	args: [
+		"0x4710a8d8f0d845da110086812a32de6d90d7ff5c",
+		"stai0000000000000000000000000000",
+		Math.floor(Date.now() / 1000) - 86400, // from: 1 day ago
+		Math.floor(Date.now() / 1000),         // to: now
+		null,  // frozen_at
+		false, // use_cache
+	],
+	encryptSig: false, // Encryption not implemented in MVP
+	maxFee: 1000000,   // Maximum fee willing to pay
+});
+
+console.log(`Request TX ID: ${result.requestTxId}`);
+```
+
+#### Retrieving a Signed Attestation
+
+The leader validator signs attestations asynchronously after a few blocks. Poll to retrieve the signed payload:
+
+```typescript
+// Wait for transaction confirmation
+await client.waitForTx(result.requestTxId);
+
+// Poll for signature (with retry logic)
+let signed = null;
+for (let i = 0; i < 15; i++) {
+	try {
+		signed = await attestationAction.getSignedAttestation({
+			requestTxId: result.requestTxId,
+		});
+		if (signed.payload.length > 65) break; // Got signature
+	} catch (e) {
+		await new Promise(resolve => setTimeout(resolve, 2000));
+	}
+}
+
+console.log(`Signed payload: ${signed.payload.length} bytes`);
+```
+
+#### Listing Attestations
+
+```typescript
+// Get your wallet address as bytes
+const myAddress = client.address().getAddress();
+const myAddressBytes = new Uint8Array(Buffer.from(myAddress.slice(2), "hex"));
+
+// List your recent attestations
+const attestations = await attestationAction.listAttestations({
+	requester: myAddressBytes,
+	limit: 10,
+	orderBy: "created_height desc",
+});
+
+attestations.forEach(att => {
+	console.log(`TX: ${att.requestTxId}, Signed: ${att.signedHeight ? "Yes" : "Pending"}`);
+});
+```
+
+#### Attestation Payload Structure
+
+The signed attestation payload is a binary blob containing:
+1. Version (1 byte)
+2. Algorithm (1 byte, 0 = secp256k1)
+3. Block height (8 bytes)
+4. Data provider (20 bytes, length-prefixed)
+5. Stream ID (32 bytes, length-prefixed)
+6. Action ID (2 bytes)
+7. Arguments (variable, length-prefixed)
+8. Result (variable, length-prefixed)
+9. Signature (65 bytes, secp256k1)
+
+This payload can be passed to EVM smart contracts for on-chain verification using `ecrecover`.
+
+For a complete example, see [examples/attestation](./examples/attestation).
+
 ### Transaction Lifecycle and Best Practices ⚠️
 
 **Critical Understanding**: TN operations return success when transactions enter the mempool, NOT when they're executed on-chain. For operations where order matters, you must wait for transactions to be mined before proceeding.
@@ -335,6 +426,9 @@ For other bundlers or serverless platforms, consult their documentation on modul
 | Get stream data | `streamAction.getRecord({stream, from, to})` |
 | Set stream taxonomy | `composedAction.setTaxonomy({stream, taxonomyItems, startDate})` |
 | Get stream taxonomy | `composedAction.getTaxonomiesForStreams({streams, latestOnly})` |
+| Request attestation | `attestationAction.requestAttestation({dataProvider, streamId, actionName, args, encryptSig, maxFee})` |
+| Get signed attestation | `attestationAction.getSignedAttestation({requestTxId})` |
+| List attestations | `attestationAction.listAttestations({requester, limit, offset, orderBy})` |
 | Destroy stream | `client.destroyStream(streamLocator)` |
 
 **Safe Operation Pattern:**
