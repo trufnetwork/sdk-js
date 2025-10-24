@@ -3,7 +3,6 @@ import { GetLastTransactionsInput } from "../internal";
 import { LastTransaction } from "../types/transaction";
 
 const INDEXER_BASE = "https://indexer.infra.truf.network";
-const RPC_URL      = "https://gateway.mainnet.truf.network/rpc/v1";
 
 export async function getLastTransactions(
     kwilClient: WebKwil | NodeKwil,
@@ -24,64 +23,85 @@ export async function getLastTransactions(
     );
     const rows = (res.data?.result as { created_at: number; method: string }[]) || [];
 
-    // 2) build per-block Promises
-    const tasks = rows.map(({ created_at, method }) => {
+    if (rows.length === 0) {
+        return [];
+    }
+
+    // 2) Parse block heights and validate
+    const blockHeights = rows.map(({ created_at }) => {
         const blockHeight = Number(created_at);
         if (Number.isNaN(blockHeight)) {
-            return Promise.reject(new Error(`Invalid block height returned: ${created_at}`));
+            throw new Error(`Invalid block height returned: ${created_at}`);
         }
-
-        const txUrl = `${INDEXER_BASE}/v0/chain/transactions`
-            + `?from-block=${blockHeight}&to-block=${blockHeight}`
-            + `&order=asc&limit=1`;
-
-        // INDEXER: always return a { sender, hash } object
-        const txPromise = fetch(txUrl).then(async (resp) => {
-            if (!resp.ok) throw new Error(`Indexer fetch failed: ${resp.status}`);
-            const json = (await resp.json()) as {
-                ok: boolean;
-                data: Array<{ hash: string; sender: string }>;
-            };
-            if (!json.ok || json.data.length === 0) {
-                return { sender: "(unknown)", hash: "(unknown)" };
-            }
-            const { hash, sender } = json.data[0];
-            return { sender, hash };
-        });
-
-        // RPC: get stamp_ms
-        const rpcPromise = fetch(RPC_URL, {
-            method:  "POST",
-            headers: { "Content-Type": "application/json" },
-            body:    JSON.stringify({
-                jsonrpc: "2.0",
-                method:  "chain.block",
-                params:  { height: blockHeight },
-                id:      1,
-            }),
-        }).then(async (resp) => {
-            if (!resp.ok) {
-                const txt = await resp.text();
-                throw new Error(`RPC fetch failed: ${resp.status} – ${txt}`);
-            }
-            const rpc = (await resp.json()) as {
-                result: { block: { header: { stamp_ms: number } } };
-            };
-            return rpc.result.block.header.stamp_ms;
-        });
-
-        // wait for both
-        return Promise.all([txPromise, rpcPromise]).then(
-            ([{ sender, hash }, stampMs]) => ({
-                blockHeight,
-                method,
-                sender,
-                transactionHash: hash,
-                stampMs,
-            })
-        );
+        return blockHeight;
     });
 
-    // 3) await all in parallel
-    return Promise.all(tasks);
+    // 3) Make a single range query to indexer for all blocks
+    const minBlock = Math.min(...blockHeights);
+    const maxBlock = Math.max(...blockHeights);
+
+    const txUrl = `${INDEXER_BASE}/v0/chain/transactions`
+        + `?from-block=${minBlock}&to-block=${maxBlock}`
+        + `&order=asc`;
+
+    const resp = await fetch(txUrl);
+    if (!resp.ok) {
+        throw new Error(`Indexer fetch failed: ${resp.status}`);
+    }
+
+    const json = (await resp.json()) as {
+        ok: boolean;
+        data: Array<{
+            block_height: number;
+            hash: string;
+            sender: string;
+            stamp_ms: number | null;
+        }>;
+    };
+
+    if (!json.ok) {
+        throw new Error("Indexer returned ok: false");
+    }
+
+    // 4) Build a map of blockHeight -> first transaction
+    const blockToTx = new Map<number, {
+        hash: string;
+        sender: string;
+        stamp_ms: number | null;
+    }>();
+
+    for (const tx of json.data) {
+        // Only keep the first transaction per block
+        if (!blockToTx.has(tx.block_height)) {
+            blockToTx.set(tx.block_height, {
+                hash: tx.hash,
+                sender: tx.sender,
+                stamp_ms: tx.stamp_ms,
+            });
+        }
+    }
+
+    // 5) Map back to original order with methods from SQL query
+    return rows.map(({ created_at, method }) => {
+        const blockHeight = Number(created_at);
+        const tx = blockToTx.get(blockHeight);
+
+        if (!tx) {
+            return {
+                blockHeight,
+                method,
+                sender: "(unknown)",
+                transactionHash: "(unknown)",
+                stampMs: 0,
+            };
+        }
+
+        return {
+            blockHeight,
+            method,
+            sender: tx.sender,
+            transactionHash: tx.hash,
+            stampMs: tx.stamp_ms ?? 0,
+        };
+    });
 }
