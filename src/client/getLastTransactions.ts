@@ -36,48 +36,72 @@ export async function getLastTransactions(
         return blockHeight;
     });
 
-    // 3) Make a single range query to indexer for all blocks
-    const minBlock = Math.min(...blockHeights);
-    const maxBlock = Math.max(...blockHeights);
-
-    const txUrl = `${INDEXER_BASE}/v0/chain/transactions`
-        + `?from-block=${minBlock}&to-block=${maxBlock}`
-        + `&order=asc`;
-
-    const resp = await fetch(txUrl);
-    if (!resp.ok) {
-        throw new Error(`Indexer fetch failed: ${resp.status}`);
-    }
-
-    const json = (await resp.json()) as {
-        ok: boolean;
-        data: Array<{
-            block_height: number;
-            hash: string;
-            sender: string;
-            stamp_ms: number | null;
-        }>;
-    };
-
-    if (!json.ok) {
-        throw new Error("Indexer returned ok: false");
-    }
-
-    // 4) Build a map of blockHeight -> first transaction
+    // 3) Build a map for storing results
     const blockToTx = new Map<number, {
         hash: string;
         sender: string;
         stamp_ms: number | null;
     }>();
 
-    for (const tx of json.data) {
-        // Only keep the first transaction per block
-        if (!blockToTx.has(tx.block_height)) {
-            blockToTx.set(tx.block_height, {
-                hash: tx.hash,
-                sender: tx.sender,
-                stamp_ms: tx.stamp_ms,
-            });
+    // 4) Fetch all blocks with iterative bulk range queries (up to 3 attempts)
+    let missingBlocks = [...blockHeights]; // All blocks start as missing
+    let attempts = 0;
+    const maxAttempts = 3;
+
+    while (missingBlocks.length > 0 && attempts < maxAttempts) {
+        attempts++;
+        const missingMin = Math.min(...missingBlocks);
+        const missingMax = Math.max(...missingBlocks);
+
+        // Always use bulk range query to minimize API calls
+        const rangeUrl = `${INDEXER_BASE}/v0/chain/transactions?from-block=${missingMin}&to-block=${missingMax}&order=desc`;
+
+        try {
+            const rangeResp = await fetch(rangeUrl);
+
+            if (!rangeResp.ok) {
+                console.warn(`Indexer returned ${rangeResp.status} for range ${missingMin}-${missingMax}`);
+                continue;
+            }
+
+            try {
+                const rangeJson = await rangeResp.json() as {
+                    ok: boolean;
+                    data: Array<{
+                        block_height: number;
+                        hash: string;
+                        sender: string;
+                        stamp_ms: number | null;
+                    }>;
+                };
+
+                if (rangeJson.ok) {
+                    for (const tx of rangeJson.data) {
+                        if (!blockToTx.has(tx.block_height)) {
+                            blockToTx.set(tx.block_height, {
+                                hash: tx.hash,
+                                sender: tx.sender,
+                                stamp_ms: tx.stamp_ms,
+                            });
+                        }
+                    }
+                } else {
+                    console.warn(`Indexer returned ok:false for range ${missingMin}-${missingMax}`);
+                }
+            } catch (parseError) {
+                console.warn(`Failed to parse JSON response for range ${missingMin}-${missingMax}:`, parseError);
+            }
+        } catch (fetchError) {
+            console.warn(`Failed to fetch transactions for range ${missingMin}-${missingMax}:`, fetchError);
+        }
+
+        // Update missing blocks for next iteration
+        const previousMissing = missingBlocks.length;
+        missingBlocks = blockHeights.filter(height => !blockToTx.has(height));
+
+        // If no progress was made, break to avoid infinite loop
+        if (missingBlocks.length === previousMissing) {
+            break;
         }
     }
 
