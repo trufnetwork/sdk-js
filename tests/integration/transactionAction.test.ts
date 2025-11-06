@@ -68,7 +68,7 @@ describe.sequential(
         // Validate the transaction event
         // Note: txEvent.txId has 0x prefix, but txHash might not
         const normalizedTxId = txEvent.txId.toLowerCase();
-        const normalizedTxHash = txHash.startsWith("0x") ? txHash.toLowerCase() : `0x${txHash.toLowerCase()}`;
+        const normalizedTxHash = txHash!.startsWith("0x") ? txHash!.toLowerCase() : `0x${txHash!.toLowerCase()}`;
         expect(normalizedTxId).toBe(normalizedTxHash);
         expect(txEvent.method).toBe("deployStream");
         expect(txEvent.caller.toLowerCase()).toBe(defaultClient.address().getAddress().toLowerCase());
@@ -122,7 +122,7 @@ describe.sequential(
         // Validate the transaction event
         // Note: txEvent.txId has 0x prefix, but txHash might not
         const normalizedTxId = txEvent.txId.toLowerCase();
-        const normalizedTxHash = txHash.startsWith("0x") ? txHash.toLowerCase() : `0x${txHash.toLowerCase()}`;
+        const normalizedTxHash = txHash!.startsWith("0x") ? txHash!.toLowerCase() : `0x${txHash!.toLowerCase()}`;
         expect(normalizedTxId).toBe(normalizedTxHash);
         expect(txEvent.method).toBe("insertRecords");
         expect(txEvent.caller.toLowerCase()).toBe(defaultClient.address().getAddress().toLowerCase());

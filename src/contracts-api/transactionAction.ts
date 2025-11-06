@@ -2,6 +2,20 @@ import { KwilSigner, NodeKwil, WebKwil, Types } from "@trufnetwork/kwil-js";
 import { TransactionEvent, FeeDistribution, GetTransactionEventInput } from "../types/transaction";
 
 /**
+ * Database row structure returned from get_transaction_event action
+ */
+interface TransactionEventRow {
+  tx_id: string;
+  block_height: string | number;
+  method: string;
+  caller: string;
+  fee_amount: string | number;
+  fee_recipient?: string | null;
+  metadata?: string | null;
+  fee_distributions: string;
+}
+
+/**
  * TransactionAction provides methods for querying transaction ledger data
  */
 export class TransactionAction {
@@ -53,7 +67,7 @@ export class TransactionAction {
       throw new Error(`Transaction not found: ${input.txId}`);
     }
 
-    const row = result.data.result[0] as any;
+    const row = result.data.result[0] as TransactionEventRow;
 
     // Validate required fields
     if (!row.method || typeof row.method !== 'string' || row.method.trim() === '') {
@@ -113,7 +127,9 @@ export class TransactionAction {
     }
 
     // Validate block height
-    const blockHeight = parseInt(row.block_height, 10);
+    const blockHeight = typeof row.block_height === 'number'
+      ? row.block_height
+      : parseInt(row.block_height, 10);
     if (!Number.isFinite(blockHeight) || blockHeight < 0) {
       throw new Error(`Invalid block height: ${row.block_height} (tx: ${row.tx_id})`);
     }
