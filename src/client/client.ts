@@ -12,6 +12,7 @@ import { listStreams } from "./listStreams";
 import { getLastTransactions } from "./getLastTransactions";
 import { RoleManagement } from "../contracts-api/roleManagement";
 import { AttestationAction } from "../contracts-api/attestationAction";
+import { TransactionAction } from "../contracts-api/transactionAction";
 import { OwnerIdentifier } from "../types/role";
 
 export interface SignerInfo {
@@ -196,6 +197,17 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
    */
   loadAttestationAction(): AttestationAction {
     return new AttestationAction(
+      this.getKwilClient() as WebKwil | NodeKwil,
+      this.getKwilSigner(),
+    );
+  }
+
+  /**
+   * Loads the transaction action API, permitting transaction ledger queries.
+   * @returns An instance of TransactionAction.
+   */
+  loadTransactionAction(): TransactionAction {
+    return new TransactionAction(
       this.getKwilClient() as WebKwil | NodeKwil,
       this.getKwilSigner(),
     );
