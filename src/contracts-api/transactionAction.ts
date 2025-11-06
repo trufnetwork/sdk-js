@@ -55,6 +55,29 @@ export class TransactionAction {
 
     const row = result.data.result[0] as any;
 
+    // Validate required fields
+    if (!row.method || typeof row.method !== 'string' || row.method.trim() === '') {
+      throw new Error(`Missing or invalid method field (tx: ${row.tx_id})`);
+    }
+
+    if (!row.caller || typeof row.caller !== 'string' || row.caller.trim() === '') {
+      throw new Error(`Missing or invalid caller field (tx: ${row.tx_id})`);
+    }
+
+    if (row.fee_amount === null || row.fee_amount === undefined) {
+      throw new Error(`Missing fee_amount field (tx: ${row.tx_id})`);
+    }
+
+    // Validate fee_amount is numeric (can be string or number)
+    const feeAmount = typeof row.fee_amount === 'string' ? row.fee_amount : String(row.fee_amount);
+    const feeAmountNum = Number(feeAmount);
+    if (isNaN(feeAmountNum) || !Number.isFinite(feeAmountNum)) {
+      throw new Error(`Invalid fee_amount (not numeric): ${row.fee_amount} (tx: ${row.tx_id})`);
+    }
+    if (feeAmountNum < 0) {
+      throw new Error(`Invalid fee_amount (negative): ${row.fee_amount} (tx: ${row.tx_id})`);
+    }
+
     // Parse fee_distributions string: "recipient1:amount1,recipient2:amount2"
     const feeDistributions: FeeDistribution[] = [];
     if (row.fee_distributions && row.fee_distributions !== "") {
@@ -75,9 +98,13 @@ export class TransactionAction {
             throw new Error(`Invalid fee distribution entry (empty recipient or amount): ${trimmedPart} (tx: ${row.tx_id})`);
           }
 
-          // Validate amount is numeric
-          if (isNaN(Number(amount)) || !Number.isFinite(Number(amount))) {
+          // Validate amount is numeric and non-negative
+          const amt = Number(amount);
+          if (isNaN(amt) || !Number.isFinite(amt)) {
             throw new Error(`Invalid fee distribution amount (not numeric): ${amount} (tx: ${row.tx_id})`);
+          }
+          if (amt < 0) {
+            throw new Error(`Invalid fee distribution amount (negative): ${amount} (tx: ${row.tx_id})`);
           }
 
           feeDistributions.push({ recipient, amount });
@@ -96,7 +123,7 @@ export class TransactionAction {
       blockHeight,
       method: row.method,
       caller: row.caller,
-      feeAmount: row.fee_amount,
+      feeAmount,
       feeRecipient: row.fee_recipient || undefined,
       metadata: row.metadata || undefined,
       feeDistributions,
