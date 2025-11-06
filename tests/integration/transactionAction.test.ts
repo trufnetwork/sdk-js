@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { setupTrufNetwork, testWithDefaultWallet, waitForTxSuccess } from "./utils";
+import { setupTrufNetwork, testWithDefaultWallet, waitForTxSuccess, normalizeTransactionId } from "./utils";
 import { StreamId } from "../../src/util/StreamId";
 import { StreamType } from "../../src/contracts-api/contractValues";
 import { ethers } from "ethers";
@@ -66,10 +66,7 @@ describe.sequential(
         const txEvent = await txAction.getTransactionEvent({ txId: txHash! });
 
         // Validate the transaction event
-        // Note: txEvent.txId has 0x prefix, but txHash might not
-        const normalizedTxId = txEvent.txId.toLowerCase();
-        const normalizedTxHash = txHash!.startsWith("0x") ? txHash!.toLowerCase() : `0x${txHash!.toLowerCase()}`;
-        expect(normalizedTxId).toBe(normalizedTxHash);
+        expect(txEvent.txId).toBe(normalizeTransactionId(txHash!));
         expect(txEvent.method).toBe("deployStream");
         expect(txEvent.caller.toLowerCase()).toBe(defaultClient.address().getAddress().toLowerCase());
         expect(txEvent.blockHeight).toBeGreaterThan(0);
@@ -120,10 +117,7 @@ describe.sequential(
         const txEvent = await txAction.getTransactionEvent({ txId: txHash! });
 
         // Validate the transaction event
-        // Note: txEvent.txId has 0x prefix, but txHash might not
-        const normalizedTxId = txEvent.txId.toLowerCase();
-        const normalizedTxHash = txHash!.startsWith("0x") ? txHash!.toLowerCase() : `0x${txHash!.toLowerCase()}`;
-        expect(normalizedTxId).toBe(normalizedTxHash);
+        expect(txEvent.txId).toBe(normalizeTransactionId(txHash!));
         expect(txEvent.method).toBe("insertRecords");
         expect(txEvent.caller.toLowerCase()).toBe(defaultClient.address().getAddress().toLowerCase());
         expect(txEvent.blockHeight).toBeGreaterThan(0);
@@ -158,10 +152,8 @@ describe.sequential(
         // Query with hash without prefix
         const txEvent = await txAction.getTransactionEvent({ txId: txHashWithoutPrefix });
 
-        // Note: txEvent.txId will have 0x prefix
-        const normalizedTxId = txEvent.txId.toLowerCase();
-        const normalizedTxHash = txHash.startsWith("0x") ? txHash.toLowerCase() : `0x${txHash.toLowerCase()}`;
-        expect(normalizedTxId).toBe(normalizedTxHash);
+        // Validate that txEvent.txId is normalized with 0x prefix
+        expect(txEvent.txId).toBe(normalizeTransactionId(txHash));
         expect(txEvent.method).toBe("deployStream");
 
         console.log(`✅ Successfully queried transaction with hash without 0x prefix`);

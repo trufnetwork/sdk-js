@@ -164,5 +164,14 @@ export async function ensureNetworkWriterRole(client: NodeTNClient): Promise<voi
   await managerClient.waitForTx(txHash);
 }
 
+/**
+ * Normalizes a transaction ID to lowercase with 0x prefix
+ * @param txId Transaction ID with or without 0x prefix
+ * @returns Normalized transaction ID (lowercase with 0x prefix)
+ */
+export function normalizeTransactionId(txId: string): string {
+  return txId.startsWith("0x") ? txId.toLowerCase() : `0x${txId.toLowerCase()}`;
+}
+
 // Re-export the TrufNetwork setup helper so tests can opt-in as needed.
 export { setupTrufNetwork } from "./trufnetwork.setup";
