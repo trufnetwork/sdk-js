@@ -6,7 +6,7 @@
  * consumed by smart contracts and external applications.
  */
 
-import { Types } from '@trufnetwork/kwil-js';
+import { Types, Utils } from '@trufnetwork/kwil-js';
 import { Action } from './action';
 import {
   RequestAttestationInput,
@@ -92,17 +92,23 @@ export class AttestationAction extends Action {
     const argsBytes = encodeActionArgs(input.args);
 
     // Prepare named parameters for request_attestation action
+    // Note: maxFee must be a string with NUMERIC type to encode as NUMERIC(788,0) for wei amounts
     const params: Types.NamedParams[] = [{
       $data_provider: input.dataProvider,
       $stream_id: input.streamId,
       $action_name: input.actionName,
       $args_bytes: argsBytes,
       $encrypt_sig: input.encryptSig,
-      $max_fee: input.maxFee,
+      $max_fee: input.maxFee.toString(),
     }];
 
+    // Specify types - maxFee needs NUMERIC(78,0) for large wei amounts
+    const types = {
+      $max_fee: Utils.DataType.Numeric(78, 0),
+    };
+
     // Execute request_attestation action
-    const result = await this.executeWithNamedParams('request_attestation', params);
+    const result = await this.executeWithNamedParams('request_attestation', params, types);
 
     // Check for errors
     if (!result.data?.tx_hash) {
@@ -244,8 +250,9 @@ export class AttestationAction extends Action {
     const offset = input.offset ?? 0;
 
     // Prepare parameters for list_attestations view action
+    // Note: Empty Uint8Array represents BYTEA NULL (handled by kwil-js 0.9.10+)
     const params: Types.NamedParams = {
-      $requester: input.requester ?? null,
+      $requester: input.requester ? Buffer.from(input.requester).toString('base64') : new Uint8Array(0),
       $limit: limit,
       $offset: offset,
       $order_by: input.orderBy ?? null,
@@ -262,7 +269,9 @@ export class AttestationAction extends Action {
     }
 
     // Extract the right value from Either
-    const rows = result.value as unknown as any[];
+    // Note: result.value might be a getter function, so call it if needed
+    const rightValue = typeof result.value === 'function' ? result.value() : result.value;
+    const rows = Array.isArray(rightValue) ? rightValue : [];
 
     // If no rows, return empty array
     if (!rows || rows.length === 0) {
