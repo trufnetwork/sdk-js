@@ -6,7 +6,7 @@
  * consumed by smart contracts and external applications.
  */
 
-import { Types } from '@trufnetwork/kwil-js';
+import { Types, Utils } from '@trufnetwork/kwil-js';
 import { Action } from './action';
 import {
   RequestAttestationInput,
@@ -92,17 +92,34 @@ export class AttestationAction extends Action {
     const argsBytes = encodeActionArgs(input.args);
 
     // Prepare named parameters for request_attestation action
-    const params: Types.NamedParams[] = [{
-      $data_provider: input.dataProvider,
-      $stream_id: input.streamId,
-      $action_name: input.actionName,
-      $args_bytes: argsBytes,
-      $encrypt_sig: input.encryptSig,
-      $max_fee: input.maxFee,
-    }];
+    // Note: maxFee must be passed as string for NUMERIC(78,0) type
+    // Convert to string to ensure proper encoding
+    const maxFeeValue = typeof input.maxFee === 'bigint'
+      ? input.maxFee.toString()
+      : typeof input.maxFee === 'string'
+        ? input.maxFee
+        : input.maxFee.toString();
 
-    // Execute request_attestation action
-    const result = await this.executeWithNamedParams('request_attestation', params);
+    // Use executeWithActionBody to pass type information for NUMERIC(78, 0)
+    const actionBody: Types.ActionBody = {
+      namespace: "main",
+      name: "request_attestation",
+      inputs: [{
+        $data_provider: input.dataProvider,
+        $stream_id: input.streamId,
+        $action_name: input.actionName,
+        $args_bytes: argsBytes,
+        $encrypt_sig: input.encryptSig,
+        $max_fee: maxFeeValue,
+      }],
+      types: {
+        $max_fee: Utils.DataType.Numeric(78, 0),
+      },
+      description: `TN SDK - Requesting attestation`,
+    };
+
+    // Execute request_attestation action with type information
+    const result = await this.executeWithActionBody(actionBody);
 
     // Check for errors
     if (!result.data?.tx_hash) {

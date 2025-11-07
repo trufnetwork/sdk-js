@@ -43,8 +43,9 @@ export interface RequestAttestationInput {
   /**
    * Maximum fee willing to pay (in smallest token unit)
    * Transaction will abort if actual fee exceeds this
+   * Accepts number, string, or bigint for large values
    */
-  maxFee: number;
+  maxFee: number | string | bigint;
 }
 
 /**
@@ -191,7 +192,13 @@ export function validateAttestationRequest(input: RequestAttestationInput): void
   }
 
   // Fee validation
-  if (input.maxFee < 0) {
+  const maxFeeNum = typeof input.maxFee === 'bigint'
+    ? input.maxFee
+    : typeof input.maxFee === 'string'
+      ? BigInt(input.maxFee)
+      : BigInt(input.maxFee);
+
+  if (maxFeeNum < 0n) {
     throw new Error(`max_fee must be non-negative, got ${input.maxFee}`);
   }
 }
