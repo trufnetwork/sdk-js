@@ -44,6 +44,7 @@ export interface RequestAttestationInput {
    * Maximum fee willing to pay (in wei, as NUMERIC(78,0))
    * Accepts number, string, or bigint for large values (up to 40 TRUF = 40e18 wei)
    * Transaction will abort if actual fee exceeds this
+   * Accepts number, string, or bigint for large values
    */
   maxFee: number | string | bigint;
 }
