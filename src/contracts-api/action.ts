@@ -91,16 +91,19 @@ export class Action {
    * Executes a stream method with named parameters
    * @param method - The action name to execute
    * @param inputs - Named parameters for the action
+   * @param types - Optional type specifications for parameters (e.g., NUMERIC)
    * @returns Transaction receipt
    */
   protected async executeWithNamedParams(
     method: string,
     inputs: Types.NamedParams[],
+    types?: Record<string, any>,
   ): Promise<Types.GenericResponse<Types.TxReceipt>> {
     return this.kwilClient.execute({
           namespace: "main",
           name: method,
           inputs,
+          types,
           description: `TN SDK - Executing method on stream: ${method}`,
         },
         this.kwilSigner,

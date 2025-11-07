@@ -35,34 +35,29 @@ Attestations enable validators to cryptographically sign query results, providin
    export CHAIN_ID="tn-v2.1"  # Optional
    ```
 
+   **Note**: If `PRIVATE_KEY` is not set, the example will use a default test private key (`0x000...001`). This is useful for testing but the wallet may not have sufficient balance on mainnet.
+
 ## Running the Example
 
-### Option 1: Direct Execution
+### Quick Start (No Configuration)
 
 ```bash
-npm run build
-node dist/esm/examples/attestation/index.mjs
+# Run with default test key
+npm run example:attestation
 ```
 
-### Option 2: Using ts-node
+Or directly:
+```bash
+npx tsx examples/attestation/index.ts
+```
+
+### With Your Own Wallet
 
 ```bash
-npx ts-node examples/attestation/index.ts
-```
+# Set your private key
+export PRIVATE_KEY="0x..."
 
-### Option 3: Add to package.json scripts
-
-Add to `package.json`:
-```json
-{
-  "scripts": {
-    "example:attestation": "ts-node examples/attestation/index.ts"
-  }
-}
-```
-
-Then run:
-```bash
+# Run the example
 npm run example:attestation
 ```
 
@@ -208,11 +203,10 @@ If the signature polling times out, you can:
 2. Check if the node is functioning correctly
 3. Manually poll later using `getSignedAttestation()`
 
-### Insufficient Balance
-Ensure your wallet has enough TRUF tokens:
-```bash
-# Check balance using kwil-cli or similar tool
-```
+### Insufficient Balance or Fee Error
+Ensure your wallet has enough TRUF tokens for the attestation fee (40 TRUF).
+
+**Note**: Set an appropriate `maxFee` value based on expected transaction costs.
 
 ### Invalid Private Key
 Ensure your private key is correctly formatted:
