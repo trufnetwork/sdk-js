@@ -41,10 +41,11 @@ export interface RequestAttestationInput {
   encryptSig: boolean;
 
   /**
-   * Maximum fee willing to pay (in smallest token unit)
+   * Maximum fee willing to pay (in wei, as NUMERIC(78,0))
+   * Accepts number, string, or bigint for large values (up to 40 TRUF = 40e18 wei)
    * Transaction will abort if actual fee exceeds this
    */
-  maxFee: number;
+  maxFee: number | string | bigint;
 }
 
 /**
@@ -190,8 +191,14 @@ export function validateAttestationRequest(input: RequestAttestationInput): void
     throw new Error('encryption not implemented in MVP');
   }
 
-  // Fee validation
-  if (input.maxFee < 0) {
+  // Fee validation - handle number, string, or bigint
+  const maxFeeNum = typeof input.maxFee === 'bigint'
+    ? input.maxFee
+    : typeof input.maxFee === 'string'
+    ? BigInt(input.maxFee)
+    : BigInt(Math.floor(input.maxFee));
+
+  if (maxFeeNum < 0n) {
     throw new Error(`max_fee must be non-negative, got ${input.maxFee}`);
   }
 }

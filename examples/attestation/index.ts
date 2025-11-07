@@ -19,9 +19,12 @@ async function main() {
   // ===== 1. Setup Client =====
   console.log("Setting up TN client...\n");
 
-  const privateKey = process.env.PRIVATE_KEY;
-  if (!privateKey) {
-    throw new Error("PRIVATE_KEY environment variable is required");
+  // Use default test private key if PRIVATE_KEY not set
+  const privateKey = process.env.PRIVATE_KEY || "0x0000000000000000000000000000000000000000000000000000000000000001";
+
+  if (!process.env.PRIVATE_KEY) {
+    console.log("⚠️  WARNING: Using default test private key (address: 0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf)");
+    console.log("   Set PRIVATE_KEY environment variable to use your own wallet\n");
   }
 
   const wallet = new Wallet(privateKey);
@@ -67,7 +70,7 @@ async function main() {
       false, // use_cache (will be forced to false for determinism)
     ],
     encryptSig: false, // Encryption not implemented in MVP
-    maxFee: 1000000, // Maximum fee willing to pay
+    maxFee: "40000000000000000000", // Maximum fee in wei (1 TRUF = 1e18 wei)
   });
 
   console.log(`✅ Attestation requested!`);
