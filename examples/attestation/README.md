@@ -17,14 +17,14 @@ Attestations enable validators to cryptographically sign query results, providin
 ## Prerequisites
 
 - Node.js >= 18
-- A wallet with TRUF tokens for transaction fees
-- Private key with access to TRUF.NETWORK
+- (Optional) A wallet with TRUF tokens if you want to request new attestations
+- (Optional) Private key - defaults to test key if not provided
 
 ## Setup
 
 1. **Install Dependencies**:
    ```bash
-   cd /home/micbun/trufnetwork/sdk-js
+   # From the sdk-js root directory
    npm install
    ```
 
@@ -42,24 +42,29 @@ Attestations enable validators to cryptographically sign query results, providin
 ### Quick Start (No Configuration)
 
 ```bash
-# Run with default test key
-npm run example:attestation
-```
+# From the sdk-js root directory, navigate to the example
+cd examples/attestation
 
-Or directly:
-```bash
-npx tsx examples/attestation/index.ts
+# Run with default test key
+npm start
 ```
 
 ### With Your Own Wallet
 
+If you want to use your own private key instead of the test key:
+
 ```bash
-# Set your private key
-export PRIVATE_KEY="0x..."
+# From the sdk-js root directory, navigate to the example
+cd examples/attestation
+
+# Set your private key (replace with your actual private key)
+export PRIVATE_KEY="0x1234567890abcdef..."
 
 # Run the example
-npm run example:attestation
+npm start
 ```
+
+**Note**: Replace `0x1234567890abcdef...` with your actual 64-character hexadecimal private key.
 
 ## Expected Output
 
@@ -72,10 +77,44 @@ Wallet address: 0x...
 ===== Requesting Attestation =====
 Data Provider: 0x4710a8d8f0d845da110086812a32de6d90d7ff5c
 Stream ID: stai0000000000000000000000000000
-Time Range: 2025-10-14T... to 2025-10-21T...
+Time Range: ...
+
+===== Listing Recent Attestations =====
+
+Found ... attestations for 0x...:
+
+[1] Request TX: ...
+    Created at block: ...
+    Signed at block: ...
+    Attestation hash: ...
+    Encrypted: No
+
+...
+
+===== Retrieving Signed Attestation Payload =====
+Found ... signed attestation(s), retrieving the first one...
+
+✅ Retrieved signed attestation for TX: ...
+   Payload size: ... bytes
+   First 64 bytes (hex): ...
+   Last 65 bytes (signature): ...
+   Full payload (hex): ...
+
+===== Extracting Validator Information =====
+✅ Validator Address: 0x...
+   This is the address you should use in your EVM smart contract's verify() function
+
+   💡 How to use this payload:
+   1. Send this hex payload to your EVM smart contract
+   2. The contract can verify the signature using ecrecover
+   3. Parse the payload to extract the attested query results
+   4. Use the verified data in your on-chain logic
+
+===== Attempting to Request New Attestation =====
+⚠️  NOTE: This requires at least 40 TRUF balance for attestation fee
 
 ✅ Attestation requested!
-Request TX ID: 0x...
+Request TX ID: ...
 
 Waiting for transaction confirmation...
 ✅ Transaction confirmed!
@@ -83,42 +122,15 @@ Waiting for transaction confirmation...
 ===== Waiting for Validator Signature =====
 The leader validator will sign the attestation asynchronously (typically 1-2 blocks)...
 
-✅ Signed attestation received after 3 attempts!
+✅ Signed attestation received after ... attempts!
 
-Payload size: 450 bytes
-First 64 bytes (hex): 010000...
-Last 65 bytes (signature): a7b3c2...
-
-===== Listing Recent Attestations =====
-
-Found 5 attestations for 0x...:
-
-[1] Request TX: 0x...
-    Created at block: 12345
-    Signed at block: 12347
-    Attestation hash: abc123...
-    Encrypted: No
-
-...
+Payload size: ... bytes
+First 64 bytes (hex): ...
+Last 65 bytes (signature): ...
+Full payload (hex): ...
 
 ===== Summary =====
 ✅ Successfully requested and retrieved a signed attestation!
-
-Next steps:
-- Use the payload in EVM smart contracts for verification
-- Implement signature verification using ecrecover
-- Parse the canonical payload to extract query results
-
-The signed attestation payload contains:
-1. Version (1 byte)
-2. Algorithm (1 byte, 0 = secp256k1)
-3. Block height (8 bytes)
-4. Data provider (20 bytes, length-prefixed)
-5. Stream ID (32 bytes, length-prefixed)
-6. Action ID (2 bytes)
-7. Arguments (variable, length-prefixed)
-8. Result (variable, length-prefixed)
-9. Signature (65 bytes, secp256k1)
 
 ✨ Example completed successfully!
 ```
@@ -167,26 +179,26 @@ function verifyAttestation(bytes memory payload, address expectedValidator) publ
 The signature can be verified using `ecrecover`:
 
 ```typescript
-import { ethers } from "ethers";
+import { sha256, recoverAddress } from "ethers";
 
 // Extract signature from payload (last 65 bytes)
-const signature = payload.slice(-65);
-const r = signature.slice(0, 32);
-const s = signature.slice(32, 64);
+const payload = signedPayload.payload;
+const signatureOffset = payload.length - 65;
+const canonicalPayload = payload.slice(0, signatureOffset);
+const signature = payload.slice(signatureOffset);
+
+// Hash the canonical payload with SHA256
+const digest = sha256(canonicalPayload);
+
+// Recover validator address from signature
+// The signature format is [R || S || V] where V is {27,28}
+const r = "0x" + Buffer.from(signature.slice(0, 32)).toString("hex");
+const s = "0x" + Buffer.from(signature.slice(32, 64)).toString("hex");
 const v = signature[64];
 
-// Reconstruct message hash (SHA256 of canonical payload without signature)
-const canonical = payload.slice(0, -65);
-const messageHash = ethers.utils.sha256(canonical);
+const validatorAddress = recoverAddress(digest, { r, s, v });
 
-// Recover signer
-const recoveredAddress = ethers.utils.recoverAddress(messageHash, {
-    r: ethers.utils.hexlify(r),
-    s: ethers.utils.hexlify(s),
-    v: v
-});
-
-console.log(`Signer: ${recoveredAddress}`);
+console.log(`Validator Address: ${validatorAddress}`);
 ```
 
 ## Troubleshooting
@@ -220,12 +232,12 @@ Ensure your private key is correctly formatted:
 
 ```typescript
 interface RequestAttestationInput {
-  dataProvider: string;  // 0x-prefixed address (42 chars)
-  streamId: string;      // 32 characters
-  actionName: string;    // Action to attest
-  args: any[];          // Action arguments
-  encryptSig: boolean;  // Must be false (MVP)
-  maxFee: number;       // Maximum fee willing to pay
+  dataProvider: string;         // 0x-prefixed address (42 chars)
+  streamId: string;            // 32 characters
+  actionName: string;          // Action to attest
+  args: any[];                // Action arguments
+  encryptSig: boolean;        // Must be false (MVP)
+  maxFee: number | string | bigint;  // Maximum fee willing to pay (in wei)
 }
 ```
 
@@ -251,8 +263,8 @@ interface ListAttestationsInput {
 ## Related Documentation
 
 - [SDK-JS Documentation](../../README.md)
-- [Attestation Implementation Plan](../../../DataAttestation/SDK_JS_Attestation_Implementation_Plan.md)
 - [TRUF.NETWORK Documentation](https://docs.truf.network)
+- [EVM Attestation Contracts](https://github.com/trufnetwork/evm-contracts/tree/main/contracts/attestation)
 
 ## Support
 

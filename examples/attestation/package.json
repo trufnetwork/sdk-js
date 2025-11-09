@@ -1,0 +1,11 @@
+{
+  "name": "attestation",
+  "version": "1.0.0",
+  "description": "This example demonstrates how to request, wait for, and retrieve signed data attestations from TRUF.NETWORK.",
+  "main": "index.js",
+  "scripts": {
+    "start": "tsx index.ts"
+  },
+  "author": "",
+  "license": "ISC"
+}
