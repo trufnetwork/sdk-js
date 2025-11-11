@@ -291,6 +291,28 @@ This payload can be passed to EVM smart contracts for on-chain verification usin
 
 For a complete example, see [examples/attestation](./examples/attestation).
 
+### Transaction Ledger Queries
+
+Query transaction history, fees, and distributions for auditing and analytics.
+
+```typescript
+// Get transaction details
+const transactionAction = client.loadTransactionAction();
+const txEvent = await transactionAction.getTransactionEvent({
+  txId: '0xabcdef...'
+});
+console.log(`Method: ${txEvent.method}, Fee: ${txEvent.feeAmount} wei`);
+
+// List fees paid by wallet
+const entries = await transactionAction.listTransactionFees({
+  wallet: address,
+  mode: 'paid',  // 'paid', 'received', or 'both'
+  limit: 10
+});
+```
+
+**📖 For complete documentation including parameters, return types, pagination, filtering modes, and real-world examples, see the [Transaction Ledger Queries](./docs/api-reference.md#transaction-ledger-queries) section in the API Reference.**
+
 ### Transaction Lifecycle and Best Practices ⚠️
 
 **Critical Understanding**: TN operations return success when transactions enter the mempool, NOT when they're executed on-chain. For operations where order matters, you must wait for transactions to be mined before proceeding.
@@ -429,6 +451,8 @@ For other bundlers or serverless platforms, consult their documentation on modul
 | Request attestation | `attestationAction.requestAttestation({dataProvider, streamId, actionName, args, encryptSig, maxFee})` |
 | Get signed attestation | `attestationAction.getSignedAttestation({requestTxId})` |
 | List attestations | `attestationAction.listAttestations({requester, limit, offset, orderBy})` |
+| Get transaction event | `transactionAction.getTransactionEvent({txId})` |
+| List transaction fees | `transactionAction.listTransactionFees({wallet, mode, limit, offset})` |
 | Destroy stream | `client.destroyStream(streamLocator)` |
 
 **Safe Operation Pattern:**

@@ -494,6 +494,199 @@ await streamAction.allowReadWallet(
 );
 ```
 
+## Transaction Ledger Queries
+
+Query transaction history, fees, and distributions for auditing and analytics.
+
+### `transactionAction.getTransactionEvent(input: GetTransactionEventInput): Promise<TransactionEvent>`
+
+Retrieves detailed information about a specific transaction by its hash.
+
+#### Parameters
+- `input: Object`
+  - `txId: string` - Transaction hash (with or without `0x` prefix)
+
+#### Returns
+- `Promise<TransactionEvent>` - Complete transaction details including:
+  - `txId: string` - Transaction hash (0x-prefixed)
+  - `blockHeight: number` - Block number where transaction was included
+  - `method: string` - Method name (e.g., "deployStream", "insertRecords")
+  - `caller: string` - Ethereum address of the caller (lowercase, 0x-prefixed)
+  - `feeAmount: string` - Total fee amount as string (handles large numbers)
+  - `feeRecipient?: string` - Primary fee recipient address (optional)
+  - `metadata?: string` - Optional metadata JSON (optional)
+  - `feeDistributions: FeeDistribution[]` - Array of fee distributions
+
+#### FeeDistribution Type
+```typescript
+interface FeeDistribution {
+  recipient: string;  // Recipient Ethereum address
+  amount: string;     // Amount as string (handles large numbers)
+}
+```
+
+#### Example
+```typescript
+const transactionAction = client.loadTransactionAction();
+
+const txEvent = await transactionAction.getTransactionEvent({
+  txId: '0xabcdef123456...'
+});
+
+console.log(`Method: ${txEvent.method}`);
+console.log(`Caller: ${txEvent.caller}`);
+console.log(`Fee: ${txEvent.feeAmount} wei`);
+console.log(`Block: ${txEvent.blockHeight}`);
+
+// Check fee distributions
+for (const dist of txEvent.feeDistributions) {
+  console.log(`  → ${dist.recipient}: ${dist.amount} wei`);
+}
+```
+
+### `transactionAction.listTransactionFees(input: ListTransactionFeesInput): Promise<TransactionFeeEntry[]>`
+
+Lists transactions filtered by wallet address and mode, with pagination support.
+
+#### Parameters
+- `input: Object`
+  - `wallet: string` - Ethereum address to query (required)
+  - `mode: 'paid' | 'received' | 'both'` - Filter mode:
+    - `'paid'` - Transactions where wallet paid fees
+    - `'received'` - Transactions where wallet received fee distributions
+    - `'both'` - All transactions involving the wallet
+  - `limit?: number` - Maximum results to return (optional, default: 20, max: 1000)
+  - `offset?: number` - Pagination offset (optional, default: 0)
+
+#### Returns
+- `Promise<TransactionFeeEntry[]>` - Array of transaction entries, each containing:
+  - `txId: string` - Transaction hash
+  - `blockHeight: number` - Block number
+  - `method: string` - Method name
+  - `caller: string` - Caller address
+  - `totalFee: string` - Total fee amount
+  - `feeRecipient?: string` - Primary recipient (optional)
+  - `metadata?: string` - Optional metadata (optional)
+  - `distributionSequence: number` - Distribution index (for multiple distributions)
+  - `distributionRecipient?: string` - Recipient address for this distribution (optional)
+  - `distributionAmount?: string` - Amount for this distribution (optional)
+
+**Note:** This method returns one row per fee distribution. If a transaction has multiple distributions, it will appear multiple times with different `distributionSequence` values.
+
+#### Example - List Fees Paid
+```typescript
+const transactionAction = client.loadTransactionAction();
+const wallet = client.address;
+
+const entries = await transactionAction.listTransactionFees({
+  wallet,
+  mode: 'paid',
+  limit: 10
+});
+
+for (const entry of entries) {
+  console.log(`${entry.method}: ${entry.totalFee} wei (block ${entry.blockHeight})`);
+}
+```
+
+#### Example - Pagination
+```typescript
+// Get first page
+const page1 = await transactionAction.listTransactionFees({
+  wallet,
+  mode: 'both',
+  limit: 20,
+  offset: 0
+});
+
+// Get second page
+const page2 = await transactionAction.listTransactionFees({
+  wallet,
+  mode: 'both',
+  limit: 20,
+  offset: 20
+});
+```
+
+#### Example - Fees Received
+```typescript
+// Track fee distributions received by a validator
+const entries = await transactionAction.listTransactionFees({
+  wallet: validatorAddress,
+  mode: 'received',
+  limit: 100
+});
+
+let totalReceived = BigInt(0);
+for (const entry of entries) {
+  if (entry.distributionAmount) {
+    totalReceived += BigInt(entry.distributionAmount);
+  }
+}
+
+console.log(`Total fees received: ${totalReceived} wei`);
+```
+
+### Use Cases
+
+#### Auditing: Track Monthly Spending
+```typescript
+// Calculate total fees paid by wallet
+const entries = await transactionAction.listTransactionFees({
+  wallet: myWallet,
+  mode: 'paid'
+});
+
+let totalSpent = BigInt(0);
+for (const entry of entries) {
+  totalSpent += BigInt(entry.totalFee);
+}
+
+console.log(`Total spent: ${totalSpent} wei`);
+```
+
+#### Analytics: Transaction Patterns
+```typescript
+// Analyze transaction types and their costs
+const methodCounts = new Map<string, number>();
+const methodCosts = new Map<string, bigint>();
+
+const entries = await transactionAction.listTransactionFees({
+  wallet: myWallet,
+  mode: 'paid'
+});
+
+for (const entry of entries) {
+  methodCounts.set(entry.method, (methodCounts.get(entry.method) || 0) + 1);
+  methodCosts.set(
+    entry.method,
+    (methodCosts.get(entry.method) || BigInt(0)) + BigInt(entry.totalFee)
+  );
+}
+
+for (const [method, count] of methodCounts) {
+  const avgCost = methodCosts.get(method)! / BigInt(count);
+  console.log(`${method}: ${count} calls, avg cost ${avgCost} wei`);
+}
+```
+
+#### Fee Distribution Tracking
+```typescript
+// Monitor where your fees are going
+const txEvent = await transactionAction.getTransactionEvent({
+  txId: deployTxHash
+});
+
+console.log(`Transaction: ${txEvent.txId}`);
+console.log(`Total Fee: ${txEvent.feeAmount} wei`);
+console.log('\nFee Distributions:');
+
+for (let i = 0; i < txEvent.feeDistributions.length; i++) {
+  const dist = txEvent.feeDistributions[i];
+  console.log(`  ${i + 1}. ${dist.recipient}: ${dist.amount} wei`);
+}
+```
+
 ## Transaction Handling
 
 ### Understanding Async Transaction Behavior ⚠️
