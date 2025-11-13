@@ -764,7 +764,7 @@ Parses and decodes a canonical attestation payload (without the 65-byte signatur
   - `streamId: string` - Stream identifier
   - `actionId: number` - Action identifier
   - `arguments: any[]` - Decoded action arguments
-  - `result: DecodedRow[]` - Decoded query results as rows
+  - `result: DecodedRow[]` - Decoded query results as rows (see [`DecodedRow`](#decodedrow))
 
 #### Example
 ```typescript
@@ -804,6 +804,39 @@ parsed.result.forEach((row, idx) => {
   console.log(`Row ${idx + 1}: timestamp=${timestamp}, value=${value}`);
 });
 ```
+
+### `DecodedRow`
+
+Represents a decoded row from attestation query results.
+
+#### Type Definition
+```typescript
+interface DecodedRow {
+  values: any[];
+}
+```
+
+#### Fields
+- `values: any[]` - Array of decoded column values
+  - For attestation results: `values[0]` is the timestamp (string), `values[1]` is the value (string)
+  - Values are decoded according to their data types (integers as BigInt, strings as string, etc.)
+
+#### Example
+```typescript
+// Example DecodedRow from attestation result
+const row: DecodedRow = {
+  values: [
+    "1704067200",              // timestamp (Unix time as string)
+    "77.051806494788211665"    // value (18-decimal fixed-point as string)
+  ]
+};
+
+// Accessing row data
+const [timestamp, value] = row.values;
+console.log(`Timestamp: ${timestamp}, Value: ${value}`);
+```
+
+**Note**: When used in attestation results (via `parseAttestationPayload`), each `DecodedRow` contains exactly two values: a Unix timestamp and a decimal value string.
 
 ### Attestation Result Format
 

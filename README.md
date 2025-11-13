@@ -284,7 +284,7 @@ import { sha256, recoverAddress } from "ethers";
 
 // Get signed attestation
 const signed = await attestationAction.getSignedAttestation({
-	requestTxId: result.requestTxId,
+  requestTxId: result.requestTxId,
 });
 
 // Extract canonical payload and signature
@@ -294,9 +294,9 @@ const signature = signed.payload.slice(-65);
 // Verify signature
 const digest = sha256(canonicalPayload);
 const validatorAddress = recoverAddress(digest, {
-	r: "0x" + Buffer.from(signature.slice(0, 32)).toString("hex"),
-	s: "0x" + Buffer.from(signature.slice(32, 64)).toString("hex"),
-	v: signature[64]
+  r: "0x" + Buffer.from(signature.slice(0, 32)).toString("hex"),
+  s: "0x" + Buffer.from(signature.slice(32, 64)).toString("hex"),
+  v: signature[64]
 });
 
 // Parse and decode the payload

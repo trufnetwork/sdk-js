@@ -322,15 +322,11 @@ function decodeSingleValue(typeName: string, bytes: Uint8Array): any {
     case 'int':
     case 'int8':
     case 'integer':
-      // Decode as 8-byte int64 (big-endian as per kwil-db)
+      // Decode as 8-byte signed int64 (big-endian as per kwil-db)
       if (bytes.length === 8) {
         const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-        // Use BigInt to preserve full int64 precision
-        const high = BigInt(view.getUint32(0, false));
-        const low = BigInt(view.getUint32(4, false));
-        const value = (high << 32n) | low;
-        // Return as BigInt to preserve precision
-        return value;
+        // Use getBigInt64 to properly decode signed int64
+        return view.getBigInt64(0, false); // false = big-endian
       }
       throw new Error(`Invalid integer byte length: expected 8, got ${bytes.length}`);
 
