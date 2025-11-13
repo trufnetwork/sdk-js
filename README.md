@@ -276,57 +276,36 @@ attestations.forEach(att => {
 
 #### Parsing Attestation Payloads
 
-The SDK provides utilities to parse and decode signed attestation payloads:
+The SDK provides utilities to parse and verify signed attestation payloads:
 
 ```typescript
 import { parseAttestationPayload } from "@trufnetwork/sdk-js";
 import { sha256, recoverAddress } from "ethers";
 
 // Get signed attestation
-const signedAttestation = await attestationAction.getSignedAttestation({
+const signed = await attestationAction.getSignedAttestation({
 	requestTxId: result.requestTxId,
 });
 
-// Separate signature from canonical payload
-const payloadBytes = signedAttestation.payload;
-const signatureOffset = payloadBytes.length - 65;
-const canonicalPayload = payloadBytes.slice(0, signatureOffset);
-const signature = payloadBytes.slice(signatureOffset);
+// Extract canonical payload and signature
+const canonicalPayload = signed.payload.slice(0, -65);
+const signature = signed.payload.slice(-65);
 
-// Verify signature and recover validator address
+// Verify signature
 const digest = sha256(canonicalPayload);
-const r = "0x" + Buffer.from(signature.slice(0, 32)).toString("hex");
-const s = "0x" + Buffer.from(signature.slice(32, 64)).toString("hex");
-const v = signature[64];
-const validatorAddress = recoverAddress(digest, { r, s, v });
-
-console.log(`Validator: ${validatorAddress}`);
+const validatorAddress = recoverAddress(digest, {
+	r: "0x" + Buffer.from(signature.slice(0, 32)).toString("hex"),
+	s: "0x" + Buffer.from(signature.slice(32, 64)).toString("hex"),
+	v: signature[64]
+});
 
 // Parse and decode the payload
 const parsed = parseAttestationPayload(canonicalPayload);
-
-console.log(`Block Height: ${parsed.blockHeight}`);
-console.log(`Data Provider: ${parsed.dataProvider}`);
-console.log(`Stream ID: ${parsed.streamId}`);
+console.log(`Validator: ${validatorAddress}`);
 console.log(`Query Results: ${parsed.result.length} rows`);
-
-// Access decoded query results
-parsed.result.forEach((row, idx) => {
-	console.log(`Row ${idx + 1}: [timestamp: ${row.values[0]}, value: ${row.values[1]}]`);
-});
 ```
 
-**Parsed Structure:**
-- `version`: Protocol version (1 byte)
-- `algorithm`: Signature algorithm (0 = secp256k1)
-- `blockHeight`: Block height when attested (bigint)
-- `dataProvider`: Data provider address (hex string)
-- `streamId`: Stream identifier (string)
-- `actionId`: Action identifier (number)
-- `arguments`: Decoded action arguments (array)
-- `result`: Decoded query results as rows with `[timestamp, value]` pairs
-
-**Note:** Query results are ABI-encoded as `(uint256[] timestamps, int256[] values)` where values use 18-decimal fixed-point representation.
+**📖 For complete documentation including signature verification, payload structure, result decoding, and EVM integration examples, see the [Attestation Payload Parsing](./docs/api-reference.md#attestation-payload-parsing) section in the API Reference.**
 
 #### Attestation Payload Structure
 
