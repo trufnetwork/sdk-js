@@ -21,6 +21,16 @@ export { StreamId } from "./util/StreamId";
 export { EthereumAddress } from "./util/EthereumAddress";
 export { visibility } from "./util/visibility";
 
+// Attestation encoding/decoding utilities
+export {
+  parseAttestationPayload
+} from "./util/AttestationEncoding";
+
+export type {
+  DecodedRow,
+  ParsedAttestationPayload
+} from "./util/AttestationEncoding";
+
 // Contract values and types
 export { StreamType } from "./contracts-api/contractValues";
 

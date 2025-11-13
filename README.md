@@ -274,6 +274,60 @@ attestations.forEach(att => {
 });
 ```
 
+#### Parsing Attestation Payloads
+
+The SDK provides utilities to parse and decode signed attestation payloads:
+
+```typescript
+import { parseAttestationPayload } from "@trufnetwork/sdk-js";
+import { sha256, recoverAddress } from "ethers";
+
+// Get signed attestation
+const signedAttestation = await attestationAction.getSignedAttestation({
+	requestTxId: result.requestTxId,
+});
+
+// Separate signature from canonical payload
+const payloadBytes = signedAttestation.payload;
+const signatureOffset = payloadBytes.length - 65;
+const canonicalPayload = payloadBytes.slice(0, signatureOffset);
+const signature = payloadBytes.slice(signatureOffset);
+
+// Verify signature and recover validator address
+const digest = sha256(canonicalPayload);
+const r = "0x" + Buffer.from(signature.slice(0, 32)).toString("hex");
+const s = "0x" + Buffer.from(signature.slice(32, 64)).toString("hex");
+const v = signature[64];
+const validatorAddress = recoverAddress(digest, { r, s, v });
+
+console.log(`Validator: ${validatorAddress}`);
+
+// Parse and decode the payload
+const parsed = parseAttestationPayload(canonicalPayload);
+
+console.log(`Block Height: ${parsed.blockHeight}`);
+console.log(`Data Provider: ${parsed.dataProvider}`);
+console.log(`Stream ID: ${parsed.streamId}`);
+console.log(`Query Results: ${parsed.result.length} rows`);
+
+// Access decoded query results
+parsed.result.forEach((row, idx) => {
+	console.log(`Row ${idx + 1}: [timestamp: ${row.values[0]}, value: ${row.values[1]}]`);
+});
+```
+
+**Parsed Structure:**
+- `version`: Protocol version (1 byte)
+- `algorithm`: Signature algorithm (0 = secp256k1)
+- `blockHeight`: Block height when attested (bigint)
+- `dataProvider`: Data provider address (hex string)
+- `streamId`: Stream identifier (string)
+- `actionId`: Action identifier (number)
+- `arguments`: Decoded action arguments (array)
+- `result`: Decoded query results as rows with `[timestamp, value]` pairs
+
+**Note:** Query results are ABI-encoded as `(uint256[] timestamps, int256[] values)` where values use 18-decimal fixed-point representation.
+
 #### Attestation Payload Structure
 
 The signed attestation payload is a binary blob containing:
@@ -284,7 +338,7 @@ The signed attestation payload is a binary blob containing:
 5. Stream ID (32 bytes, length-prefixed)
 6. Action ID (2 bytes)
 7. Arguments (variable, length-prefixed)
-8. Result (variable, length-prefixed)
+8. Result (variable, ABI-encoded, length-prefixed)
 9. Signature (65 bytes, secp256k1)
 
 This payload can be passed to EVM smart contracts for on-chain verification using `ecrecover`.
@@ -450,6 +504,7 @@ For other bundlers or serverless platforms, consult their documentation on modul
 | Get stream taxonomy | `composedAction.getTaxonomiesForStreams({streams, latestOnly})` |
 | Request attestation | `attestationAction.requestAttestation({dataProvider, streamId, actionName, args, encryptSig, maxFee})` |
 | Get signed attestation | `attestationAction.getSignedAttestation({requestTxId})` |
+| Parse attestation payload | `parseAttestationPayload(canonicalPayload)` |
 | List attestations | `attestationAction.listAttestations({requester, limit, offset, orderBy})` |
 | Get transaction event | `transactionAction.getTransactionEvent({txId})` |
 | List transaction fees | `transactionAction.listTransactionFees({wallet, mode, limit, offset})` |
