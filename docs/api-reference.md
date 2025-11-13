@@ -747,6 +747,167 @@ await primitiveAction.insertRecord({
 - ⚡ **High-throughput data insertion** (independent records)
 - ⚡ **Fire-and-forget operations** (with proper error handling)
 
+## Attestation Payload Parsing
+
+### `parseAttestationPayload(payload: Uint8Array): ParsedAttestationPayload`
+Parses and decodes a canonical attestation payload (without the 65-byte signature).
+
+#### Parameters
+- `payload: Uint8Array` - Canonical payload bytes (full payload minus last 65 bytes)
+
+#### Returns
+- `ParsedAttestationPayload` object with:
+  - `version: number` - Protocol version (currently 1)
+  - `algorithm: number` - Signature algorithm (0 = secp256k1)
+  - `blockHeight: bigint` - Block height when attestation was created
+  - `dataProvider: string` - Data provider Ethereum address (hex format)
+  - `streamId: string` - Stream identifier
+  - `actionId: number` - Action identifier
+  - `arguments: any[]` - Decoded action arguments
+  - `result: DecodedRow[]` - Decoded query results as rows (see [`DecodedRow`](#decodedrow))
+
+#### Example
+```typescript
+import { parseAttestationPayload } from "@trufnetwork/sdk-js";
+import { sha256, recoverAddress } from "ethers";
+
+// Get signed attestation
+const attestationAction = client.loadAttestationAction();
+const signedAttestation = await attestationAction.getSignedAttestation({
+  requestTxId: "0x..."
+});
+
+// Extract canonical payload (without signature)
+const payloadBytes = signedAttestation.payload;
+const canonicalPayload = payloadBytes.slice(0, -65);
+const signature = payloadBytes.slice(-65);
+
+// Verify signature
+const digest = sha256(canonicalPayload);
+const r = "0x" + Buffer.from(signature.slice(0, 32)).toString("hex");
+const s = "0x" + Buffer.from(signature.slice(32, 64)).toString("hex");
+const v = signature[64];
+const validatorAddress = recoverAddress(digest, { r, s, v });
+
+// Parse payload
+const parsed = parseAttestationPayload(canonicalPayload);
+
+console.log(`Validator: ${validatorAddress}`);
+console.log(`Block: ${parsed.blockHeight}`);
+console.log(`Provider: ${parsed.dataProvider}`);
+console.log(`Stream: ${parsed.streamId}`);
+console.log(`Results: ${parsed.result.length} rows`);
+
+// Access query results
+parsed.result.forEach((row, idx) => {
+  const [timestamp, value] = row.values;
+  console.log(`Row ${idx + 1}: timestamp=${timestamp}, value=${value}`);
+});
+```
+
+### `DecodedRow`
+
+Represents a decoded row from attestation query results.
+
+#### Type Definition
+```typescript
+interface DecodedRow {
+  values: any[];
+}
+```
+
+#### Fields
+- `values: any[]` - Array of decoded column values
+  - For attestation results: `values[0]` is the timestamp (string), `values[1]` is the value (string)
+  - Values are decoded according to their data types (integers as BigInt, strings as string, etc.)
+
+#### Example
+```typescript
+// Example DecodedRow from attestation result
+const row: DecodedRow = {
+  values: [
+    "1704067200",              // timestamp (Unix time as string)
+    "77.051806494788211665"    // value (18-decimal fixed-point as string)
+  ]
+};
+
+// Accessing row data
+const [timestamp, value] = row.values;
+console.log(`Timestamp: ${timestamp}, Value: ${value}`);
+```
+
+**Note**: When used in attestation results (via `parseAttestationPayload`), each `DecodedRow` contains exactly two values: a Unix timestamp and a decimal value string.
+
+### Attestation Result Format
+
+Query results in attestations are ABI-encoded as:
+```solidity
+abi.encode(uint256[] timestamps, int256[] values)
+```
+
+Where:
+- **timestamps**: Array of Unix timestamps (uint256)
+- **values**: Array of 18-decimal fixed-point integers (int256)
+
+Example decoded output:
+```javascript
+[
+  { values: ["1704067200", "77.051806494788211665"] },
+  { values: ["1704153600", "78.718654581755352351"] },
+  // ...
+]
+```
+
+### Complete Attestation Workflow
+
+```typescript
+// 1. Request attestation
+const attestationAction = client.loadAttestationAction();
+const result = await attestationAction.requestAttestation({
+  dataProvider: "0x4710a8d8f0d845da110086812a32de6d90d7ff5c",
+  streamId: "stai0000000000000000000000000000",
+  actionName: "get_record",
+  args: [...],
+  encryptSig: false,
+  maxFee: 1000000,
+});
+
+// 2. Wait for transaction confirmation
+await client.waitForTx(result.requestTxId);
+
+// 3. Poll for signature (validators sign asynchronously)
+let signedAttestation;
+for (let i = 0; i < 15; i++) {
+  try {
+    signedAttestation = await attestationAction.getSignedAttestation({
+      requestTxId: result.requestTxId,
+    });
+    if (signedAttestation.payload.length > 65) break;
+  } catch (e) {
+    await new Promise(resolve => setTimeout(resolve, 2000));
+  }
+}
+
+// 4. Parse and verify
+const canonicalPayload = signedAttestation.payload.slice(0, -65);
+const signature = signedAttestation.payload.slice(-65);
+
+const digest = sha256(canonicalPayload);
+const validatorAddress = recoverAddress(digest, {
+  r: "0x" + Buffer.from(signature.slice(0, 32)).toString("hex"),
+  s: "0x" + Buffer.from(signature.slice(32, 64)).toString("hex"),
+  v: signature[64],
+});
+
+const parsed = parseAttestationPayload(canonicalPayload);
+
+// 5. Use the verified data
+console.log(`✅ Verified by: ${validatorAddress}`);
+parsed.result.forEach(row => {
+  console.log(`Data: ${row.values}`);
+});
+```
+
 ## Performance Recommendations
 - Use batch record insertions
 - Implement client-side caching

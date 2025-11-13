@@ -14,6 +14,7 @@
 
 import { NodeTNClient } from "../../src";
 import { Wallet, sha256, recoverAddress } from "ethers";
+import { parseAttestationPayload } from "../../src/util/AttestationEncoding";
 
 async function main() {
   // ===== 1. Setup Client =====
@@ -48,13 +49,14 @@ async function main() {
   const dataProvider = "0x4710a8d8f0d845da110086812a32de6d90d7ff5c"; // AI Index data provider
   const streamId = "stai0000000000000000000000000000"; // AI Index stream
 
-  // Query last 7 days of data
-  const now = Math.floor(Date.now() / 1000);
-  const weekAgo = now - 7 * 24 * 60 * 60;
+  // Query data from January 2024 (when the stream has data)
+  const startTime = 1704067200; // Jan 1, 2024 00:00:00 UTC
+  const endTime = startTime + (30 * 24 * 60 * 60); // 30 days later
 
   console.log(`Data Provider: ${dataProvider}`);
   console.log(`Stream ID: ${streamId}`);
-  console.log(`Time Range: ${new Date(weekAgo * 1000).toISOString()} to ${new Date(now * 1000).toISOString()}\n`);
+  console.log(`Time Range: ${new Date(startTime * 1000).toISOString()} to ${new Date(endTime * 1000).toISOString()}`);
+  console.log(`  (Using historical data from January 2024)\n`);
 
   // ===== 3. List My Recent Attestations =====
   console.log("===== Listing Recent Attestations =====\n");
@@ -129,7 +131,30 @@ async function main() {
       console.log(`✅ Validator Address: ${validatorAddress}`);
       console.log(`   This is the address you should use in your EVM smart contract's verify() function\n`);
 
-      console.log(`   💡 How to use this payload:`);
+      // ===== Parse Attestation Payload =====
+      console.log(`===== Parsing Attestation Payload =====`);
+
+      const parsed = parseAttestationPayload(canonicalPayload);
+
+      console.log(`📋 Attestation Details:`);
+      console.log(`   Version: ${parsed.version}`);
+      console.log(`   Algorithm: ${parsed.algorithm} (0 = secp256k1)`);
+      console.log(`   Block Height: ${parsed.blockHeight}`);
+      console.log(`   Data Provider: ${parsed.dataProvider}`);
+      console.log(`   Stream ID: ${parsed.streamId}`);
+      console.log(`   Action ID: ${parsed.actionId}\n`);
+
+      console.log(`📊 Attested Query Result (from get_record):`);
+      if (parsed.result.length === 0) {
+        console.log(`   No records found`);
+      } else {
+        console.log(`   Found ${parsed.result.length} row(s):\n`);
+        parsed.result.forEach((row, idx) => {
+          console.log(`   Row ${idx + 1}: ${JSON.stringify(row.values)}`);
+        });
+      }
+
+      console.log(`\n   💡 How to use this payload:`);
       console.log(`   1. Send this hex payload to your EVM smart contract`);
       console.log(`   2. The contract can verify the signature using ecrecover`);
       console.log(`   3. Parse the payload to extract the attested query results`);
@@ -154,8 +179,8 @@ async function main() {
       args: [
         dataProvider,
         streamId,
-        weekAgo,
-        now,
+        startTime,
+        endTime,
         null, // frozen_at (not used)
         false, // use_cache (will be forced to false for determinism)
       ],
@@ -215,6 +240,48 @@ async function main() {
       console.log(`First 64 bytes (hex): ${Buffer.from(signedAttestation.payload.slice(0, 64)).toString("hex")}`);
       console.log(`Last 65 bytes (signature): ${Buffer.from(signedAttestation.payload.slice(-65)).toString("hex")}`);
       console.log(`Full payload (hex): ${Buffer.from(signedAttestation.payload).toString("hex")}\n`);
+
+      // ===== Parse and Display the Attestation =====
+      try {
+        console.log(`===== Parsing Attestation Payload =====`);
+
+        const signatureOffset = signedAttestation.payload.length - 65;
+        const canonicalPayload = signedAttestation.payload.slice(0, signatureOffset);
+        const signature = signedAttestation.payload.slice(signatureOffset);
+
+        // Verify signature
+        const digest = sha256(canonicalPayload);
+        const r = "0x" + Buffer.from(signature.slice(0, 32)).toString("hex");
+        const s = "0x" + Buffer.from(signature.slice(32, 64)).toString("hex");
+        const v = signature[64];
+        const validatorAddress = recoverAddress(digest, { r, s, v });
+
+        console.log(`✅ Validator Address: ${validatorAddress}\n`);
+
+        // Parse payload
+        const parsed = parseAttestationPayload(canonicalPayload);
+
+        console.log(`📋 Attestation Details:`);
+        console.log(`   Version: ${parsed.version}`);
+        console.log(`   Algorithm: ${parsed.algorithm} (0 = secp256k1)`);
+        console.log(`   Block Height: ${parsed.blockHeight}`);
+        console.log(`   Data Provider: ${parsed.dataProvider}`);
+        console.log(`   Stream ID: ${parsed.streamId}`);
+        console.log(`   Action ID: ${parsed.actionId}\n`);
+
+        console.log(`📊 Attested Query Result (from get_record):`);
+        if (parsed.result.length === 0) {
+          console.log(`   No records found`);
+        } else {
+          console.log(`   Found ${parsed.result.length} row(s):\n`);
+          parsed.result.forEach((row, idx) => {
+            console.log(`   Row ${idx + 1}: ${JSON.stringify(row.values)}`);
+          });
+        }
+        console.log("");
+      } catch (parseErr: any) {
+        console.log(`⚠️  Could not parse payload: ${parseErr.message}\n`);
+      }
     }
   } catch (err: any) {
     // Check if it's an insufficient balance error

@@ -274,6 +274,39 @@ attestations.forEach(att => {
 });
 ```
 
+#### Parsing Attestation Payloads
+
+The SDK provides utilities to parse and verify signed attestation payloads:
+
+```typescript
+import { parseAttestationPayload } from "@trufnetwork/sdk-js";
+import { sha256, recoverAddress } from "ethers";
+
+// Get signed attestation
+const signed = await attestationAction.getSignedAttestation({
+  requestTxId: result.requestTxId,
+});
+
+// Extract canonical payload and signature
+const canonicalPayload = signed.payload.slice(0, -65);
+const signature = signed.payload.slice(-65);
+
+// Verify signature
+const digest = sha256(canonicalPayload);
+const validatorAddress = recoverAddress(digest, {
+  r: "0x" + Buffer.from(signature.slice(0, 32)).toString("hex"),
+  s: "0x" + Buffer.from(signature.slice(32, 64)).toString("hex"),
+  v: signature[64]
+});
+
+// Parse and decode the payload
+const parsed = parseAttestationPayload(canonicalPayload);
+console.log(`Validator: ${validatorAddress}`);
+console.log(`Query Results: ${parsed.result.length} rows`);
+```
+
+**📖 For complete documentation including signature verification, payload structure, result decoding, and EVM integration examples, see the [Attestation Payload Parsing](./docs/api-reference.md#attestation-payload-parsing) section in the API Reference.**
+
 #### Attestation Payload Structure
 
 The signed attestation payload is a binary blob containing:
@@ -284,7 +317,7 @@ The signed attestation payload is a binary blob containing:
 5. Stream ID (32 bytes, length-prefixed)
 6. Action ID (2 bytes)
 7. Arguments (variable, length-prefixed)
-8. Result (variable, length-prefixed)
+8. Result (variable, ABI-encoded, length-prefixed)
 9. Signature (65 bytes, secp256k1)
 
 This payload can be passed to EVM smart contracts for on-chain verification using `ecrecover`.
@@ -450,6 +483,7 @@ For other bundlers or serverless platforms, consult their documentation on modul
 | Get stream taxonomy | `composedAction.getTaxonomiesForStreams({streams, latestOnly})` |
 | Request attestation | `attestationAction.requestAttestation({dataProvider, streamId, actionName, args, encryptSig, maxFee})` |
 | Get signed attestation | `attestationAction.getSignedAttestation({requestTxId})` |
+| Parse attestation payload | `parseAttestationPayload(canonicalPayload)` |
 | List attestations | `attestationAction.listAttestations({requester, limit, offset, orderBy})` |
 | Get transaction event | `transactionAction.getTransactionEvent({txId})` |
 | List transaction fees | `transactionAction.listTransactionFees({wallet, mode, limit, offset})` |
