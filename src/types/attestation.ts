@@ -95,6 +95,12 @@ export interface ListAttestationsInput {
   requester?: Uint8Array;
 
   /**
+   * Optional: Filter by request transaction ID
+   * If provided, only returns attestations matching this transaction ID
+   */
+  requestTxId?: string;
+
+  /**
    * Optional: Maximum number of results (1-5000, default 5000)
    */
   limit?: number;
