@@ -40,6 +40,11 @@ export interface TransactionEvent {
     txId: string;
     /** Block height when transaction was included */
     blockHeight: number;
+    /**
+     * Millisecond timestamp from the block header via indexer lookup.
+     * Will be 0 when the indexer is unavailable.
+     */
+    stampMs: number;
     /** Method name (e.g., "deployStream", "insertRecords") */
     method: string;
     /** Ethereum address of caller (lowercase, 0x-prefixed) */

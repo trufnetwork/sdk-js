@@ -335,6 +335,7 @@ const txEvent = await transactionAction.getTransactionEvent({
   txId: '0xabcdef...'
 });
 console.log(`Method: ${txEvent.method}, Fee: ${txEvent.feeAmount} wei`);
+console.log(`Timestamp (ms): ${txEvent.stampMs}`);
 
 // List fees paid by wallet
 const entries = await transactionAction.listTransactionFees({

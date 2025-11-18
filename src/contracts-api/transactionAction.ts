@@ -1,5 +1,44 @@
-import { KwilSigner, NodeKwil, WebKwil, Types } from "@trufnetwork/kwil-js";
+import { KwilSigner, NodeKwil, WebKwil } from "@trufnetwork/kwil-js";
 import { TransactionEvent, FeeDistribution, GetTransactionEventInput } from "../types/transaction";
+
+const INDEXER_BASE = "https://indexer.infra.truf.network";
+
+function normalizeTransactionId(txId: string): string {
+  const lower = txId.toLowerCase();
+  return lower.startsWith("0x") ? lower : `0x${lower}`;
+}
+
+async function fetchTransactionStampMs(blockHeight: number, txId: string): Promise<number> {
+  const url = `${INDEXER_BASE}/v0/chain/transactions?from-block=${blockHeight}&to-block=${blockHeight}&order=desc`;
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      console.warn(`Indexer returned ${response.status} while fetching block ${blockHeight} for tx ${txId}`);
+      return 0;
+    }
+
+    const data = await response.json() as {
+      ok: boolean;
+      data: Array<{
+        block_height: number;
+        hash: string;
+        stamp_ms: number | null;
+      }>;
+    };
+
+    if (!data.ok || !Array.isArray(data.data)) {
+      console.warn(`Indexer payload malformed for block ${blockHeight} (tx ${txId})`);
+      return 0;
+    }
+
+    const normalizedTargetHash = normalizeTransactionId(txId);
+    const tx = data.data.find(entry => normalizeTransactionId(entry.hash) === normalizedTargetHash);
+    return tx?.stamp_ms ?? 0;
+  } catch (error) {
+    console.warn(`Failed to fetch stamp_ms for tx ${txId} at block ${blockHeight}`, error);
+    return 0;
+  }
+}
 
 /**
  * Database row structure returned from get_transaction_event action
@@ -134,9 +173,12 @@ export class TransactionAction {
       throw new Error(`Invalid block height: ${row.block_height} (tx: ${row.tx_id})`);
     }
 
+    const stampMs = await fetchTransactionStampMs(blockHeight, row.tx_id);
+
     return {
       txId: row.tx_id,
       blockHeight,
+      stampMs,
       method: row.method,
       caller: row.caller,
       feeAmount,
