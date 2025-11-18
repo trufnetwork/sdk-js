@@ -258,10 +258,6 @@ export class AttestationAction extends Action {
       $offset: offset,
       $order_by: input.orderBy ?? null,
     };
-      $limit: limit,
-      $offset: offset,
-      $order_by: input.orderBy ?? null,
-    };
 
     // Call list_attestations view action
     const result = await this.call<any[]>('list_attestations', params);
