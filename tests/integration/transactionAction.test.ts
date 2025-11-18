@@ -70,6 +70,7 @@ describe.sequential(
         expect(txEvent.method).toBe("deployStream");
         expect(txEvent.caller.toLowerCase()).toBe(defaultClient.address().getAddress().toLowerCase());
         expect(txEvent.blockHeight).toBeGreaterThan(0);
+        expect(txEvent.stampMs).toBeGreaterThanOrEqual(0);
         expect(txEvent.feeAmount).toBeDefined();
         // Test wallet has system:network_writer role (fee exempt)
         expect(txEvent.feeAmount).toBe("0");
@@ -121,6 +122,7 @@ describe.sequential(
         expect(txEvent.method).toBe("insertRecords");
         expect(txEvent.caller.toLowerCase()).toBe(defaultClient.address().getAddress().toLowerCase());
         expect(txEvent.blockHeight).toBeGreaterThan(0);
+        expect(txEvent.stampMs).toBeGreaterThanOrEqual(0);
         expect(txEvent.feeAmount).toBeDefined();
         // Test wallet has system:network_writer role (fee exempt)
         expect(txEvent.feeAmount).toBe("0");
@@ -155,6 +157,7 @@ describe.sequential(
         // Validate that txEvent.txId is normalized with 0x prefix
         expect(txEvent.txId).toBe(normalizeTransactionId(txHash));
         expect(txEvent.method).toBe("deployStream");
+        expect(txEvent.stampMs).toBeGreaterThanOrEqual(0);
 
         console.log(`✅ Successfully queried transaction with hash without 0x prefix`);
       }

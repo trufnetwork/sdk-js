@@ -510,6 +510,7 @@ Retrieves detailed information about a specific transaction by its hash.
 - `Promise<TransactionEvent>` - Complete transaction details including:
   - `txId: string` - Transaction hash (0x-prefixed)
   - `blockHeight: number` - Block number where transaction was included
+  - `stampMs: number` - Millisecond timestamp from the block header (0 when unavailable)
   - `method: string` - Method name (e.g., "deployStream", "insertRecords")
   - `caller: string` - Ethereum address of the caller (lowercase, 0x-prefixed)
   - `feeAmount: string` - Total fee amount as string (handles large numbers)
@@ -537,6 +538,7 @@ console.log(`Method: ${txEvent.method}`);
 console.log(`Caller: ${txEvent.caller}`);
 console.log(`Fee: ${txEvent.feeAmount} wei`);
 console.log(`Block: ${txEvent.blockHeight}`);
+console.log(`Timestamp: ${txEvent.stampMs}`);
 
 // Check fee distributions
 for (const dist of txEvent.feeDistributions) {
