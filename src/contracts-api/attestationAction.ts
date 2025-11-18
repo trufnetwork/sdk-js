@@ -253,7 +253,24 @@ export class AttestationAction extends Action {
     // Note: Empty Uint8Array represents BYTEA NULL (handled by kwil-js 0.9.10+)
     const params: Types.NamedParams = {
       $requester: input.requester ?? new Uint8Array(0),
-      $request_tx_id: input.requestTxId ?? null,
+    // Normalize requestTxId if provided (strip 0x prefix, lowercase, trim)
+    let normalizedRequestTxId: string | null = null;
+    if (input.requestTxId) {
+      const trimmed = input.requestTxId.trim();
+      normalizedRequestTxId = trimmed.startsWith('0x')
+        ? trimmed.slice(2).toLowerCase()
+        : trimmed.toLowerCase();
+    }
+
+    // Prepare parameters for list_attestations view action
+    // Note: Empty Uint8Array represents BYTEA NULL (handled by kwil-js 0.9.10+)
+    const params: Types.NamedParams = {
+      $requester: input.requester ?? new Uint8Array(0),
+      $request_tx_id: normalizedRequestTxId,
+      $limit: limit,
+      $offset: offset,
+      $order_by: input.orderBy ?? null,
+    };
       $limit: limit,
       $offset: offset,
       $order_by: input.orderBy ?? null,
