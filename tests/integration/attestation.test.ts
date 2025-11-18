@@ -366,5 +366,47 @@ describe.skip.sequential(
         console.log(`Descending order: ${desc.length} results, heights: ${desc.map(a => a.createdHeight).join(", ")}`);
       }
     );
+
+    testWithDefaultWallet(
+      "should filter attestations by request transaction ID",
+      async ({ defaultClient }) => {
+        const attestationAction = defaultClient.loadAttestationAction();
+
+        // First, create an attestation so we have a request_tx_id to filter by (with unique time range)
+        const dataProvider = "0x4710a8d8f0d845da110086812a32de6d90d7ff5c";
+        const streamId = "stai0000000000000000000000000000";
+        const now = Math.floor(Date.now() / 1000);
+        const weekAgo = now - 7 * 24 * 60 * 60;
+        const weekAgoOffset = weekAgo + 10800; // Add 3 hours offset for uniqueness
+
+        const requestResult = await attestationAction.requestAttestation({
+          dataProvider,
+          streamId,
+          actionName: "get_record",
+          args: [dataProvider, streamId, weekAgoOffset, now, null, false],
+          encryptSig: false,
+          maxFee: '50000000000000000000', // 50 TRUF (attestation fee is 40 TRUF)
+        });
+
+        // Wait for transaction to be mined (30s timeout)
+        await defaultClient.waitForTx(requestResult.requestTxId, 30000);
+
+        console.log(`Created attestation with request TX ID: ${requestResult.requestTxId}`);
+
+        // Filter by request_tx_id
+        const filtered = await attestationAction.listAttestations({
+          requestTxId: requestResult.requestTxId,
+        });
+
+        // Should return array with exactly 1 result
+        expect(Array.isArray(filtered)).toBe(true);
+        expect(filtered.length).toBe(1);
+
+        // The returned attestation should match the request_tx_id
+        expect(filtered[0].requestTxId).toBe(requestResult.requestTxId);
+
+        console.log(`Filtered by request_tx_id: found ${filtered.length} attestation(s) with TX ID ${filtered[0].requestTxId}`);
+      }
+    );
   }
 );

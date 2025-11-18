@@ -253,6 +253,7 @@ export class AttestationAction extends Action {
     // Note: Empty Uint8Array represents BYTEA NULL (handled by kwil-js 0.9.10+)
     const params: Types.NamedParams = {
       $requester: input.requester ?? new Uint8Array(0),
+      $request_tx_id: input.requestTxId ?? null,
       $limit: limit,
       $offset: offset,
       $order_by: input.orderBy ?? null,
