@@ -144,6 +144,16 @@ export interface AttestationMetadata {
   requester: Uint8Array;
 
   /**
+   * Data provider address
+   */
+  dataProvider: string;
+
+  /**
+   * Stream ID
+   */
+  streamId: string;
+
+  /**
    * Block height when attestation was created
    */
   createdHeight: number;

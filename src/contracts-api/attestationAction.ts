@@ -291,9 +291,11 @@ export class AttestationAction extends Action {
  * 0. request_tx_id (TEXT)
  * 1. attestation_hash (BYTEA)
  * 2. requester (BYTEA)
- * 3. created_height (INT8)
- * 4. signed_height (INT8, nullable)
- * 5. encrypt_sig (BOOLEAN)
+ * 3. data_provider (TEXT)
+ * 4. stream_id (TEXT)
+ * 5. created_height (INT8)
+ * 6. signed_height (INT8, nullable)
+ * 7. encrypt_sig (BOOLEAN)
  */
 function parseAttestationRow(row: any, idx: number): AttestationMetadata {
   // kwil-js returns rows as objects with column names as keys
@@ -301,6 +303,8 @@ function parseAttestationRow(row: any, idx: number): AttestationMetadata {
   let requestTxId: string;
   let attestationHash: Uint8Array;
   let requester: Uint8Array;
+  let dataProvider: string;
+  let streamId: string;
   let createdHeight: number;
   let signedHeight: number | null;
   let encryptSig: boolean;
@@ -308,23 +312,27 @@ function parseAttestationRow(row: any, idx: number): AttestationMetadata {
   // Handle both array and object formats
   if (Array.isArray(row)) {
     // Array format: [col0, col1, col2, ...]
-    if (row.length < 6) {
+    if (row.length < 8) {
       throw new Error(
-        `Row ${idx}: expected 6 columns, got ${row.length}`
+        `Row ${idx}: expected 8 columns, got ${row.length}`
       );
     }
 
     requestTxId = row[0];
     attestationHash = decodeBytea(row[1], idx, 'attestation_hash');
     requester = decodeBytea(row[2], idx, 'requester');
-    createdHeight = parseInt(row[3], 10);
-    signedHeight = row[4] !== null ? parseInt(row[4], 10) : null;
-    encryptSig = row[5];
+    dataProvider = row[3];
+    streamId = row[4];
+    createdHeight = parseInt(row[5], 10);
+    signedHeight = row[6] !== null ? parseInt(row[6], 10) : null;
+    encryptSig = row[7];
   } else {
     // Object format: { request_tx_id: ..., attestation_hash: ..., ... }
     requestTxId = row.request_tx_id;
     attestationHash = decodeBytea(row.attestation_hash, idx, 'attestation_hash');
     requester = decodeBytea(row.requester, idx, 'requester');
+    dataProvider = row.data_provider;
+    streamId = row.stream_id;
     createdHeight = parseInt(row.created_height, 10);
     signedHeight = row.signed_height !== null ? parseInt(row.signed_height, 10) : null;
     encryptSig = row.encrypt_sig;
@@ -334,6 +342,8 @@ function parseAttestationRow(row: any, idx: number): AttestationMetadata {
     requestTxId,
     attestationHash,
     requester,
+    dataProvider,
+    streamId,
     createdHeight,
     signedHeight,
     encryptSig,
@@ -412,6 +422,8 @@ if (import.meta.vitest) {
         'tx123',
         Buffer.from([1, 2, 3]).toString('base64'),
         Buffer.from([4, 5, 6]).toString('base64'),
+        '0x4710a8d8f0d845da110086812a32de6d90d7ff5c',
+        'stai0000000000000000000000000000',
         '100',
         '200',
         true,
@@ -422,6 +434,8 @@ if (import.meta.vitest) {
       expect(metadata.requestTxId).toBe('tx123');
       expect(Array.from(metadata.attestationHash)).toEqual([1, 2, 3]);
       expect(Array.from(metadata.requester)).toEqual([4, 5, 6]);
+      expect(metadata.dataProvider).toBe('0x4710a8d8f0d845da110086812a32de6d90d7ff5c');
+      expect(metadata.streamId).toBe('stai0000000000000000000000000000');
       expect(metadata.createdHeight).toBe(100);
       expect(metadata.signedHeight).toBe(200);
       expect(metadata.encryptSig).toBe(true);
@@ -432,6 +446,8 @@ if (import.meta.vitest) {
         request_tx_id: 'tx456',
         attestation_hash: Buffer.from([7, 8, 9]).toString('base64'),
         requester: Buffer.from([10, 11, 12]).toString('base64'),
+        data_provider: '0x1234567890123456789012345678901234567890',
+        stream_id: 'stbx0000000000000000000000000000',
         created_height: '300',
         signed_height: null,
         encrypt_sig: false,
@@ -442,6 +458,8 @@ if (import.meta.vitest) {
       expect(metadata.requestTxId).toBe('tx456');
       expect(Array.from(metadata.attestationHash)).toEqual([7, 8, 9]);
       expect(Array.from(metadata.requester)).toEqual([10, 11, 12]);
+      expect(metadata.dataProvider).toBe('0x1234567890123456789012345678901234567890');
+      expect(metadata.streamId).toBe('stbx0000000000000000000000000000');
       expect(metadata.createdHeight).toBe(300);
       expect(metadata.signedHeight).toBe(null);
       expect(metadata.encryptSig).toBe(false);
