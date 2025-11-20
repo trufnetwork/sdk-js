@@ -470,29 +470,42 @@ describe.skip.sequential(
         // Wait for transaction to be mined
         await defaultClient.waitForTx(requestResult.requestTxId, 30000);
 
-        // Get the attestation metadata which should include the result_canonical
-        const attestations = await attestationAction.listAttestations({
-          requestTxId: requestResult.requestTxId,
-        });
+        // Get the signed attestation to extract result_canonical
+        // Wait for signature first
+        let signed = null;
+        for (let i = 0; i < 10; i++) {
+          try {
+            signed = await attestationAction.getSignedAttestation({
+              requestTxId: requestResult.requestTxId,
+            });
+            if (signed.payload && signed.payload.length > 65) break;
+          } catch (e) {
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+          }
+        }
 
-        if (attestations.length > 0) {
-          const targetAttestation = attestations[0];
+        if (signed && signed.payload) {
+          // Extract result_canonical from payload (payload = canonical + signature)
+          // The canonical portion is everything except the last 65 bytes
+          const resultCanonical = signed.payload.slice(0, -65);
 
-          // Note: result_canonical may not be available in the list response
-          // This test demonstrates the filter capability
-          console.log(`Testing result_canonical filter with request TX ID: ${requestResult.requestTxId}`);
+          console.log(`Testing result_canonical filter (${resultCanonical.length} bytes)`);
 
-          // Test with empty filter (should work)
+          // Filter by result_canonical
           const filtered = await attestationAction.listAttestations({
-            requestTxId: requestResult.requestTxId,
+            resultCanonical: resultCanonical,
           });
 
           expect(Array.isArray(filtered)).toBe(true);
           expect(filtered.length).toBeGreaterThan(0);
 
+          // Verify that the filtered attestation matches our request
+          const matchingAttestation = filtered.find(att => att.requestTxId === requestResult.requestTxId);
+          expect(matchingAttestation).toBeTruthy();
+
           console.log(`Result canonical filter test completed: found ${filtered.length} attestation(s)`);
         } else {
-          console.log("No attestations available to test result_canonical filter");
+          console.log("Attestation not signed yet, skipping result_canonical filter test");
         }
       }
     );
