@@ -101,6 +101,18 @@ export interface ListAttestationsInput {
   requestTxId?: string;
 
   /**
+   * Optional: Filter by attestation hash
+   * If provided, only returns attestations matching this hash
+   */
+  attestationHash?: Uint8Array;
+
+  /**
+   * Optional: Filter by result canonical bytes
+   * If provided, only returns attestations matching this canonical result
+   */
+  resultCanonical?: Uint8Array;
+
+  /**
    * Optional: Maximum number of results (1-5000, default 5000)
    */
   limit?: number;
@@ -451,6 +463,9 @@ if (import.meta.vitest) {
       expect(() =>
         validateListAttestationsInput({
           requester: new Uint8Array(20),
+          requestTxId: 'abc123',
+          attestationHash: new Uint8Array(32),
+          resultCanonical: new Uint8Array(100),
           limit: 100,
           offset: 0,
           orderBy: 'created_height desc',
@@ -460,6 +475,22 @@ if (import.meta.vitest) {
 
     it('should accept valid input with no optional fields', () => {
       expect(() => validateListAttestationsInput({})).not.toThrow();
+    });
+
+    it('should accept attestationHash filter', () => {
+      expect(() =>
+        validateListAttestationsInput({
+          attestationHash: new Uint8Array(32),
+        })
+      ).not.toThrow();
+    });
+
+    it('should accept resultCanonical filter', () => {
+      expect(() =>
+        validateListAttestationsInput({
+          resultCanonical: new Uint8Array(64),
+        })
+      ).not.toThrow();
     });
 
     it('should reject limit < 1', () => {

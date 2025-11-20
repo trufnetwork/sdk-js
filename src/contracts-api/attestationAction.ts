@@ -216,8 +216,8 @@ export class AttestationAction extends Action {
   /**
    * List attestation metadata with optional filtering
    *
-   * This returns metadata for attestations, optionally filtered by requester address or request transaction ID.
-   * Supports pagination and sorting.
+   * This returns metadata for attestations, optionally filtered by requester address, request transaction ID,
+   * attestation hash, or result canonical bytes. Supports pagination and sorting.
    *
    * @param input - Filter and pagination parameters
    * @returns Promise resolving to array of attestation metadata
@@ -254,6 +254,8 @@ export class AttestationAction extends Action {
     const params: Types.NamedParams = {
       $requester: input.requester ?? new Uint8Array(0),
       $request_tx_id: input.requestTxId ?? null,
+      $attestation_hash: input.attestationHash ?? new Uint8Array(0),
+      $result_canonical: input.resultCanonical ?? new Uint8Array(0),
       $limit: limit,
       $offset: offset,
       $order_by: input.orderBy ?? null,
