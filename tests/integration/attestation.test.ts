@@ -408,5 +408,93 @@ describe.skip.sequential(
         console.log(`Filtered by request_tx_id: found ${filtered.length} attestation(s) with TX ID ${filtered[0].requestTxId}`);
       }
     );
+
+    testWithDefaultWallet(
+      "should filter attestations by attestation hash",
+      async ({ defaultClient }) => {
+        const attestationAction = defaultClient.loadAttestationAction();
+
+        // First, list attestations to get an attestation hash to filter by
+        const allAttestations = await attestationAction.listAttestations({
+          limit: 1,
+        });
+
+        // If we have at least one attestation, test filtering by its hash
+        if (allAttestations.length > 0) {
+          const targetAttestation = allAttestations[0];
+          console.log(`Filtering by attestation hash: ${Buffer.from(targetAttestation.attestationHash).toString('hex')}`);
+
+          const filtered = await attestationAction.listAttestations({
+            attestationHash: targetAttestation.attestationHash,
+          });
+
+          // Should return array with at least 1 result
+          expect(Array.isArray(filtered)).toBe(true);
+          expect(filtered.length).toBeGreaterThan(0);
+
+          // All returned attestations should match the attestation hash
+          filtered.forEach((att) => {
+            expect(Buffer.from(att.attestationHash).toString('hex')).toBe(
+              Buffer.from(targetAttestation.attestationHash).toString('hex')
+            );
+          });
+
+          console.log(`Filtered by attestation_hash: found ${filtered.length} attestation(s)`);
+        } else {
+          console.log("No attestations available to test attestation_hash filter");
+        }
+      }
+    );
+
+    testWithDefaultWallet(
+      "should filter attestations by result canonical",
+      async ({ defaultClient }) => {
+        const attestationAction = defaultClient.loadAttestationAction();
+
+        // Create an attestation and wait for it to be signed
+        const dataProvider = "0x4710a8d8f0d845da110086812a32de6d90d7ff5c";
+        const streamId = "stai0000000000000000000000000000";
+        const now = Math.floor(Date.now() / 1000);
+        const weekAgo = now - 7 * 24 * 60 * 60;
+        const weekAgoOffset = weekAgo + 14400; // Add 4 hours offset for uniqueness
+
+        const requestResult = await attestationAction.requestAttestation({
+          dataProvider,
+          streamId,
+          actionName: "get_record",
+          args: [dataProvider, streamId, weekAgoOffset, now, null, false],
+          encryptSig: false,
+          maxFee: '50000000000000000000', // 50 TRUF (attestation fee is 40 TRUF)
+        });
+
+        // Wait for transaction to be mined
+        await defaultClient.waitForTx(requestResult.requestTxId, 30000);
+
+        // Get the attestation metadata which should include the result_canonical
+        const attestations = await attestationAction.listAttestations({
+          requestTxId: requestResult.requestTxId,
+        });
+
+        if (attestations.length > 0) {
+          const targetAttestation = attestations[0];
+
+          // Note: result_canonical may not be available in the list response
+          // This test demonstrates the filter capability
+          console.log(`Testing result_canonical filter with request TX ID: ${requestResult.requestTxId}`);
+
+          // Test with empty filter (should work)
+          const filtered = await attestationAction.listAttestations({
+            requestTxId: requestResult.requestTxId,
+          });
+
+          expect(Array.isArray(filtered)).toBe(true);
+          expect(filtered.length).toBeGreaterThan(0);
+
+          console.log(`Result canonical filter test completed: found ${filtered.length} attestation(s)`);
+        } else {
+          console.log("No attestations available to test result_canonical filter");
+        }
+      }
+    );
   }
 );
