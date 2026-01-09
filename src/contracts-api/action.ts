@@ -1,5 +1,6 @@
 import {KwilSigner, NodeKwil, WebKwil, Types} from "@trufnetwork/kwil-js";
 import { Either } from "monads-io";
+import { WithdrawalProof } from "../types/bridge";
 import { DateString } from "../types/other";
 import { StreamLocator } from "../types/stream";
 import { CacheAwareResponse, GetRecordOptions, GetIndexOptions, GetIndexChangeOptions, GetFirstRecordOptions } from "../types/cache";
@@ -1079,5 +1080,46 @@ export class Action {
     }
 
     return result.data?.result || [];
+  }
+
+  /**
+   * Gets withdrawal proof for a wallet address on a blockchain network
+   * Returns merkle proofs and validator signatures needed for withdrawal on target chain
+   *
+   * This method is used for non-custodial bridge withdrawals where users need to
+   * manually claim their withdrawals by submitting proofs to the destination chain.
+   *
+   * @param chain The chain identifier (e.g., "hoodi", "sepolia", etc.)
+   * @param walletAddress The wallet address to get withdrawal proof for
+   * @returns Promise that resolves to array of withdrawal proofs
+   *
+   * @example
+   * ```typescript
+   * // Get withdrawal proofs for Hoodi
+   * const proofs = await action.getWithdrawalProof("hoodi", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb");
+   * // Returns: [{ chain: "hoodi", recipient: "0x...", amount: "100000000000000000000", ... }]
+   * ```
+   *
+   * @note This method has been tested via integration tests in the node repository.
+   * See: https://github.com/trufnetwork/kwil-db/blob/main/node/exts/erc20-bridge/erc20/meta_extension_withdrawal_test.go
+   */
+  public async getWithdrawalProof(
+    chain: string,
+    walletAddress: string
+  ): Promise<WithdrawalProof[]> {
+    const result = await this.call<WithdrawalProof[]>(
+      `${chain}_get_withdrawal_proof`,
+      {
+        $wallet_address: walletAddress,
+      }
+    );
+
+    return result
+      .mapRight((rows) => {
+        // Return the array of withdrawal proofs
+        // May be empty if no unclaimed withdrawals
+        return rows || [];
+      })
+      .throw();
   }
 }

@@ -5,6 +5,7 @@ import { deleteStream } from "../contracts-api/deleteStream";
 import { PrimitiveAction } from "../contracts-api/primitiveAction";
 import { Action, ListMetadataByHeightParams, MetadataQueryResult } from "../contracts-api/action";
 import { StreamType } from "../contracts-api/contractValues";
+import { WithdrawalProof } from "../types/bridge";
 import { StreamLocator, TNStream } from "../types/stream";
 import { EthereumAddress } from "../util/EthereumAddress";
 import { StreamId } from "../util/StreamId";
@@ -319,6 +320,46 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
   async listWalletRewards(chain: string, wallet: string, withPending: boolean): Promise<any[]> {
     const action = this.loadAction();
     return action.listWalletRewards(chain, wallet, withPending);
+  }
+
+  /**
+   * Gets withdrawal proof for a specific wallet address on a blockchain network
+   * Returns merkle proofs and validator signatures needed for withdrawal
+   *
+   * This method is used for non-custodial bridge withdrawals where users need to
+   * manually claim their withdrawals by submitting proofs to the destination chain.
+   * The proof includes validator signatures, merkle root, block hash, and amount.
+   *
+   * @param chain The chain identifier (e.g., "hoodi", "sepolia", etc.)
+   * @param walletAddress The wallet address to get withdrawal proof for
+   * @returns Promise that resolves to an array of withdrawal proof data
+   *
+   * @example
+   * ```typescript
+   * // Get withdrawal proofs for Hoodi
+   * const proofs = await client.getWithdrawalProof("hoodi", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb");
+   *
+   * // Proofs will be an array like:
+   * // [{
+   * //   chain: "hoodi",
+   * //   chain_id: "3639",
+   * //   contract: "0x878D6aaeB6e746033f50B8dC268d54B4631554E7",
+   * //   created_at: 3080,
+   * //   recipient: "0x...",
+   * //   amount: "100000000000000000000",
+   * //   block_hash: <base64-encoded>,
+   * //   root: <base64-encoded>,
+   * //   proofs: [],
+   * //   signatures: [<base64-encoded-signatures>]
+   * // }]
+   * ```
+   *
+   * @note This method has been tested via integration tests in the node repository.
+   * See: https://github.com/trufnetwork/kwil-db/blob/main/node/exts/erc20-bridge/erc20/meta_extension_withdrawal_test.go
+   */
+  async getWithdrawalProof(chain: string, walletAddress: string): Promise<WithdrawalProof[]> {
+    const action = this.loadAction();
+    return action.getWithdrawalProof(chain, walletAddress);
   }
 
   /**
