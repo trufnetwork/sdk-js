@@ -76,5 +76,8 @@ export type {
   AttestationMetadata
 } from "./types/attestation";
 
+// Bridge types
+export type { WithdrawalProof } from "./types/bridge";
+
 // Visibility types
 export type { VisibilityEnum } from "./util/visibility";
