@@ -58,7 +58,14 @@ jobs:
         run: npm install
 
       - name: Update version in package.json
-        run: npm version $(echo ${{ steps.version.outputs.version }} | sed 's/^v//') --no-git-tag-version
+        run: |
+          NEW_VERSION=$(echo ${{ steps.version.outputs.version }} | sed 's/^v//')
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          if [ "$NEW_VERSION" != "$CURRENT_VERSION" ]; then
+            npm version $NEW_VERSION --no-git-tag-version
+          else
+            echo "Version is already $NEW_VERSION, skipping npm version"
+          fi
 
       - name: Publish to NPM
         run: npm publish
