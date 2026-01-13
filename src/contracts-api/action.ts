@@ -967,17 +967,26 @@ export class Action {
   }
 
   /**
-   * Gets the wallet balance on any supported blockchain network
-   * @param chain The chain identifier (e.g., "sepolia", "mainnet", "polygon", etc.)
+   * Gets the wallet balance for a specific bridge instance
+   * @param bridgeIdentifier The bridge instance identifier (e.g., "sepolia", "hoodi_tt", "ethereum")
+   *                         This corresponds to the bridge instance name in TN (e.g., hoodi_tt for Hoodi Test Token bridge)
    * @param walletAddress The wallet address to check balance for
-   * @returns Promise that resolves to the balance as a string, or throws on error
+   * @returns Promise that resolves to the balance as a string (in wei), or throws on error
+   * @example
+   * ```typescript
+   * // Simple case - identifier matches network name
+   * const balance = await action.getWalletBalance("sepolia", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb");
+   *
+   * // Multi-token bridge - specify bridge instance explicitly
+   * const balance = await action.getWalletBalance("hoodi_tt", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb");
+   * ```
    */
   public async getWalletBalance(
-    chain: string,
+    bridgeIdentifier: string,
     walletAddress: string
   ): Promise<string> {
     const result = await this.call<{ balance?: string; }[]>(
-      `${chain}_wallet_balance`,
+      `${bridgeIdentifier}_wallet_balance`,
       {
         $wallet_address: walletAddress,
       }
@@ -988,13 +997,13 @@ export class Action {
         if (rows.length === 0) {
           throw new Error("You don't have necessary permissions to execute this query");
         }
-        
+
         const row = rows[0];
-        
+
         if (row.balance === undefined) {
           throw new Error("No balance returned from wallet balance query");
         }
-        
+
         return row.balance;
       })
       .throw();
@@ -1029,13 +1038,22 @@ export class Action {
   }
 
   /**
-   * Bridges tokens on a blockchain network
-   * @param chain The chain identifier (e.g., "sepolia", "mainnet", "polygon", etc.)
-   * @param amount The amount to bridge
-   * @returns Promise that resolves to GenericResponse<TxReceipt>
+   * Bridges tokens by initiating a withdrawal from TN to a blockchain network
+   * @param bridgeIdentifier The bridge instance identifier (e.g., "sepolia", "hoodi_tt", "ethereum")
+   * @param amount The amount to bridge in wei (as string to preserve precision)
+   * @param recipient The recipient address on the destination chain
+   * @returns Promise that resolves to transaction receipt
+   * @example
+   * ```typescript
+   * // Bridge 100 tokens from TN to Sepolia
+   * const receipt = await action.bridgeTokens("sepolia", "100000000000000000000", "0x742d35Cc...");
+   *
+   * // Bridge from TN to Hoodi Test Token bridge
+   * const receipt = await action.bridgeTokens("hoodi_tt", "50000000000000000000", "0x742d35Cc...");
+   * ```
    */
   public async bridgeTokens(
-    chain: string,
+    bridgeIdentifier: string,
     amount: string,
     recipient: string
   ): Promise<Types.GenericResponse<Types.TxReceipt>> {
@@ -1045,27 +1063,28 @@ export class Action {
       throw new Error(`Invalid amount: ${amount}. Amount must be greater than 0.`);
     }
 
-    return await this.executeWithNamedParams(`${chain}_bridge_tokens`, [{
+    return await this.executeWithNamedParams(`${bridgeIdentifier}_bridge_tokens`, [{
       $recipient: recipient,
       $amount: amount
     }]);
   }
 
   /**
-   * Lists wallet rewards on a blockchain network
-   * @param chain The chain identifier (e.g., "sepolia", "mainnet", "polygon", etc.)
+   * Lists wallet rewards for a specific bridge instance
+   * @param bridgeIdentifier The bridge instance identifier (e.g., "sepolia", "hoodi_tt")
    * @param wallet The wallet address to list rewards for
    * @param withPending Whether to include pending rewards
-   * @returns Promise that resolves to the rewards data
+   * @returns Promise that resolves to array of reward records
+   * @deprecated This method uses the extension namespace directly. Most users should use getWithdrawalProof instead.
    */
   public async listWalletRewards(
-    chain: string,
+    bridgeIdentifier: string,
     wallet: string,
     withPending: boolean
   ): Promise<any[]> {
     const result = await this.kwilClient.call(
       {
-        namespace: `${chain}_bridge`,
+        namespace: `${bridgeIdentifier}_bridge`,
         name: "list_wallet_rewards",
         inputs: {
           $param_1: wallet,
@@ -1083,32 +1102,38 @@ export class Action {
   }
 
   /**
-   * Gets withdrawal proof for a wallet address on a blockchain network
-   * Returns merkle proofs and validator signatures needed for withdrawal on target chain
+   * Gets withdrawal proof for a wallet address on a specific bridge instance
+   * Returns merkle proofs and validator signatures needed for claiming withdrawals on the destination chain
    *
    * This method is used for non-custodial bridge withdrawals where users need to
-   * manually claim their withdrawals by submitting proofs to the destination chain.
+   * manually claim their withdrawals by submitting proofs to the destination chain contract.
    *
-   * @param chain The chain identifier (e.g., "hoodi", "sepolia", etc.)
+   * @param bridgeIdentifier The bridge instance identifier (e.g., "hoodi_tt", "sepolia", "ethereum")
    * @param walletAddress The wallet address to get withdrawal proof for
-   * @returns Promise that resolves to array of withdrawal proofs
+   * @returns Promise that resolves to array of withdrawal proofs (empty array if no unclaimed withdrawals)
    *
    * @example
    * ```typescript
-   * // Get withdrawal proofs for Hoodi
-   * const proofs = await action.getWithdrawalProof("hoodi", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb");
-   * // Returns: [{ chain: "hoodi", recipient: "0x...", amount: "100000000000000000000", ... }]
+   * // Get withdrawal proofs for Hoodi Test Token bridge
+   * const proofs = await action.getWithdrawalProof("hoodi_tt", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb");
+   * // Returns: [{ chain: "hoodi", recipient: "0x...", amount: "100000000000000000000", proofs: [...], signatures: [...] }]
+   *
+   * // Use the proofs to claim withdrawal on destination chain
+   * if (proofs.length > 0) {
+   *   const proof = proofs[0];
+   *   await bridgeContract.claimWithdrawal(proof.recipient, proof.amount, proof.root, proof.proofs, proof.signatures);
+   * }
    * ```
    *
    * @note This method has been tested via integration tests in the node repository.
    * See: https://github.com/trufnetwork/kwil-db/blob/main/node/exts/erc20-bridge/erc20/meta_extension_withdrawal_test.go
    */
   public async getWithdrawalProof(
-    chain: string,
+    bridgeIdentifier: string,
     walletAddress: string
   ): Promise<WithdrawalProof[]> {
     const result = await this.call<WithdrawalProof[]>(
-      `${chain}_get_withdrawal_proof`,
+      `${bridgeIdentifier}_get_withdrawal_proof`,
       {
         $wallet_address: walletAddress,
       }
