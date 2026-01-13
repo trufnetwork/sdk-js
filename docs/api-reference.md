@@ -910,6 +910,227 @@ parsed.result.forEach(row => {
 });
 ```
 
+## Bridge Operations
+
+The SDK provides methods for interacting with bridge instances on TN, enabling token transfers between TN and supported blockchain networks.
+
+### Understanding Bridge Identifiers
+
+Bridge instances on TN are identified by specific names that may differ from network names. For example:
+- Network `"sepolia"` → Bridge identifier `"sepolia"` (matches)
+- Network `"hoodi"` → Bridge identifier `"hoodi_tt"` (different due to multiple token support)
+
+Always use the **bridge identifier** when calling bridge methods, not the network name.
+
+### `client.getWalletBalance(bridgeIdentifier: string, walletAddress: string): Promise<string>`
+
+Gets the wallet balance for a specific bridge instance.
+
+#### Parameters
+- `bridgeIdentifier: string` - Bridge instance identifier (e.g., `"sepolia"`, `"hoodi_tt"`, `"ethereum"`)
+- `walletAddress: string` - Ethereum address to check balance for
+
+#### Returns
+- `Promise<string>` - Balance in wei as a string (to handle large numbers safely)
+
+#### Example
+```typescript
+// Simple case - identifier matches network name
+const sepoliaBalance = await client.getWalletBalance("sepolia", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb");
+console.log(`Balance: ${sepoliaBalance} wei`);
+
+// Multi-token bridge - specify bridge instance explicitly
+const hoodiBalance = await client.getWalletBalance("hoodi_tt", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb");
+
+// Convert wei to human-readable format
+import { formatEther } from 'ethers';
+const balanceInTokens = formatEther(hoodiBalance);
+console.log(`Balance: ${balanceInTokens} tokens`);
+```
+
+### `client.withdraw(bridgeIdentifier: string, amount: string, recipient: string): Promise<string>`
+
+Initiates a withdrawal by bridging tokens from TN to a destination chain. This is a convenience method that calls `bridgeTokens` and waits for transaction confirmation.
+
+#### Parameters
+- `bridgeIdentifier: string` - Bridge instance identifier (e.g., `"sepolia"`, `"hoodi_tt"`)
+- `amount: string` - Amount to withdraw in wei (as string to preserve precision)
+- `recipient: string` - Recipient address on the destination chain
+
+#### Returns
+- `Promise<string>` - Transaction hash of the withdrawal
+
+#### Example
+```typescript
+import { parseEther } from 'ethers';
+
+// Withdraw 100 tokens to Sepolia
+const amount = parseEther("100"); // Convert to wei
+const txHash = await client.withdraw("sepolia", amount.toString(), "0x742d35Cc...");
+
+console.log(`Withdrawal initiated: ${txHash}`);
+
+// For non-custodial bridges (like Hoodi), you must claim the withdrawal manually
+// See getWithdrawalProof() for claiming process
+```
+
+**Important Notes:**
+- **Non-custodial bridges** (Hoodi): You must manually claim withdrawals using `getWithdrawalProof()`
+- **Wait time**: Withdrawals become claimable after the epoch period (typically 10 minutes)
+
+### `client.getWithdrawalProof(bridgeIdentifier: string, walletAddress: string): Promise<WithdrawalProof[]>`
+
+Gets withdrawal proofs for claiming withdrawals on non-custodial bridges. Returns merkle proofs and validator signatures needed for submitting claims to the destination chain contract.
+
+#### Parameters
+- `bridgeIdentifier: string` - Bridge instance identifier (e.g., `"hoodi_tt"`)
+- `walletAddress: string` - Wallet address to get withdrawal proofs for
+
+#### Returns
+- `Promise<WithdrawalProof[]>` - Array of withdrawal proofs (empty array if no unclaimed withdrawals)
+
+#### WithdrawalProof Type
+```typescript
+interface WithdrawalProof {
+  chain: string;           // Source chain name (e.g., "hoodi")
+  chain_id: string;        // Numeric chain ID (e.g., "560048")
+  contract: string;        // Bridge contract address on destination chain
+  created_at: number;      // Block number when withdrawal was created
+  recipient: string;       // Recipient wallet address
+  amount: string;          // Withdrawal amount in wei
+  block_hash: string;      // Kwil block hash (base64-encoded)
+  root: string;            // Merkle root (base64-encoded)
+  proofs: string[];        // Merkle proofs (base64-encoded, usually empty)
+  signatures: string[];    // Validator signatures (base64-encoded, 65 bytes each)
+}
+```
+
+#### Example - Check for Claimable Withdrawals
+```typescript
+// Check for claimable withdrawals
+const proofs = await client.getWithdrawalProof("hoodi_tt", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb");
+
+if (proofs.length === 0) {
+  console.log("No withdrawals ready to claim");
+} else {
+  console.log(`${proofs.length} withdrawal(s) ready to claim`);
+
+  for (const proof of proofs) {
+    console.log(`Amount: ${proof.amount} wei`);
+    console.log(`Recipient: ${proof.recipient}`);
+    console.log(`Contract: ${proof.contract}`);
+  }
+}
+```
+
+#### Example - Claim Withdrawal On-Chain
+```typescript
+import { Contract, ethers } from 'ethers';
+
+// 1. Get withdrawal proof from TN
+const proofs = await client.getWithdrawalProof("hoodi_tt", walletAddress);
+if (proofs.length === 0) {
+  throw new Error("No withdrawals to claim");
+}
+
+const proof = proofs[0];
+
+// 2. Decode base64 data for smart contract call
+const blockHash = Buffer.from(proof.block_hash, 'base64');
+const root = Buffer.from(proof.root, 'base64');
+const merkleProofs = proof.proofs.map(p => Buffer.from(p, 'base64'));
+
+// 3. Split signatures into v, r, s components
+const signatures = proof.signatures.map(sig => {
+  const sigBytes = Buffer.from(sig, 'base64');
+  return {
+    v: sigBytes[64],
+    r: '0x' + sigBytes.slice(0, 32).toString('hex'),
+    s: '0x' + sigBytes.slice(32, 64).toString('hex')
+  };
+});
+
+// 4. Call bridge contract to claim withdrawal
+const bridgeContract = new Contract(proof.contract, BRIDGE_ABI, signer);
+
+const tx = await bridgeContract.claimWithdrawal(
+  proof.recipient,
+  proof.amount,
+  '0x' + blockHash.toString('hex'),
+  '0x' + root.toString('hex'),
+  merkleProofs.map(p => '0x' + p.toString('hex')),
+  signatures.map(s => ({ v: s.v, r: s.r, s: s.s }))
+);
+
+await tx.wait();
+console.log(`Withdrawal claimed! Tx: ${tx.hash}`);
+```
+
+### `action.listWalletRewards(bridgeIdentifier: string, wallet: string, withPending: boolean): Promise<any[]>`
+
+Lists wallet rewards for a specific bridge instance. This is a low-level method that directly accesses the bridge extension namespace.
+
+**⚠️ Deprecated**: Most users should use `getWithdrawalProof()` instead, which provides a higher-level interface.
+
+#### Parameters
+- `bridgeIdentifier: string` - Bridge instance identifier
+- `wallet: string` - Wallet address to query
+- `withPending: boolean` - Whether to include pending (not yet finalized) rewards
+
+#### Returns
+- `Promise<any[]>` - Array of reward records
+
+#### Example
+```typescript
+const action = client.loadAction();
+const rewards = await action.listWalletRewards("hoodi_tt", walletAddress, true);
+console.log(`Found ${rewards.length} reward(s)`);
+```
+
+### Bridge Configuration Best Practices
+
+When integrating bridge functionality in your application:
+
+1. **Use bridge identifiers directly**:
+```typescript
+// Always use the exact bridge identifier
+const balance = await client.getWalletBalance('hoodi_tt', address);
+const sepoliaBalance = await client.getWalletBalance('sepolia', address);
+
+// For multiple Hoodi bridges
+const tt2Balance = await client.getWalletBalance('hoodi_tt2', address);
+```
+
+2. **Handle custodial vs non-custodial bridges differently**:
+```typescript
+const isCustodial = {
+  ethereum: true,  // Auto-claimed
+  sepolia: true,   // Auto-claimed
+  hoodi_tt: false, // Manual claim required
+};
+
+if (isCustodial[bridgeId]) {
+  console.log("Withdrawal will be automatically claimed");
+} else {
+  console.log("You must claim withdrawal manually using getWithdrawalProof()");
+}
+```
+
+3. **Poll for withdrawal proofs** on non-custodial bridges:
+```typescript
+async function waitForClaimableWithdrawal(bridgeId: string, address: string, maxAttempts = 60) {
+  for (let i = 0; i < maxAttempts; i++) {
+    const proofs = await client.getWithdrawalProof(bridgeId, address);
+    if (proofs.length > 0) {
+      return proofs[0];
+    }
+    // Wait 10 seconds before checking again
+    await new Promise(resolve => setTimeout(resolve, 10000));
+  }
+  throw new Error("Withdrawal not ready after 10 minutes");
+}
+```
+
 ## Performance Recommendations
 - Use batch record insertions
 - Implement client-side caching

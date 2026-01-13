@@ -279,65 +279,73 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
     return action.listMetadataByHeight(params);
   }
 
-  async getWalletBalance(chain: string, walletAddress: string) {
+  /**
+   * Gets the wallet balance for a specific bridge instance
+   * @param bridgeIdentifier The bridge instance identifier (e.g., "sepolia", "hoodi_tt", "ethereum")
+   * @param walletAddress The wallet address to check balance for
+   * @returns Promise that resolves to the balance as a string (in wei)
+   */
+  async getWalletBalance(bridgeIdentifier: string, walletAddress: string) {
     const action = this.loadAction();
-    return action.getWalletBalance(chain, walletAddress);
+    return action.getWalletBalance(bridgeIdentifier, walletAddress);
   }
 
   /**
-   * Performs a withdrawal operation by bridging tokens
-   * @param chain The chain identifier (e.g., "sepolia", "mainnet", "polygon", etc.)
-   * @param amount The amount to withdraw
+   * Performs a withdrawal operation by bridging tokens from TN to a destination chain
+   * @param bridgeIdentifier The bridge instance identifier (e.g., "sepolia", "hoodi_tt")
+   * @param amount The amount to withdraw (in wei)
+   * @param recipient The recipient address on the destination chain
    * @returns Promise that resolves to the transaction hash, or throws on error
    */
-  async withdraw(chain: string, amount: string, recipient: string): Promise<string> {
+  async withdraw(bridgeIdentifier: string, amount: string, recipient: string): Promise<string> {
     const action = this.loadAction();
-    
+
     // Bridge tokens in a single operation
-    const bridgeResult = await action.bridgeTokens(chain, amount, recipient);
+    const bridgeResult = await action.bridgeTokens(bridgeIdentifier, amount, recipient);
     if (!bridgeResult.data?.tx_hash) {
       throw new Error("Bridge tokens operation failed: no transaction hash returned");
     }
-    
+
     // Wait for bridge transaction to be mined - let waitForTx errors bubble up
     try {
       await this.waitForTx(bridgeResult.data.tx_hash);
     } catch (error) {
       throw new Error(`Bridge tokens transaction failed: ${error instanceof Error ? error.message : String(error)}`);
     }
-    
+
     // Return the transaction hash
     return bridgeResult.data.tx_hash;
   }
 
   /**
-   * Lists wallet rewards for a specific wallet address on a blockchain network
-   * @param chain The chain identifier (e.g., "sepolia", "mainnet", "polygon", etc.)
+   * Lists wallet rewards for a specific bridge instance
+   * @param bridgeIdentifier The bridge instance identifier (e.g., "sepolia", "hoodi_tt")
    * @param wallet The wallet address to list rewards for
    * @param withPending Whether to include pending rewards
    * @returns Promise that resolves to an array of rewards data
+   * @deprecated This method uses the extension namespace directly. Most users should use getWithdrawalProof instead.
    */
-  async listWalletRewards(chain: string, wallet: string, withPending: boolean): Promise<any[]> {
+  async listWalletRewards(bridgeIdentifier: string, wallet: string, withPending: boolean): Promise<any[]> {
     const action = this.loadAction();
-    return action.listWalletRewards(chain, wallet, withPending);
+    return action.listWalletRewards(bridgeIdentifier, wallet, withPending);
   }
 
   /**
-   * Gets withdrawal proof for a specific wallet address on a blockchain network
-   * Returns merkle proofs and validator signatures needed for withdrawal
+   * Gets withdrawal proof for a specific bridge instance
+   * Returns merkle proofs and validator signatures needed for claiming withdrawals on the destination chain
    *
    * This method is used for non-custodial bridge withdrawals where users need to
-   * manually claim their withdrawals by submitting proofs to the destination chain.
+   * manually claim their withdrawals by submitting proofs to the destination chain contract.
    * The proof includes validator signatures, merkle root, block hash, and amount.
    *
-   * @param chain The chain identifier (e.g., "hoodi", "sepolia", etc.)
+   * @param bridgeIdentifier The bridge instance identifier (e.g., "hoodi_tt", "sepolia", "ethereum")
    * @param walletAddress The wallet address to get withdrawal proof for
-   * @returns Promise that resolves to an array of withdrawal proof data
+   * @returns Promise that resolves to an array of withdrawal proof data (empty array if no unclaimed withdrawals)
    *
    * @example
    * ```typescript
-   * // Get withdrawal proofs for Hoodi
-   * const proofs = await client.getWithdrawalProof("hoodi", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb");
+   * // Get withdrawal proofs for Hoodi Test Token bridge
+   * const proofs = await client.getWithdrawalProof("hoodi_tt", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb");
    *
    * // Proofs will be an array like:
    * // [{
@@ -352,14 +360,20 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
    * //   proofs: [],
    * //   signatures: [<base64-encoded-signatures>]
    * // }]
+   *
+   * // Use the proofs to claim withdrawal on destination chain
+   * if (proofs.length > 0) {
+   *   const proof = proofs[0];
+   *   await bridgeContract.claimWithdrawal(proof.recipient, proof.amount, proof.root, proof.proofs, proof.signatures);
+   * }
    * ```
    *
    * @note This method has been tested via integration tests in the node repository.
    * See: https://github.com/trufnetwork/kwil-db/blob/main/node/exts/erc20-bridge/erc20/meta_extension_withdrawal_test.go
    */
-  async getWithdrawalProof(chain: string, walletAddress: string): Promise<WithdrawalProof[]> {
+  async getWithdrawalProof(bridgeIdentifier: string, walletAddress: string): Promise<WithdrawalProof[]> {
     const action = this.loadAction();
-    return action.getWithdrawalProof(chain, walletAddress);
+    return action.getWithdrawalProof(bridgeIdentifier, walletAddress);
   }
 
   /**

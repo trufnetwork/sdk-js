@@ -10,7 +10,7 @@
  *
  * @example
  * ```typescript
- * const proofs = await client.getWithdrawalProof("hoodi", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb");
+ * const proofs = await client.getWithdrawalProof("hoodi_tt", "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb");
  * const proof = proofs[0];
  *
  * // Decode base64 data to use in smart contract call
@@ -21,7 +21,8 @@
  */
 export interface WithdrawalProof {
   /**
-   * The chain identifier (e.g., "hoodi", "sepolia")
+   * The source chain name (e.g., "hoodi", "sepolia")
+   * Note: This is the chain name, not the bridge identifier
    */
   chain: string;
 
