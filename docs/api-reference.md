@@ -1131,6 +1131,275 @@ async function waitForClaimableWithdrawal(bridgeId: string, address: string, max
 }
 ```
 
+## Order Book Operations
+
+The Order Book API enables binary prediction markets on TRUF.NETWORK. Markets are automatically settled based on real-world data from trusted data providers.
+
+### Loading the Order Book Action
+
+```typescript
+const orderbook = client.loadOrderbookAction();
+```
+
+### Market Operations
+
+#### `orderbook.createMarket(input: CreateMarketInput): Promise<TxReceipt>`
+
+Creates a new binary prediction market.
+
+##### Parameters
+- `input: Object`
+  - `bridge: BridgeIdentifier` - Bridge for collateral (`"hoodi_tt2"`, `"sepolia_bridge"`, `"ethereum_bridge"`)
+  - `queryComponents: Uint8Array` - ABI-encoded query tuple (use `encodeQueryComponents()`)
+  - `settleTime: number` - Unix timestamp for market settlement
+  - `maxSpread: number` - Maximum bid-ask spread (1-50 cents)
+  - `minOrderSize: number` - Minimum order size
+
+##### Example
+```typescript
+import { OrderbookAction } from "@trufnetwork/sdk-js";
+
+const args = OrderbookAction.encodeActionArgs(
+  dataProviderAddress,
+  streamId,
+  timestamp,
+  "50000.00", // threshold
+  frozenAt
+);
+
+const queryComponents = OrderbookAction.encodeQueryComponents(
+  dataProviderAddress,
+  streamId,
+  "price_above_threshold",
+  args
+);
+
+const result = await orderbook.createMarket({
+  bridge: "hoodi_tt2",
+  queryComponents,
+  settleTime: Math.floor(Date.now() / 1000) + 3600, // 1 hour from now
+  maxSpread: 10,
+  minOrderSize: 1,
+});
+
+await client.waitForTx(result.data!.tx_hash);
+```
+
+#### `orderbook.createPriceAboveThresholdMarket(input): Promise<TxReceipt>`
+
+Convenience method for creating "price above threshold" markets.
+
+```typescript
+const result = await orderbook.createPriceAboveThresholdMarket({
+  dataProvider: "0x4710a8d8f0d845da110086812a32de6d90d7ff5c",
+  streamId: "stbtc0000000000000000000000000000",
+  timestamp: Math.floor(Date.now() / 1000) + 3600,
+  threshold: "50000.00",
+  frozenAt: 0,
+  bridge: "hoodi_tt2",
+  settleTime: Math.floor(Date.now() / 1000) + 3600,
+  maxSpread: 10,
+  minOrderSize: 1,
+});
+```
+
+#### `orderbook.getMarketInfo(queryId: number): Promise<MarketInfo>`
+
+Gets detailed information about a market.
+
+```typescript
+const market = await orderbook.getMarketInfo(queryId);
+console.log(`Settle Time: ${new Date(market.settleTime * 1000)}`);
+console.log(`Settled: ${market.settled}`);
+if (market.settled) {
+  console.log(`Winner: ${market.winningOutcome ? "YES" : "NO"}`);
+}
+```
+
+#### `orderbook.listMarkets(input?: ListMarketsInput): Promise<MarketSummary[]>`
+
+Lists markets with optional filtering.
+
+```typescript
+// Get all unsettled markets
+const markets = await orderbook.listMarkets({
+  settledFilter: true, // true=unsettled, false=settled, null=all
+  limit: 100,
+  offset: 0,
+});
+```
+
+#### `orderbook.validateMarketCollateral(queryId: number): Promise<MarketValidation>`
+
+Validates market collateral integrity (YES/NO token parity and vault balance).
+
+```typescript
+const validation = await orderbook.validateMarketCollateral(queryId);
+console.log(`Valid: ${validation.validCollateral}`);
+console.log(`Total YES: ${validation.totalTrue}`);
+console.log(`Total NO: ${validation.totalFalse}`);
+```
+
+### Order Operations
+
+#### `orderbook.placeBuyOrder(input: PlaceOrderInput): Promise<TxReceipt>`
+
+Places a buy order for shares. Locks collateral: `amount x price x 10^16 wei`.
+
+```typescript
+await orderbook.placeBuyOrder({
+  queryId: market.id,
+  outcome: true,  // true=YES, false=NO
+  price: 55,      // 55 cents
+  amount: 100,    // 100 shares
+});
+```
+
+#### `orderbook.placeSellOrder(input: PlaceOrderInput): Promise<TxReceipt>`
+
+Places a sell order for owned shares.
+
+```typescript
+await orderbook.placeSellOrder({
+  queryId: market.id,
+  outcome: true,
+  price: 60,
+  amount: 50,
+});
+```
+
+#### `orderbook.placeSplitLimitOrder(input: PlaceSplitLimitOrderInput): Promise<TxReceipt>`
+
+Places a split limit order for market making. Atomically:
+1. Locks collateral ($1.00 per pair)
+2. Mints a YES/NO share pair
+3. Keeps YES shares as holdings
+4. Places NO shares as a sell order at `(100 - truePrice)` cents
+
+```typescript
+// Create 100 pairs: YES holdings + NO sell orders at 45c
+await orderbook.placeSplitLimitOrder({
+  queryId: market.id,
+  truePrice: 55,  // YES at 55c, NO at 45c
+  amount: 100,
+});
+```
+
+#### `orderbook.cancelOrder(input: CancelOrderInput): Promise<TxReceipt>`
+
+Cancels an open order (cannot cancel holdings where price=0).
+
+```typescript
+await orderbook.cancelOrder({
+  queryId: market.id,
+  outcome: true,
+  price: 55, // Price of order to cancel
+});
+```
+
+### Query Operations
+
+#### `orderbook.getOrderBook(queryId: number, outcome: boolean): Promise<OrderBookEntry[]>`
+
+Gets the order book for a market outcome.
+
+```typescript
+const yesOrders = await orderbook.getOrderBook(queryId, true);
+for (const order of yesOrders) {
+  const type = order.price < 0 ? "BUY" : order.price > 0 ? "SELL" : "HOLDING";
+  console.log(`${type}: ${order.amount} shares at ${Math.abs(order.price)}c`);
+}
+```
+
+#### `orderbook.getBestPrices(queryId: number, outcome: boolean): Promise<BestPrices>`
+
+Gets the best bid and ask prices for an outcome.
+
+```typescript
+const prices = await orderbook.getBestPrices(queryId, true);
+console.log(`YES: Bid=${prices.bestBid}c, Ask=${prices.bestAsk}c, Spread=${prices.spread}c`);
+```
+
+#### `orderbook.getMarketDepth(queryId: number, outcome: boolean): Promise<DepthLevel[]>`
+
+Gets aggregated volume at each price level.
+
+```typescript
+const depth = await orderbook.getMarketDepth(queryId, true);
+for (const level of depth) {
+  console.log(`${level.price}c: ${level.totalAmount} shares`);
+}
+```
+
+#### `orderbook.getUserPositions(): Promise<UserPosition[]>`
+
+Gets the caller's positions across all markets.
+
+```typescript
+const positions = await orderbook.getUserPositions();
+for (const pos of positions) {
+  const type = pos.price === 0 ? "HOLDING" : pos.price < 0 ? "BUY" : "SELL";
+  console.log(`Market ${pos.queryId}: ${pos.outcome ? "YES" : "NO"} ${type} ${pos.amount}`);
+}
+```
+
+#### `orderbook.getUserCollateral(): Promise<UserCollateral>`
+
+Gets the caller's total locked collateral.
+
+```typescript
+const collateral = await orderbook.getUserCollateral();
+console.log(`Total Locked: ${collateral.totalLocked} wei`);
+console.log(`Buy Orders: ${collateral.buyOrdersLocked} wei`);
+console.log(`Shares Value: ${collateral.sharesValue} wei`);
+```
+
+### Settlement Operations
+
+#### `orderbook.settleMarket(queryId: number): Promise<TxReceipt>`
+
+Settles a market after settlement time has passed.
+
+```typescript
+const result = await orderbook.settleMarket(queryId);
+await client.waitForTx(result.data!.tx_hash);
+```
+
+### Price Representation
+
+Prices are represented as integers in cents (1-99):
+- A YES price of 60 means 60 cents, implying 60% probability
+- The complementary NO price is always `100 - YES_price`
+
+### Order Types
+
+| Price Value | Type | Description |
+|------------|------|-------------|
+| -99 to -1 | Buy Order | Bid to buy at \|price\| cents |
+| 0 | Holding | Shares owned (not listed) |
+| 1 to 99 | Sell Order | Ask to sell at price cents |
+
+### Static Helper Methods
+
+```typescript
+// Encode action arguments for query components
+const args = OrderbookAction.encodeActionArgs(
+  dataProvider,  // Ethereum address
+  streamId,      // 32-char stream ID
+  timestamp,     // Unix timestamp
+  threshold,     // Price threshold (e.g., "50000.00")
+  frozenAt       // Block height for data snapshot
+);
+
+// Encode full query components
+const queryComponents = OrderbookAction.encodeQueryComponents(
+  dataProvider,
+  streamId,
+  actionId,      // e.g., "price_above_threshold"
+  args
+);
+```
+
 ## Performance Recommendations
 - Use batch record insertions
 - Implement client-side caching

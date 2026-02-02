@@ -24,3 +24,6 @@ out
 *.env
 
 CLAUDE.md
+
+# Orderbook example temporary files
+examples/orderbook/.query_id

@@ -10,6 +10,15 @@ import { Utils, Types } from '@trufnetwork/kwil-js';
 import { AbiCoder } from 'ethers';
 
 /**
+ * Type hint for specifying explicit types when encoding arguments.
+ * Use Utils.DataType from kwil-js (e.g., Utils.DataType.Numeric(36, 18))
+ *
+ * DataInfo structure: { name: VarType, is_array: boolean, metadata?: number[] }
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type TypeHint = any;
+
+/**
  * Encodes action arguments into canonical bytes using kwil-js utilities.
  *
  * Format: [arg_count:uint32(LE)][length:uint32(LE)][encoded_arg1][length:uint32(LE)][encoded_arg2]...
@@ -17,10 +26,11 @@ import { AbiCoder } from 'ethers';
  * Each encoded_arg uses kwil-db's EncodedValue.MarshalBinary() format.
  *
  * @param args - Array of arguments to encode
+ * @param types - Optional map of argument index to type hint (for NUMERIC, etc.)
  * @returns Encoded bytes
  * @throws Error if any argument cannot be encoded
  */
-export function encodeActionArgs(args: any[]): Uint8Array {
+export function encodeActionArgs(args: any[], types?: Record<number, TypeHint>): Uint8Array {
   // Calculate total size needed
   const encodedArgs: Uint8Array[] = [];
   let totalSize = 4; // arg_count (uint32)
@@ -29,7 +39,9 @@ export function encodeActionArgs(args: any[]): Uint8Array {
   for (let i = 0; i < args.length; i++) {
     try {
       // Convert value to EncodedValue using kwil-js
-      const encodedValue: Types.EncodedValue = Utils.formatEncodedValue(args[i]);
+      // If type hint is provided, use it; otherwise let kwil-js infer the type
+      const typeHint = types?.[i];
+      const encodedValue: Types.EncodedValue = Utils.formatEncodedValue(args[i], typeHint);
 
       // Serialize EncodedValue to bytes using kwil-js
       const argBytes = Utils.encodeEncodedValue(encodedValue);

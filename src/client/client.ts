@@ -14,6 +14,7 @@ import { getLastTransactions } from "./getLastTransactions";
 import { RoleManagement } from "../contracts-api/roleManagement";
 import { AttestationAction } from "../contracts-api/attestationAction";
 import { TransactionAction } from "../contracts-api/transactionAction";
+import { OrderbookAction } from "../contracts-api/orderbookAction";
 import { OwnerIdentifier } from "../types/role";
 
 export interface SignerInfo {
@@ -209,6 +210,17 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
    */
   loadTransactionAction(): TransactionAction {
     return new TransactionAction(
+      this.getKwilClient() as WebKwil | NodeKwil,
+      this.getKwilSigner(),
+    );
+  }
+
+  /**
+   * Loads the order book action API, permitting prediction market operations.
+   * @returns An instance of OrderbookAction.
+   */
+  loadOrderbookAction(): OrderbookAction {
+    return new OrderbookAction(
       this.getKwilClient() as WebKwil | NodeKwil,
       this.getKwilSigner(),
     );
