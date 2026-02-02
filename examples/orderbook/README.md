@@ -40,7 +40,7 @@ npx tsx examples/orderbook/02_place_orders.ts
 2. Places LP-eligible paired orders: YES SELL + NO BUY at complementary prices
 
 **LP Rewards Eligibility:**
-```
+```text
 yes_price + no_price == 100
 ```
 Example: YES SELL @ 55 + NO BUY @ 45 → `55 + 45 = 100` ✓
@@ -116,11 +116,11 @@ No manual intervention is required for settlement.
 
 ### Order Types
 
-| Order Type | Price | Description |
-|------------|-------|-------------|
-| Buy Order | Positive (1-99) | Bid to buy shares at this price |
-| Holding | 0 | Shares owned by participant |
-| Sell Order | Positive (1-99) | Ask to sell shares at this price |
+| Price Value | Type | Description |
+|-------------|------|-------------|
+| -99 to -1 | Buy Order | Bid to buy at |price| cents |
+| 0 | Holding | Shares owned by participant |
+| 1 to 99 | Sell Order | Ask to sell at price cents |
 
 ### Split Limit Orders
 

@@ -18,6 +18,7 @@ import { Wallet } from "ethers";
 import { NodeTNClient } from "../../src/index.node";
 import * as fs from "fs";
 import * as path from "path";
+import { fileURLToPath } from "url";
 
 // Testnet configuration
 const TESTNET_URL = "http://ec2-3-141-77-16.us-east-2.compute.amazonaws.com:8484";
@@ -31,10 +32,16 @@ const MARKET_MAKER_PRIVATE_KEY =
 const MARKET_MAKER_ADDRESS = "0xc11Ff6d3cC60823EcDCAB1089F1A4336053851EF";
 
 function getQueryId(): number {
-  const scriptDir = path.dirname(new URL(import.meta.url).pathname);
+  const scriptDir = path.dirname(fileURLToPath(import.meta.url));
   const queryIdFile = path.join(scriptDir, ".query_id");
   try {
-    return parseInt(fs.readFileSync(queryIdFile, "utf-8").trim(), 10);
+    const content = fs.readFileSync(queryIdFile, "utf-8").trim();
+    const queryId = parseInt(content, 10);
+    if (!Number.isInteger(queryId)) {
+      console.error(`Error: Invalid query_id in ${queryIdFile}: "${content}"`);
+      process.exit(1);
+    }
+    return queryId;
   } catch {
     console.error(`Error: ${queryIdFile} not found. Run 01_create_market.ts first.`);
     process.exit(1);
@@ -59,7 +66,7 @@ async function main() {
     chainId: CHAIN_ID,
   });
 
-  console.log(`\nMarket Maker: OBMarketMaker (${MARKET_MAKER_ADDRESS})`);
+  console.log(`\nMarket Maker: OBMarketMaker (${wallet.address})`);
   console.log(`Market ID: ${QUERY_ID}`);
 
   const orderbook = client.loadOrderbookAction();
@@ -113,10 +120,11 @@ async function main() {
       price: pair.yesPrice,
       amount: pair.amount,
     });
-    if (sellResult.data?.tx_hash) {
-      await client.waitForTx(sellResult.data.tx_hash, 30000);
-      console.log(`    YES SELL: ${sellResult.data.tx_hash.slice(0, 16)}...`);
+    if (!sellResult.data?.tx_hash) {
+      throw new Error("Failed to place YES sell order: no transaction hash");
     }
+    await client.waitForTx(sellResult.data.tx_hash, 30000);
+    console.log(`    YES SELL: ${sellResult.data.tx_hash.slice(0, 16)}...`);
 
     // Place NO buy order at complementary price
     const buyResult = await orderbook.placeBuyOrder({
@@ -125,10 +133,11 @@ async function main() {
       price: pair.noPrice,
       amount: pair.amount,
     });
-    if (buyResult.data?.tx_hash) {
-      await client.waitForTx(buyResult.data.tx_hash, 30000);
-      console.log(`    NO BUY:   ${buyResult.data.tx_hash.slice(0, 16)}...`);
+    if (!buyResult.data?.tx_hash) {
+      throw new Error("Failed to place NO buy order: no transaction hash");
     }
+    await client.waitForTx(buyResult.data.tx_hash, 30000);
+    console.log(`    NO BUY:   ${buyResult.data.tx_hash.slice(0, 16)}...`);
 
     // Verify LP eligibility
     const check = pair.yesPrice === 100 - pair.noPrice;
@@ -182,4 +191,7 @@ async function main() {
   console.log("=".repeat(60));
 }
 
-main().catch(console.error);
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

@@ -11,6 +11,7 @@ import { Wallet } from "ethers";
 import { NodeTNClient, OrderbookAction } from "../../src/index.node";
 import * as fs from "fs";
 import * as path from "path";
+import { fileURLToPath } from "url";
 
 // Testnet configuration
 const TESTNET_URL = "http://ec2-3-141-77-16.us-east-2.compute.amazonaws.com:8484";
@@ -106,7 +107,7 @@ async function main() {
   console.log(`\nMarket ID: ${queryId}`);
 
   // Save query_id for other scripts
-  const scriptDir = path.dirname(new URL(import.meta.url).pathname);
+  const scriptDir = path.dirname(fileURLToPath(import.meta.url));
   const queryIdFile = path.join(scriptDir, ".query_id");
   fs.writeFileSync(queryIdFile, queryId.toString());
   console.log(`  Saved to: ${queryIdFile}`);
@@ -127,4 +128,7 @@ async function main() {
   console.log("=".repeat(60));
 }
 
-main().catch(console.error);
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

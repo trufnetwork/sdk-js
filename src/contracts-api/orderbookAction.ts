@@ -488,8 +488,10 @@ export class OrderbookAction {
   async changeAsk(
     input: ChangeAskInput
   ): Promise<Types.GenericResponse<Types.TxReceipt>> {
-    if (input.oldPrice < 0 || input.newPrice < 0) {
-      throw new Error("changeAsk: Prices must be non-negative (sell orders)");
+    if (input.oldPrice <= 0 || input.newPrice <= 0) {
+      throw new Error(
+        "changeAsk: Prices must be strictly positive (sell orders, price 0 is holdings)"
+      );
     }
     validateAmount(input.newAmount, "changeAsk");
 

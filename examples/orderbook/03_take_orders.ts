@@ -11,6 +11,7 @@ import { Wallet } from "ethers";
 import { NodeTNClient } from "../../src/index.node";
 import * as fs from "fs";
 import * as path from "path";
+import { fileURLToPath } from "url";
 
 // Testnet configuration
 const TESTNET_URL = "http://ec2-3-141-77-16.us-east-2.compute.amazonaws.com:8484";
@@ -28,10 +29,16 @@ const SELLER_TAKER_PRIVATE_KEY =
 const SELLER_TAKER_ADDRESS = "0x51125FD33c366595d24aa42229085D30c95a62dA";
 
 function getQueryId(): number {
-  const scriptDir = path.dirname(new URL(import.meta.url).pathname);
+  const scriptDir = path.dirname(fileURLToPath(import.meta.url));
   const queryIdFile = path.join(scriptDir, ".query_id");
   try {
-    return parseInt(fs.readFileSync(queryIdFile, "utf-8").trim(), 10);
+    const content = fs.readFileSync(queryIdFile, "utf-8").trim();
+    const queryId = parseInt(content, 10);
+    if (!Number.isInteger(queryId)) {
+      console.error(`Error: Invalid query_id in ${queryIdFile}: "${content}"`);
+      process.exit(1);
+    }
+    return queryId;
   } catch {
     console.error(`Error: ${queryIdFile} not found. Run 01_create_market.ts first.`);
     process.exit(1);
@@ -86,11 +93,12 @@ async function main() {
     amount: 20,
   });
 
-  if (buyResult.data?.tx_hash) {
-    console.log(`  Transaction: ${buyResult.data.tx_hash}`);
-    await buyerClient.waitForTx(buyResult.data.tx_hash, 30000);
-    console.log(`  Order executed!`);
+  if (!buyResult.data?.tx_hash) {
+    throw new Error("Failed to place buy order: no transaction hash");
   }
+  console.log(`  Transaction: ${buyResult.data.tx_hash}`);
+  await buyerClient.waitForTx(buyResult.data.tx_hash, 30000);
+  console.log(`  Order executed!`);
 
   // Step 2: Seller creates shares and sells
   console.log(`\n--- Seller Taker: Selling via Split Limit Order ---`);
@@ -103,11 +111,12 @@ async function main() {
     amount: 30,
   });
 
-  if (splitResult.data?.tx_hash) {
-    console.log(`  Transaction: ${splitResult.data.tx_hash}`);
-    await sellerClient.waitForTx(splitResult.data.tx_hash, 30000);
-    console.log(`  Shares created and NO listed!`);
+  if (!splitResult.data?.tx_hash) {
+    throw new Error("Failed to place split limit order: no transaction hash");
   }
+  console.log(`  Transaction: ${splitResult.data.tx_hash}`);
+  await sellerClient.waitForTx(splitResult.data.tx_hash, 30000);
+  console.log(`  Shares created and NO listed!`);
 
   // Step 3: Display buyer's positions
   console.log(`\n--- Buyer's Positions ---`);
@@ -157,4 +166,7 @@ async function main() {
   console.log("=".repeat(60));
 }
 
-main().catch(console.error);
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

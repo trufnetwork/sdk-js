@@ -8,6 +8,7 @@ import { Wallet } from "ethers";
 import { NodeTNClient, bytesToHex } from "../../src/index.node";
 import * as fs from "fs";
 import * as path from "path";
+import { fileURLToPath } from "url";
 
 // Testnet configuration
 const TESTNET_URL = "http://ec2-3-141-77-16.us-east-2.compute.amazonaws.com:8484";
@@ -34,10 +35,16 @@ function getWalletName(addressBytes: Uint8Array): string {
 }
 
 function getQueryId(): number {
-  const scriptDir = path.dirname(new URL(import.meta.url).pathname);
+  const scriptDir = path.dirname(fileURLToPath(import.meta.url));
   const queryIdFile = path.join(scriptDir, ".query_id");
   try {
-    return parseInt(fs.readFileSync(queryIdFile, "utf-8").trim(), 10);
+    const content = fs.readFileSync(queryIdFile, "utf-8").trim();
+    const queryId = parseInt(content, 10);
+    if (!Number.isInteger(queryId)) {
+      console.error(`Error: Invalid query_id in ${queryIdFile}: "${content}"`);
+      process.exit(1);
+    }
+    return queryId;
   } catch {
     console.error(`Error: ${queryIdFile} not found. Run 01_create_market.ts first.`);
     process.exit(1);
@@ -192,4 +199,7 @@ async function main() {
   console.log("=".repeat(70));
 }
 
-main().catch(console.error);
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
