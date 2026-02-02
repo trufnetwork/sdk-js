@@ -396,6 +396,46 @@ await primitiveAction.insertRecord({
 - ⚡ **High-throughput data insertion** (independent records)
 - ⚡ **Fire-and-forget operations** (with proper error handling)
 
+### Prediction Markets (Order Book)
+
+The SDK supports binary prediction markets through the Order Book API. Markets are settled automatically based on real-world data from trusted data providers.
+
+```typescript
+// Load the order book action
+const orderbook = client.loadOrderbookAction();
+
+// Get market info
+const market = await orderbook.getMarketInfo(queryId);
+console.log(`Settles at: ${new Date(market.settleTime * 1000)}`);
+
+// Place a buy order for YES shares at 55 cents
+const result = await orderbook.placeBuyOrder({
+  queryId: market.id,
+  outcome: true,  // YES
+  price: 55,      // 55 cents = 55% implied probability
+  amount: 100,    // 100 shares
+});
+await client.waitForTx(result.data!.tx_hash);
+
+// Get best prices
+const prices = await orderbook.getBestPrices(market.id, true);
+console.log(`YES: Bid=${prices.bestBid}c, Ask=${prices.bestAsk}c`);
+```
+
+#### Market Making with Split Limit Orders
+
+```typescript
+// Create YES/NO pairs and provide liquidity
+await orderbook.placeSplitLimitOrder({
+  queryId: market.id,
+  truePrice: 55,  // YES at 55c, NO at 45c
+  amount: 100,    // 100 pairs
+});
+// Result: 100 YES holdings + 100 NO sell orders at 45c
+```
+
+**📖 For complete documentation including market creation, order types, settlement, and examples, see the [Order Book Operations](./docs/api-reference.md#order-book-operations) section in the API Reference and [examples/orderbook](./examples/orderbook).**
+
 ### Using the SDK with Your Local Node
 
 If you are running your own TRUF.NETWORK node, you can configure the SDK to interact with your local instance by changing the `endpoint` in the client configuration, as shown in the [Basic Client Initialization](#basic-client-initialization) section. This is useful for development, testing, or when operating within a private network.
@@ -488,6 +528,11 @@ For other bundlers or serverless platforms, consult their documentation on modul
 | List attestations | `attestationAction.listAttestations({requester, limit, offset, orderBy})` |
 | Get transaction event | `transactionAction.getTransactionEvent({txId})` |
 | List transaction fees | `transactionAction.listTransactionFees({wallet, mode, limit, offset})` |
+| Create prediction market | `orderbook.createMarket({bridge, queryComponents, settleTime, ...})` |
+| Place buy order | `orderbook.placeBuyOrder({queryId, outcome, price, amount})` |
+| Place split limit order | `orderbook.placeSplitLimitOrder({queryId, truePrice, amount})` |
+| Get order book | `orderbook.getOrderBook(queryId, outcome)` |
+| Get best prices | `orderbook.getBestPrices(queryId, outcome)` |
 | Destroy stream | `client.destroyStream(streamLocator)` |
 
 **Safe Operation Pattern:**
