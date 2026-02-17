@@ -97,9 +97,9 @@ export interface BridgeHistory {
   from_address: string | null;
 
   /**
-   * The recipient address (null for withdrawals)
+   * The recipient address
    */
-  to_address: string | null;
+  to_address: string;
 
   /**
    * The Kwil transaction hash (null for deposits, if not linked)

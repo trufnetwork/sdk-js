@@ -48,4 +48,33 @@ describe("Action", () => {
         
         expect(result).toEqual(mockHistory);
     });
+
+    it("should handle null results from get_history", async () => {
+        const action = new Action(mockKwil, mockSigner);
+        const callSpy = vi.spyOn(action as any, "call");
+        
+        callSpy.mockResolvedValue(Either.right(null));
+
+        const result = await action.getHistory("bridge", "0x123");
+
+        expect(result).toEqual([]);
+    });
+
+    it("should use default parameters for getHistory", async () => {
+        const action = new Action(mockKwil, mockSigner);
+        const callSpy = vi.spyOn(action as any, "call");
+        
+        callSpy.mockResolvedValue(Either.right([]));
+
+        await action.getHistory("bridge", "0x123");
+
+        expect(callSpy).toHaveBeenCalledWith(
+            "bridge_get_history",
+            {
+                $wallet_address: "0x123",
+                $limit: 20,
+                $offset: 0
+            }
+        );
+    });
 });
