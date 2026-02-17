@@ -142,44 +142,6 @@ const batchResult = await primitiveAction.insertRecords([
 
 ## Stream Querying
 
-### `action.getHistory(bridgeIdentifier: string, walletAddress: string, limit?: number, offset?: number): Promise<BridgeHistory[]>`
-Retrieves the transaction history for a wallet on a specific bridge. This method is provided by the base action handler (`client.loadAction()`) and also exposed directly on the client instance (`client.getHistory(...)`) for convenience.
-
-#### Parameters
-- `bridgeIdentifier: string` - The unique identifier of the bridge (e.g., "hoodi_tt2")
-- `walletAddress: string` - The wallet address to query
-- `limit?: number` - Max number of records to return (optional, default 20)
-- `offset?: number` - Number of records to skip (optional, default 0)
-
-#### Returns
-- `Promise<BridgeHistory[]>` - Array of history records
-
-#### Example
-```typescript
-const history = await client.getHistory("hoodi_tt2", "0x...", 10, 0);
-
-for (const rec of history) {
-  console.log(`${rec.type} - Amount: ${rec.amount} - Status: ${rec.status}`);
-}
-```
-
-#### `BridgeHistory` Type
-
-```typescript
-interface BridgeHistory {
-  type: string;                // "deposit", "withdrawal", "transfer"
-  amount: string;              // NUMERIC(78,0) as string
-  from_address: string | null; // Sender address (hex)
-  to_address: string;          // Recipient address (hex)
-  internal_tx_hash: string | null; // Kwil TX hash (base64)
-  external_tx_hash: string | null; // Ethereum TX hash (base64)
-  status: string;              // "completed", "pending_epoch", "claimed"
-  block_height: number;        // Kwil block height
-  block_timestamp: number;     // Kwil block timestamp
-  external_block_height: number | null; // Ethereum block height
-}
-```
-
 ### `streamAction.getRecord(input: GetRecordInput): Promise<StreamRecord[]>`
 Retrieves the **raw numeric values** recorded in a stream for each timestamp.  For primitive streams this is a direct read of the stored events; for composed streams the engine performs an _on-the-fly_ aggregation of all underlying child streams using the active taxonomy and weights at each point in time.
 
@@ -1102,6 +1064,44 @@ const tx = await bridgeContract.claimWithdrawal(
 
 await tx.wait();
 console.log(`Withdrawal claimed! Tx: ${tx.hash}`);
+```
+
+### `client.getHistory(bridgeIdentifier: string, walletAddress: string, limit?: number, offset?: number): Promise<BridgeHistory[]>`
+Retrieves the transaction history for a wallet on a specific bridge. This method is provided by the base action handler (`client.loadAction()`) and also exposed directly on the client instance (`client.getHistory(...)`) for convenience.
+
+#### Parameters
+- `bridgeIdentifier: string` - The unique identifier of the bridge (e.g., "hoodi_tt2")
+- `walletAddress: string` - The wallet address to query
+- `limit?: number` - Max number of records to return (optional, default 20)
+- `offset?: number` - Number of records to skip (optional, default 0)
+
+#### Returns
+- `Promise<BridgeHistory[]>` - Array of history records
+
+#### Example
+```typescript
+const history = await client.getHistory("hoodi_tt2", "0x...", 10, 0);
+
+for (const rec of history) {
+  console.log(`${rec.type} - Amount: ${rec.amount} - Status: ${rec.status}`);
+}
+```
+
+#### `BridgeHistory` Type
+
+```typescript
+interface BridgeHistory {
+  type: string;                // "deposit", "withdrawal", "transfer"
+  amount: string;              // NUMERIC(78,0) as string
+  from_address: string | null; // Sender address (hex)
+  to_address: string;          // Recipient address (hex)
+  internal_tx_hash: string | null; // Kwil TX hash (base64)
+  external_tx_hash: string | null; // Ethereum TX hash (base64)
+  status: string;              // "completed", "pending_epoch", "claimed"
+  block_height: number;        // Kwil block height
+  block_timestamp: number;     // Kwil block timestamp
+  external_block_height: number | null; // Ethereum block height
+}
 ```
 
 ### `action.listWalletRewards(bridgeIdentifier: string, wallet: string, withPending: boolean): Promise<any[]>`
