@@ -1066,6 +1066,44 @@ await tx.wait();
 console.log(`Withdrawal claimed! Tx: ${tx.hash}`);
 ```
 
+### `client.getHistory(bridgeIdentifier: string, walletAddress: string, limit?: number, offset?: number): Promise<BridgeHistory[]>`
+Retrieves the transaction history for a wallet on a specific bridge. This method is provided by the base action handler (`client.loadAction()`) and also exposed directly on the client instance (`client.getHistory(...)`) for convenience.
+
+#### Parameters
+- `bridgeIdentifier: string` - The unique identifier of the bridge (e.g., "hoodi_tt2")
+- `walletAddress: string` - The wallet address to query
+- `limit?: number` - Max number of records to return (optional, default 20)
+- `offset?: number` - Number of records to skip (optional, default 0)
+
+#### Returns
+- `Promise<BridgeHistory[]>` - Array of history records
+
+#### Example
+```typescript
+const history = await client.getHistory("hoodi_tt2", "0x...", 10, 0);
+
+for (const rec of history) {
+  console.log(`${rec.type} - Amount: ${rec.amount} - Status: ${rec.status}`);
+}
+```
+
+#### `BridgeHistory` Type
+
+```typescript
+interface BridgeHistory {
+  type: string;                // "deposit", "withdrawal", "transfer"
+  amount: string;              // NUMERIC(78,0) as string
+  from_address: string | null; // Sender address (hex)
+  to_address: string;          // Recipient address (hex)
+  internal_tx_hash: string | null; // Kwil TX hash (base64)
+  external_tx_hash: string | null; // Ethereum TX hash (base64)
+  status: string;              // "completed", "pending_epoch", "claimed"
+  block_height: number;        // Kwil block height
+  block_timestamp: number;     // Kwil block timestamp
+  external_block_height: number | null; // Ethereum block height
+}
+```
+
 ### `action.listWalletRewards(bridgeIdentifier: string, wallet: string, withPending: boolean): Promise<any[]>`
 
 Lists wallet rewards for a specific bridge instance. This is a low-level method that directly accesses the bridge extension namespace.

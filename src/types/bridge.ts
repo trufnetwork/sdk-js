@@ -76,3 +76,58 @@ export interface WithdrawalProof {
    */
   signatures: string[];
 }
+
+/**
+ * Transaction history record from the bridge extension.
+ */
+export interface BridgeHistory {
+  /**
+   * The type of transaction ('deposit', 'withdrawal', 'transfer')
+   */
+  type: string;
+
+  /**
+   * The amount transferred/deposited/withdrawn
+   */
+  amount: string;
+
+  /**
+   * The sender address (null for deposits)
+   */
+  from_address: string | null;
+
+  /**
+   * The recipient address
+   */
+  to_address: string;
+
+  /**
+   * The Kwil transaction hash (null for deposits, if not linked)
+   */
+  internal_tx_hash: string | null;
+
+  /**
+   * The external transaction hash (null for internal transfers)
+   */
+  external_tx_hash: string | null;
+
+  /**
+   * The status of the transaction ('completed', 'pending_epoch', 'claimed')
+   */
+  status: string;
+
+  /**
+   * The Kwil block height
+   */
+  block_height: number;
+
+  /**
+   * The timestamp of the block (Unix timestamp)
+   */
+  block_timestamp: number;
+
+  /**
+   * The external block height (if applicable)
+   */
+  external_block_height: number | null;
+}

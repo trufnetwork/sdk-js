@@ -5,7 +5,7 @@ import { deleteStream } from "../contracts-api/deleteStream";
 import { PrimitiveAction } from "../contracts-api/primitiveAction";
 import { Action, ListMetadataByHeightParams, MetadataQueryResult } from "../contracts-api/action";
 import { StreamType } from "../contracts-api/contractValues";
-import { WithdrawalProof } from "../types/bridge";
+import { WithdrawalProof, BridgeHistory } from "../types/bridge";
 import { StreamLocator, TNStream } from "../types/stream";
 import { EthereumAddress } from "../util/EthereumAddress";
 import { StreamId } from "../util/StreamId";
@@ -386,6 +386,26 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
   async getWithdrawalProof(bridgeIdentifier: string, walletAddress: string): Promise<WithdrawalProof[]> {
     const action = this.loadAction();
     return action.getWithdrawalProof(bridgeIdentifier, walletAddress);
+  }
+
+  /**
+   * Retrieves the transaction history for a wallet on a specific bridge.
+   *
+   * @param bridgeIdentifier - The name of the bridge instance (e.g., "hoodi_tt", "sepolia_bridge")
+   * @param walletAddress - The wallet address to query
+   * @param limit - Max number of records to return (default 20)
+   * @param offset - Number of records to skip (default 0)
+   * @returns Promise resolving to an array of BridgeHistory records
+   *
+   * @example
+   * ```typescript
+   * const history = await client.getHistory("sepolia_bridge", "0x123...");
+   * console.log(history);
+   * ```
+   */
+  async getHistory(bridgeIdentifier: string, walletAddress: string, limit: number = 20, offset: number = 0): Promise<BridgeHistory[]> {
+    const action = this.loadAction();
+    return action.getHistory(bridgeIdentifier, walletAddress, limit, offset);
   }
 
   /**
