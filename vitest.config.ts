@@ -13,7 +13,7 @@ export default defineConfig({
         singleFork: true,
       },
     },
-    hookTimeout: 600000, // 600 seconds for setup hooks (Docker containers in CI)
+    hookTimeout: 900000, // 900 seconds (15 minutes) for setup hooks (Docker containers in CI)
   },
   ssr: {
     noExternal: ['@trufnetwork/kwil-js'],
