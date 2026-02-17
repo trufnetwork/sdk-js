@@ -142,8 +142,8 @@ const batchResult = await primitiveAction.insertRecords([
 
 ## Stream Querying
 
-### `client.getHistory(bridgeIdentifier: string, walletAddress: string, limit?: number, offset?: number): Promise<BridgeHistory[]>`
-Retrieves the transaction history for a wallet on a specific bridge. This method is provided by the base action handler and exposed directly on the client for convenience.
+### `action.getHistory(bridgeIdentifier: string, walletAddress: string, limit?: number, offset?: number): Promise<BridgeHistory[]>`
+Retrieves the transaction history for a wallet on a specific bridge. This method is provided by the base action handler (`client.loadAction()`) and also exposed directly on the client instance (`client.getHistory(...)`) for convenience.
 
 #### Parameters
 - `bridgeIdentifier: string` - The unique identifier of the bridge (e.g., "hoodi_tt2")
@@ -170,7 +170,7 @@ interface BridgeHistory {
   type: string;                // "deposit", "withdrawal", "transfer"
   amount: string;              // NUMERIC(78,0) as string
   from_address: string | null; // Sender address (hex)
-  to_address: string | null;   // Recipient address (hex)
+  to_address: string;          // Recipient address (hex)
   internal_tx_hash: string | null; // Kwil TX hash (base64)
   external_tx_hash: string | null; // Ethereum TX hash (base64)
   status: string;              // "completed", "pending_epoch", "claimed"
