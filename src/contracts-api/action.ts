@@ -1,6 +1,6 @@
 import {KwilSigner, NodeKwil, WebKwil, Types} from "@trufnetwork/kwil-js";
 import { Either } from "monads-io";
-import { WithdrawalProof } from "../types/bridge";
+import { WithdrawalProof, BridgeHistory } from "../types/bridge";
 import { DateString } from "../types/other";
 import { StreamLocator } from "../types/stream";
 import { CacheAwareResponse, GetRecordOptions, GetIndexOptions, GetIndexChangeOptions, GetFirstRecordOptions } from "../types/cache";
@@ -1143,6 +1143,37 @@ export class Action {
       .mapRight((rows) => {
         // Return the array of withdrawal proofs
         // May be empty if no unclaimed withdrawals
+        return rows || [];
+      })
+      .throw();
+  }
+
+  /**
+   * Retrieves the unified transaction history for a wallet on a specific bridge.
+   *
+   * @param bridgeIdentifier - The name of the bridge instance (e.g., "hoodi_tt", "sepolia_bridge")
+   * @param walletAddress - The wallet address to query
+   * @param limit - Max number of records to return (default 20)
+   * @param offset - Number of records to skip (default 0)
+   * @returns Array of BridgeHistory records
+   */
+  public async getHistory(
+    bridgeIdentifier: string,
+    walletAddress: string,
+    limit: number = 20,
+    offset: number = 0
+  ): Promise<BridgeHistory[]> {
+    const result = await this.call<BridgeHistory[]>(
+      `${bridgeIdentifier}_get_history`,
+      {
+        $wallet_address: walletAddress,
+        $limit: limit,
+        $offset: offset
+      }
+    );
+
+    return result
+      .mapRight((rows) => {
         return rows || [];
       })
       .throw();

@@ -24,6 +24,7 @@ out
 *.env
 
 CLAUDE.md
+GEMINI.md
 
 # Orderbook example temporary files
 examples/orderbook/.query_id
