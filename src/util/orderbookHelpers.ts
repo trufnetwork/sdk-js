@@ -6,7 +6,79 @@
 
 import { ethers } from "ethers";
 import { Utils } from "@trufnetwork/kwil-js";
-import { encodeActionArgs as encodeActionArgsKwil } from "./AttestationEncoding";
+import {
+  encodeActionArgs as encodeActionArgsKwil,
+  decodeActionArgs,
+  decodeQueryComponents
+} from "./AttestationEncoding";
+
+/**
+ * Structured content of a prediction market's query components
+ */
+export interface MarketData {
+  dataProvider: string;
+  streamId: string;
+  actionId: string;
+  type: "above" | "below" | "between" | "equals" | "unknown";
+  thresholds: string[];
+}
+
+/**
+ * Decodes ABI-encoded query_components into high-level MarketData.
+ *
+ * @param encoded - ABI-encoded bytes (from marketInfo.queryComponents)
+ * @returns Object with decoded market details
+ *
+ * @example
+ * ```typescript
+ * const market = decodeMarketData(marketInfo.queryComponents);
+ * console.log(`Market type: ${market.type}, Threshold: ${market.thresholds[0]}`);
+ * ```
+ */
+export function decodeMarketData(encoded: string | Uint8Array): MarketData {
+  const bytes = dbBytesToUint8Array(encoded);
+  const { dataProvider, streamId, actionId, args: argsBytes } = decodeQueryComponents(bytes);
+  const args = decodeActionArgs(argsBytes);
+
+  const market: MarketData = {
+    dataProvider,
+    streamId,
+    actionId,
+    type: "unknown",
+    thresholds: [],
+  };
+
+  // Map action_id to market type and thresholds
+  // Based on 040-binary-attestation-actions.sql
+  switch (actionId) {
+    case "price_above_threshold":
+      market.type = "above";
+      if (args.length >= 4) {
+        market.thresholds.push(args[3].toString());
+      }
+      break;
+    case "price_below_threshold":
+      market.type = "below";
+      if (args.length >= 4) {
+        market.thresholds.push(args[3].toString());
+      }
+      break;
+    case "value_in_range":
+      market.type = "between";
+      if (args.length >= 5) {
+        market.thresholds.push(args[3].toString(), args[4].toString());
+      }
+      break;
+    case "value_equals":
+      market.type = "equals";
+      if (args.length >= 5) {
+        market.thresholds.push(args[3].toString(), args[4].toString());
+      }
+      break;
+  }
+
+  return market;
+}
 
 /**
  * Encodes action arguments for order book queries using Kwil's native encoding.

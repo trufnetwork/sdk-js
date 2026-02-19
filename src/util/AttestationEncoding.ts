@@ -78,6 +78,94 @@ export function encodeActionArgs(args: any[], types?: Record<number, TypeHint>):
 }
 
 /**
+ * Decodes canonical bytes back into action arguments.
+ * This is the inverse of encodeActionArgs.
+ *
+ * @param data - Encoded argument bytes
+ * @returns Array of decoded values
+ */
+export function decodeActionArgs(data: Uint8Array): any[] {
+  if (data.length < 4) {
+    throw new Error('Data too short for arg count');
+  }
+
+  let offset = 0;
+  const argCount = readUint32LE(data, offset);
+  offset += 4;
+
+  const args: any[] = [];
+  for (let i = 0; i < argCount; i++) {
+    if (offset + 4 > data.length) {
+      throw new Error(`Data too short for arg ${i} length`);
+    }
+
+    const argLen = readUint32LE(data, offset);
+    offset += 4;
+
+    if (offset + argLen > data.length) {
+      throw new Error(`Data too short for arg ${i} bytes`);
+    }
+
+    const argBytes = data.slice(offset, offset + argLen);
+    const { value: decodedArg } = decodeEncodedValue(argBytes, 0);
+    args.push(decodedValueToJS(decodedArg));
+    offset += argLen;
+  }
+
+  return args;
+}
+
+/**
+ * Decodes ABI-encoded query_components tuple.
+ * Format: (address data_provider, bytes32 stream_id, string action_id, bytes args)
+ *
+ * @param encoded - ABI-encoded bytes
+ * @returns Object with decoded components
+ */
+export function decodeQueryComponents(encoded: Uint8Array): {
+  dataProvider: string;
+  streamId: string;
+  actionId: string;
+  args: Uint8Array;
+} {
+  const abiCoder = AbiCoder.defaultAbiCoder();
+  const decoded = abiCoder.decode(
+    ['address', 'bytes32', 'string', 'bytes'],
+    encoded
+  );
+
+  // Trim trailing null bytes from streamId (bytes32)
+  const streamIdBytes = hexToBytes(decoded[1]);
+  let lastNonZero = -1;
+  for (let i = 31; i >= 0; i--) {
+    if (streamIdBytes[i] !== 0) {
+      lastNonZero = i;
+      break;
+    }
+  }
+  const streamId = new TextDecoder().decode(streamIdBytes.slice(0, lastNonZero + 1));
+
+  return {
+    dataProvider: decoded[0].toLowerCase(),
+    streamId,
+    actionId: decoded[2],
+    args: hexToBytes(decoded[3]),
+  };
+}
+
+/**
+ * Helper to convert hex string to Uint8Array
+ */
+function hexToBytes(hex: string): Uint8Array {
+  const cleanHex = hex.startsWith('0x') ? hex.slice(2) : hex;
+  const bytes = new Uint8Array(cleanHex.length / 2);
+  for (let i = 0; i < cleanHex.length; i += 2) {
+    bytes[i / 2] = parseInt(cleanHex.slice(i, i + 2), 16);
+  }
+  return bytes;
+}
+
+/**
  * Writes a uint32 value in little-endian format
  * Used for writing arg count and length prefixes
  *
@@ -756,6 +844,38 @@ if (import.meta.vitest) {
       const encoded = encodeActionArgs([['a', 'b', 'c']]);
       expect(readUint32LE(encoded, 0)).toBe(1); // arg_count = 1
       expect(encoded.length).toBeGreaterThan(4);
+    });
+  });
+
+  describe('decodeActionArgs', () => {
+    it('should decode empty args', () => {
+      const original: any[] = [];
+      const encoded = encodeActionArgs(original);
+      const decoded = decodeActionArgs(encoded);
+      expect(decoded).toEqual(original);
+    });
+
+    it('should decode single string arg', () => {
+      const original = ['hello'];
+      const encoded = encodeActionArgs(original);
+      const decoded = decodeActionArgs(encoded);
+      expect(decoded).toEqual(original);
+    });
+
+    it('should decode single number arg', () => {
+      const original = [42];
+      const encoded = encodeActionArgs(original);
+      const decoded = decodeActionArgs(encoded);
+      expect(Number(decoded[0])).toBe(42);
+    });
+
+    it('should decode multiple args of different types', () => {
+      const original = ['hello', 42, true];
+      const encoded = encodeActionArgs(original);
+      const decoded = decodeActionArgs(encoded);
+      expect(decoded[0]).toBe('hello');
+      expect(Number(decoded[1])).toBe(42);
+      expect(decoded[2]).toBe(true);
     });
   });
 

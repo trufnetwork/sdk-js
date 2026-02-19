@@ -267,4 +267,109 @@ describe("orderbookHelpers", () => {
       expect(result.length).toBeGreaterThan(0);
     });
   });
+
+  describe("decodeMarketData", () => {
+    const importHelper = async () => {
+        const { decodeMarketData } = await import("./orderbookHelpers");
+        return { decodeMarketData };
+    };
+
+    it("should round-trip price_above_threshold", async () => {
+      const { decodeMarketData } = await importHelper();
+      const threshold = "100000.0";
+      const args = encodeActionArgs(
+        TEST_DATA_PROVIDER,
+        TEST_STREAM_ID,
+        1700000000,
+        threshold,
+        0
+      );
+
+      const encoded = encodeQueryComponents(
+        TEST_DATA_PROVIDER,
+        TEST_STREAM_ID,
+        "price_above_threshold",
+        args
+      );
+
+      const decoded = decodeMarketData(encoded);
+      expect(decoded.type).toBe("above");
+      expect(decoded.thresholds[0]).toBe(threshold);
+      expect(decoded.dataProvider).toBe(TEST_DATA_PROVIDER.toLowerCase());
+      expect(decoded.streamId).toBe(TEST_STREAM_ID);
+    });
+
+    it("should round-trip price_below_threshold", async () => {
+        const { decodeMarketData } = await importHelper();
+        const threshold = "4.5";
+        const args = encodeActionArgs(
+          TEST_DATA_PROVIDER,
+          TEST_STREAM_ID,
+          1700000000,
+          threshold,
+          0
+        );
+  
+        const encoded = encodeQueryComponents(
+          TEST_DATA_PROVIDER,
+          TEST_STREAM_ID,
+          "price_below_threshold",
+          args
+        );
+  
+        const decoded = decodeMarketData(encoded);
+        expect(decoded.type).toBe("below");
+        expect(decoded.thresholds[0]).toBe(threshold);
+    });
+
+    it("should round-trip value_in_range", async () => {
+        const { decodeMarketData } = await importHelper();
+        const min = "90000.0";
+        const max = "110000.0";
+        const args = encodeRangeActionArgs(
+          TEST_DATA_PROVIDER,
+          TEST_STREAM_ID,
+          1700000000,
+          min,
+          max,
+          0
+        );
+  
+        const encoded = encodeQueryComponents(
+          TEST_DATA_PROVIDER,
+          TEST_STREAM_ID,
+          "value_in_range",
+          args
+        );
+  
+        const decoded = decodeMarketData(encoded);
+        expect(decoded.type).toBe("between");
+        expect(decoded.thresholds).toEqual([min, max]);
+    });
+
+    it("should round-trip value_equals", async () => {
+        const { decodeMarketData } = await importHelper();
+        const target = "5.25";
+        const tolerance = "0.01";
+        const args = encodeEqualsActionArgs(
+          TEST_DATA_PROVIDER,
+          TEST_STREAM_ID,
+          1700000000,
+          target,
+          tolerance,
+          0
+        );
+  
+        const encoded = encodeQueryComponents(
+          TEST_DATA_PROVIDER,
+          TEST_STREAM_ID,
+          "value_equals",
+          args
+        );
+  
+        const decoded = decodeMarketData(encoded);
+        expect(decoded.type).toBe("equals");
+        expect(decoded.thresholds).toEqual([target, tolerance]);
+    });
+  });
 });
