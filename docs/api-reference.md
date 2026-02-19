@@ -1243,14 +1243,36 @@ const result = await orderbook.createPriceAboveThresholdMarket({
 
 #### `orderbook.getMarketInfo(queryId: number): Promise<MarketInfo>`
 
-Gets detailed information about a market.
+Gets detailed information about a market. Returns `MarketInfo` object containing `queryComponents` bytes.
 
 ```typescript
 const market = await orderbook.getMarketInfo(queryId);
 console.log(`Settle Time: ${new Date(market.settleTime * 1000)}`);
-console.log(`Settled: ${market.settled}`);
-if (market.settled) {
-  console.log(`Winner: ${market.winningOutcome ? "YES" : "NO"}`);
+```
+
+#### `decodeMarketData(encoded: string | Uint8Array): MarketData`
+
+Decodes the `queryComponents` field from a `MarketInfo` object into high-level structured data.
+
+#### Example
+```typescript
+import { decodeMarketData } from "@trufnetwork/sdk-js";
+
+const market = await orderbook.getMarketInfo(123);
+const details = decodeMarketData(market.queryComponents);
+
+console.log(`Type: ${details.type}`);             // e.g. "above"
+console.log(`Thresholds: ${details.thresholds}`); // e.g. ["100000.0"]
+```
+
+#### `MarketData` Interface
+```typescript
+interface MarketData {
+  dataProvider: string;
+  streamId: string;
+  actionId: string;
+  type: "above" | "below" | "between" | "equals" | "unknown";
+  thresholds: string[]; // Formatted numeric values as strings
 }
 ```
 
