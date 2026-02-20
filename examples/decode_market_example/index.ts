@@ -1,5 +1,4 @@
-import { decodeMarketData } from "../../src/util/orderbookHelpers";
-import { NodeTNClient } from "../../src/index.node";
+import { decodeMarketData, NodeTNClient } from "../../src/index.node";
 import { Wallet } from "ethers";
 
 async function main() {
@@ -11,9 +10,14 @@ async function main() {
 
     console.log(`Endpoint:  ${endpoint}\n`);
 
+    // Fetch chainId dynamically to avoid mismatches
+    const chainId = await NodeTNClient.getDefaultChainId(endpoint);
+    console.log(`Chain ID:  ${chainId}\n`);
+
     // 1. Initialize Client
     const client = new NodeTNClient({
         endpoint,
+        chainId,
         signerInfo: {
             address: wallet.address,
             signer: wallet,

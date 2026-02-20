@@ -24,7 +24,9 @@ export { visibility } from "./util/visibility";
 
 // Attestation encoding/decoding utilities
 export {
-  parseAttestationPayload
+  parseAttestationPayload,
+  decodeActionArgs,
+  decodeQueryComponents,
 } from "./util/AttestationEncoding";
 
 export type {
@@ -118,4 +120,7 @@ export {
   encodeEqualsActionArgs,
   hexToBytes,
   bytesToHex,
+  decodeMarketData,
 } from "./util/orderbookHelpers";
+
+export type { MarketData } from "./util/orderbookHelpers";
