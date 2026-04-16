@@ -16,6 +16,7 @@ export { AttestationAction } from "./contracts-api/attestationAction";
 export { OrderbookAction } from "./contracts-api/orderbookAction";
 export { deployStream } from "./contracts-api/deployStream";
 export { deleteStream } from "./contracts-api/deleteStream";
+export { LocalActions } from "./contracts-api/localActions";
 
 // Utility classes
 export { StreamId } from "./util/StreamId";
@@ -124,3 +125,18 @@ export {
 } from "./util/orderbookHelpers";
 
 export type { MarketData } from "./util/orderbookHelpers";
+
+// Local actions types
+export type {
+  ILocalActions,
+  LocalCreateStreamInput,
+  LocalInsertRecordsInput,
+  LocalInsertTaxonomyInput,
+  LocalGetRecordInput,
+  LocalGetIndexInput,
+  LocalDeleteStreamInput,
+  LocalDisableTaxonomyInput,
+  LocalRecordOutput,
+  LocalIndexOutput,
+  LocalStreamInfo,
+} from "./types/localActions";

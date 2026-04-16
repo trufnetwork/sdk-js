@@ -936,8 +936,6 @@ if (import.meta.vitest) {
   });
 
   describe('parseAttestationPayload', () => {
-    it.todo('should parse payload with ABI-encoded result (TODO: need to construct synthetic test data with valid ABI encoding - see examples/attestation/index.ts for working integration test)');
-
     it('should throw on invalid version', () => {
       const payload = new Uint8Array(1);
       expect(() => parseAttestationPayload(payload)).toThrow();
