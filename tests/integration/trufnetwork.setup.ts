@@ -21,6 +21,9 @@ const NETWORK_NAME = "truf-test-network";
 const KWIL_PROVIDER_URL = "http://localhost:8484";
 const DB_PRIVATE_KEY = "0000000000000000000000000000000000000000000000000000000000000001";
 
+// Admin RPC URL — exposed by the test container with `--admin.listen 0.0.0.0:8485 --admin.notls`.
+export const TEST_ADMIN_URL = "http://localhost:8485";
+
 // Use a distinct manager wallet for role-management tests.
 export const MANAGER_PRIVATE_KEY = "0x1111111111111111111111111111111111111111111111111111111111111111";
 
@@ -42,7 +45,9 @@ function validateDockerImage(image: string): void {
 
 const POSTGRES_CONTAINER: ContainerSpec = {
   name: "test-kwil-postgres",
-  image: "kwildb/postgres:latest",
+  // kwild requires max_prepared_transactions >= 200 (2PC), which the upstream
+  // kwildb/postgres image does not set. The trufnetwork-tuned image does.
+  image: "ghcr.io/trufnetwork/kwil-postgres:16.8-2",
   tmpfsPath: "/var/lib/postgresql/data",
   envVars: ["POSTGRES_HOST_AUTH_METHOD=trust"],
   ports: { "5432": "5432" },
@@ -71,6 +76,12 @@ const TN_DB_CONTAINER: ContainerSpec = {
     "500ms",
     "--consensus.empty-block-timeout",
     "30s",
+    // Expose admin RPC over plain HTTP on 8485 so LocalActions integration
+    // tests can reach it from the host. notls is required because the bind
+    // address is non-loopback (kwild refuses plain HTTP otherwise).
+    "--admin.listen",
+    "0.0.0.0:8485",
+    "--admin.notls",
   ],
   envVars: [
     "CONFIG_PATH=/root/.kwild",
@@ -82,7 +93,7 @@ const TN_DB_CONTAINER: ContainerSpec = {
     "KWILD_APP_PG_DB_NAME=postgres",
     "KWILD_CHAIN_P2P_EXTERNAL_ADDRESS=http://test-tn-db:26656",
   ],
-  ports: { "8080": "8080", "8484": "8484", "26656": "26656" },
+  ports: { "8080": "8080", "8484": "8484", "8485": "8485", "26656": "26656" },
 };
 
 async function runDockerCommand(args: string[], check = false) {

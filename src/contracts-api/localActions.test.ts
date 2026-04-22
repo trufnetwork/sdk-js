@@ -372,4 +372,135 @@ describe("LocalActions", () => {
       expect(streams).toEqual([]);
     });
   });
+
+  // ═══════════════════════════════════════════════════════════════
+  // OPERATOR-KEY SIGNING (_auth envelope)
+  // ═══════════════════════════════════════════════════════════════
+
+  describe("signer option (operator-key auth)", () => {
+    // Deterministic hex key — value itself doesn't matter since the mock
+    // doesn't verify the signature, only its shape on the wire.
+    const PRIV_HEX = "0x" + "11".repeat(32);
+
+    it("attaches a well-formed _auth envelope when signer is set", async () => {
+      const admin = makeMockAdmin();
+      const local = new LocalActions(admin as any, { signer: PRIV_HEX });
+
+      await local.createStream({
+        streamId: "st1234567890abcdef1234567890abcd",
+        streamType: StreamType.Primitive,
+      });
+
+      const params = admin.callMethod.mock.calls[0][1];
+      expect(params).toHaveProperty("_auth");
+      const auth = params._auth;
+      expect(Object.keys(auth).sort()).toEqual(["sig", "ts", "ver"]);
+      expect(auth.ver).toBe("tn_local.auth.v1");
+      expect(typeof auth.ts).toBe("number");
+      expect(auth.ts).toBeGreaterThan(0);
+      // secp256k1 sig: 65 bytes = 130 hex chars + "0x" prefix = 132.
+      expect(auth.sig).toMatch(/^0x[0-9a-f]{130}$/);
+    });
+
+    it("does NOT attach _auth when signer is absent", async () => {
+      const admin = makeMockAdmin();
+      const local = new LocalActions(admin as any);
+
+      await local.createStream({
+        streamId: "st1234567890abcdef1234567890abcd",
+        streamType: StreamType.Primitive,
+      });
+
+      const params = admin.callMethod.mock.calls[0][1];
+      expect(params).not.toHaveProperty("_auth");
+    });
+
+    it("produces a different signature per call (ts + method binding)", async () => {
+      const admin = makeMockAdmin({ streams: [] });
+      const local = new LocalActions(admin as any, { signer: PRIV_HEX });
+
+      await local.createStream({
+        streamId: "st1234567890abcdef1234567890abcd",
+        streamType: StreamType.Primitive,
+      });
+      const firstSig = admin.callMethod.mock.calls[0][1]._auth.sig;
+
+      await local.listStreams();
+      const secondSig = admin.callMethod.mock.calls[1][1]._auth.sig;
+
+      expect(firstSig).not.toBe(secondSig);
+    });
+
+    it("accepts bare-hex keys (no 0x prefix)", async () => {
+      const admin = makeMockAdmin();
+      const bareHex = "22".repeat(32);
+      const local = new LocalActions(admin as any, { signer: bareHex });
+
+      await local.createStream({
+        streamId: "st1234567890abcdef1234567890abcd",
+        streamType: StreamType.Primitive,
+      });
+
+      // Bare hex must still produce a signed request — not silently fall back.
+      const params = admin.callMethod.mock.calls[0][1];
+      expect(params).toHaveProperty("_auth");
+      expect(params._auth.sig).toMatch(/^0x[0-9a-f]{130}$/);
+    });
+
+    it("treats empty-string signer as unsigned (matches TN_LOCAL_REQUIRE_SIGNATURE=false path)", async () => {
+      const admin = makeMockAdmin();
+      const local = new LocalActions(admin as any, { signer: "" });
+
+      await local.createStream({
+        streamId: "st1234567890abcdef1234567890abcd",
+        streamType: StreamType.Primitive,
+      });
+
+      const params = admin.callMethod.mock.calls[0][1];
+      expect(params).not.toHaveProperty("_auth");
+    });
+
+    it("rejects malformed hex at construction time (not first RPC)", () => {
+      const admin = makeMockAdmin();
+      expect(
+        () => new LocalActions(admin as any, { signer: "not-hex-at-all" }),
+      ).toThrow(/invalid operator private key/);
+    });
+
+    it("rejects wrong-length hex at construction time", () => {
+      const admin = makeMockAdmin();
+      expect(
+        () => new LocalActions(admin as any, { signer: "0xdeadbeef" }),
+      ).toThrow(/invalid operator private key/);
+    });
+
+    // Regression guard for the canonical-JSON + digest pipeline. With ts and
+    // params pinned, the entire signature is deterministic; the expected
+    // value below was derived from the spec (sortKeysDeep -> JSON.stringify
+    // -> sha256 -> "tn_local.auth.v1\n${method}\n${sha}\n${ts}" -> keccak256
+    // -> secp256k1.sign with v in {27,28}). Any drift in canonicalJSON,
+    // sortKeysDeep, the payload framing, or the digest functions flips the
+    // sig and fails this test — which is exactly what we want, because the
+    // node verifier and sdk-go signer must produce the same bytes.
+    it("produces a byte-identical signature for fixed payload+ts (canonical-JSON regression)", async () => {
+      const admin = makeMockAdmin();
+      const local = new LocalActions(admin as any, { signer: PRIV_HEX });
+      const dateNowSpy = vi.spyOn(Date, "now").mockReturnValue(1700000000000);
+      try {
+        await local.createStream({
+          streamId: "st1234567890abcdef1234567890abcd",
+          streamType: StreamType.Primitive,
+        });
+      } finally {
+        dateNowSpy.mockRestore();
+      }
+
+      const auth = admin.callMethod.mock.calls[0][1]._auth;
+      expect(auth.ts).toBe(1700000000000);
+      expect(auth.ver).toBe("tn_local.auth.v1");
+      expect(auth.sig).toBe(
+        "0x8c747bef5685c3dae28d57953c0e5025c1aed7e5665adfae02d897db1ac64ac614c2206d0a98834a7ab5b16c25bfe76c940360e42429ee6bbd81ae71c02eae821c",
+      );
+    });
+  });
 });
