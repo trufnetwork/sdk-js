@@ -473,5 +473,34 @@ describe("LocalActions", () => {
         () => new LocalActions(admin as any, { signer: "0xdeadbeef" }),
       ).toThrow(/invalid operator private key/);
     });
+
+    // Regression guard for the canonical-JSON + digest pipeline. With ts and
+    // params pinned, the entire signature is deterministic; the expected
+    // value below was derived from the spec (sortKeysDeep -> JSON.stringify
+    // -> sha256 -> "tn_local.auth.v1\n${method}\n${sha}\n${ts}" -> keccak256
+    // -> secp256k1.sign with v in {27,28}). Any drift in canonicalJSON,
+    // sortKeysDeep, the payload framing, or the digest functions flips the
+    // sig and fails this test — which is exactly what we want, because the
+    // node verifier and sdk-go signer must produce the same bytes.
+    it("produces a byte-identical signature for fixed payload+ts (canonical-JSON regression)", async () => {
+      const admin = makeMockAdmin();
+      const local = new LocalActions(admin as any, { signer: PRIV_HEX });
+      const dateNowSpy = vi.spyOn(Date, "now").mockReturnValue(1700000000000);
+      try {
+        await local.createStream({
+          streamId: "st1234567890abcdef1234567890abcd",
+          streamType: StreamType.Primitive,
+        });
+      } finally {
+        dateNowSpy.mockRestore();
+      }
+
+      const auth = admin.callMethod.mock.calls[0][1]._auth;
+      expect(auth.ts).toBe(1700000000000);
+      expect(auth.ver).toBe("tn_local.auth.v1");
+      expect(auth.sig).toBe(
+        "0x8c747bef5685c3dae28d57953c0e5025c1aed7e5665adfae02d897db1ac64ac614c2206d0a98834a7ab5b16c25bfe76c940360e42429ee6bbd81ae71c02eae821c",
+      );
+    });
   });
 });

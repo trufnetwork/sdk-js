@@ -56,8 +56,19 @@ export class NodeTNClient extends BaseTNClient<EnvironmentType.NODE> {
     adminConfig: Types.AdminClientConfig | AdminClient,
     options?: LocalActionsOptions,
   ): LocalActions {
-    const admin =
-      adminConfig instanceof AdminClient ? adminConfig : new AdminClient(adminConfig);
+    // Duck-type instead of `instanceof AdminClient`: if the dependency
+    // tree contains more than one copy of @trufnetwork/kwil-js (npm
+    // hoisting, peer-dep mismatch, ESM/CJS interop), instanceof returns
+    // false for an AdminClient that came from a different module copy,
+    // and we'd then call `new AdminClient(existingInstance)` which
+    // misbehaves. Anything exposing `callMethod()` is the AdminClient
+    // surface we actually consume.
+    const isAdminClient =
+      adminConfig != null &&
+      typeof (adminConfig as { callMethod?: unknown }).callMethod === "function";
+    const admin = isAdminClient
+      ? (adminConfig as AdminClient)
+      : new AdminClient(adminConfig as Types.AdminClientConfig);
     return new LocalActions(admin, options);
   }
 }
