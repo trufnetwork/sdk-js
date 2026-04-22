@@ -16,7 +16,7 @@ export { AttestationAction } from "./contracts-api/attestationAction";
 export { OrderbookAction } from "./contracts-api/orderbookAction";
 export { deployStream } from "./contracts-api/deployStream";
 export { deleteStream } from "./contracts-api/deleteStream";
-export { LocalActions } from "./contracts-api/localActions";
+export { LocalActions, type LocalActionsOptions } from "./contracts-api/localActions";
 
 // Utility classes
 export { StreamId } from "./util/StreamId";
@@ -140,3 +140,9 @@ export type {
   LocalIndexOutput,
   LocalStreamInfo,
 } from "./types/localActions";
+
+// Admin transport (re-exported from kwil-js for local stream operations).
+// Browser bundles ignore AdminClient — it throws if instantiated outside Node.
+export { AdminClient } from "@trufnetwork/kwil-js";
+import type { Types as KwilTypes } from "@trufnetwork/kwil-js";
+export type AdminClientConfig = KwilTypes.AdminClientConfig;

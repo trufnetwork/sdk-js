@@ -1,4 +1,5 @@
 import { AdminClient } from "@trufnetwork/kwil-js";
+import { keccak256, sha256, SigningKey, toUtf8Bytes } from "ethers";
 import { StreamType } from "./contractValues";
 import type {
   ILocalActions,
@@ -94,8 +95,80 @@ interface WireListStreamsResponse {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// AUTH ENVELOPE AND SIGNING
+// ═══════════════════════════════════════════════════════════════
+//
+// Mirrors node/extensions/tn_local/auth.go and sdk-go/core/contractsapi/
+// local_actions.go. All three must produce byte-identical canonical JSON
+// and the same keccak256 digest for cross-language signatures to verify.
+
+const LOCAL_AUTH_VERSION = "tn_local.auth.v1";
+
+interface AuthEnvelope {
+  sig: string; // 0x-prefixed 65-byte hex (r || s || v, v = 27/28)
+  ts: number; // unix ms
+  ver: string; // "tn_local.auth.v1"
+}
+
+/**
+ * Recursively sort object keys and re-serialize without whitespace. Mirrors
+ * the verifier's canonical-JSON output: no HTML escaping (JSON.stringify is
+ * already non-escaping by default), sorted keys at every level, integer
+ * precision preserved up to 2^53 (sufficient for event_time unix seconds
+ * and the ts field).
+ */
+function canonicalJSON(value: unknown): string {
+  return JSON.stringify(sortKeysDeep(value));
+}
+
+function sortKeysDeep(v: unknown): unknown {
+  if (Array.isArray(v)) {
+    return v.map(sortKeysDeep);
+  }
+  if (v === null || typeof v !== "object") {
+    return v;
+  }
+  const src = v as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const k of Object.keys(src).sort()) {
+    out[k] = sortKeysDeep(src[k]);
+  }
+  return out;
+}
+
+/**
+ * Normalize a secp256k1 private key to a 0x-prefixed 64-hex-char string
+ * suitable for ethers' SigningKey. Accepts bare or 0x-prefixed input so
+ * operator keys extracted from the node's nodekey.json (bare hex) and
+ * operator keys passed via ethers conventions (0x-prefixed) both work.
+ */
+function normalizePrivateKey(raw: string): string {
+  const stripped = raw.startsWith("0x") || raw.startsWith("0X") ? raw.slice(2) : raw;
+  if (!/^[0-9a-fA-F]{64}$/.test(stripped)) {
+    throw new Error(
+      "invalid operator private key: expected 64 hex characters (with or without 0x prefix)"
+    );
+  }
+  return "0x" + stripped.toLowerCase();
+}
+
+// ═══════════════════════════════════════════════════════════════
 // IMPLEMENTATION
 // ═══════════════════════════════════════════════════════════════
+
+/**
+ * Optional construction-time options for LocalActions.
+ */
+export interface LocalActionsOptions {
+  /**
+   * Operator secp256k1 private key (hex, with or without the 0x prefix).
+   * When set, every request carries a `_auth` envelope recoverable to the
+   * signing address; the server rejects calls that don't match its
+   * operator address. Required only when the node has
+   * [extensions.tn_local] require_signature = true.
+   */
+  signer?: string;
+}
 
 /**
  * LocalActions calls the `local.*` JSON-RPC methods on the kwil-db admin
@@ -105,17 +178,57 @@ interface WireListStreamsResponse {
  * operations use a different transport (admin port) and auth model
  * (no gateway, no KwilSigner needed).
  *
- * Construction: use the static `create()` factory method, or pass an
- * AdminClient instance directly to the constructor.
+ * Construction: pass an AdminClient instance and, optionally, an operator
+ * private key. When the operator key is set, every call carries a
+ * server-recoverable `_auth` envelope, enabling use against nodes that
+ * have `require_signature = true`.
  */
 export class LocalActions implements ILocalActions {
   private readonly admin: AdminClient;
+  private readonly signingKey: SigningKey | null;
 
-  constructor(admin: AdminClient) {
+  constructor(admin: AdminClient, options?: LocalActionsOptions) {
     if (!admin) {
       throw new Error("AdminClient is required for LocalActions");
     }
     this.admin = admin;
+    this.signingKey =
+      options?.signer !== undefined && options.signer !== ""
+        ? new SigningKey(normalizePrivateKey(options.signer))
+        : null;
+  }
+
+  /**
+   * Produce the `_auth` envelope for a request. When no signer is
+   * configured the method returns null and the caller omits `_auth`
+   * from the wire — the server then rejects (if its flag is on) or
+   * accepts (if off). Mirrors sdk-go's LocalActions.attachAuth.
+   */
+  private makeAuth(method: string, req: unknown): AuthEnvelope | null {
+    if (this.signingKey === null) {
+      return null;
+    }
+    const paramsCanonical = canonicalJSON(req);
+    // ethers sha256 returns a 0x-prefixed hex string; strip the prefix to
+    // match the node-side canonical payload (bare hex with no 0x).
+    const paramsSha = sha256(toUtf8Bytes(paramsCanonical)).slice(2);
+    const ts = Date.now();
+    const payload = `${LOCAL_AUTH_VERSION}\n${method}\n${paramsSha}\n${ts}`;
+    const digest = keccak256(toUtf8Bytes(payload));
+    // ethers v6 SigningKey.sign returns a Signature with r, s, v normalized
+    // to {27, 28} via `.serialized` — exactly the shape the server expects.
+    const signature = this.signingKey.sign(digest);
+    return {
+      sig: signature.serialized,
+      ts,
+      ver: LOCAL_AUTH_VERSION,
+    };
+  }
+
+  private async call<T = unknown>(method: string, req: object): Promise<T> {
+    const auth = this.makeAuth(method, req);
+    const wire = auth !== null ? { ...(req as Record<string, unknown>), _auth: auth } : req;
+    return this.admin.callMethod<T>(method, wire);
   }
 
   async createStream(input: LocalCreateStreamInput): Promise<void> {
@@ -123,7 +236,7 @@ export class LocalActions implements ILocalActions {
       stream_id: input.streamId,
       stream_type: input.streamType,
     };
-    await this.admin.callMethod("local.create_stream", req);
+    await this.call("local.create_stream", req);
   }
 
   async insertRecords(input: LocalInsertRecordsInput): Promise<void> {
@@ -141,7 +254,7 @@ export class LocalActions implements ILocalActions {
       event_time: input.eventTime,
       value: input.value,
     };
-    await this.admin.callMethod("local.insert_records", req);
+    await this.call("local.insert_records", req);
   }
 
   async insertTaxonomy(input: LocalInsertTaxonomyInput): Promise<void> {
@@ -157,7 +270,7 @@ export class LocalActions implements ILocalActions {
       weights: input.weights,
       start_date: input.startDate,
     };
-    await this.admin.callMethod("local.insert_taxonomy", req);
+    await this.call("local.insert_taxonomy", req);
   }
 
   async getRecord(input: LocalGetRecordInput): Promise<LocalRecordOutput[]> {
@@ -166,10 +279,7 @@ export class LocalActions implements ILocalActions {
       ...(input.fromTime !== undefined && { from_time: input.fromTime }),
       ...(input.toTime !== undefined && { to_time: input.toTime }),
     };
-    const res = await this.admin.callMethod<WireGetRecordResponse>(
-      "local.get_record",
-      req
-    );
+    const res = await this.call<WireGetRecordResponse>("local.get_record", req);
     if (!res?.records) {
       return [];
     }
@@ -187,10 +297,7 @@ export class LocalActions implements ILocalActions {
       ...(input.toTime !== undefined && { to_time: input.toTime }),
       ...(input.baseTime !== undefined && { base_time: input.baseTime }),
     };
-    const res = await this.admin.callMethod<WireGetIndexResponse>(
-      "local.get_index",
-      req
-    );
+    const res = await this.call<WireGetIndexResponse>("local.get_index", req);
     if (!res?.records) {
       return [];
     }
@@ -204,7 +311,7 @@ export class LocalActions implements ILocalActions {
     const req: WireDeleteStreamRequest = {
       stream_id: input.streamId,
     };
-    await this.admin.callMethod("local.delete_stream", req);
+    await this.call("local.delete_stream", req);
   }
 
   async disableTaxonomy(input: LocalDisableTaxonomyInput): Promise<void> {
@@ -212,14 +319,11 @@ export class LocalActions implements ILocalActions {
       stream_id: input.streamId,
       group_sequence: input.groupSequence,
     };
-    await this.admin.callMethod("local.disable_taxonomy", req);
+    await this.call("local.disable_taxonomy", req);
   }
 
   async listStreams(): Promise<LocalStreamInfo[]> {
-    const res = await this.admin.callMethod<WireListStreamsResponse>(
-      "local.list_streams",
-      {}
-    );
+    const res = await this.call<WireListStreamsResponse>("local.list_streams", {});
     if (!res?.streams) {
       return [];
     }
