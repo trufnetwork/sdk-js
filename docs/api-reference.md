@@ -916,11 +916,20 @@ The SDK provides methods for interacting with bridge instances on TN, enabling t
 
 ### Understanding Bridge Identifiers
 
-Bridge instances on TN are identified by specific names that may differ from network names. For example:
-- Network `"sepolia"` → Bridge identifier `"sepolia"` (matches)
-- Network `"hoodi"` → Bridge identifier `"hoodi_tt"` (different due to multiple token support)
+Bridge instances on TN are identified by specific names that may differ from network names. Always use the **bridge identifier** when calling bridge methods, not the network name.
 
-Always use the **bridge identifier** when calling bridge methods, not the network name.
+#### Mainnet vs testnet identifiers
+
+| Identifier | Network | Token | Decimals | Notes |
+|---|---|---|---|---|
+| `eth_truf` | mainnet | TRUF | 18 | Used for protocol fees (stream write, attestation, market creation) |
+| `eth_usdc` | mainnet | USDC | 6 | Used for prediction-market collateral |
+| `ethereum_bridge` | mainnet | TRUF | 18 | Legacy — replaced by `eth_truf` |
+| `hoodi_tt` | testnet | TRUF (test) | 18 | Hoodi testnet |
+| `hoodi_tt2` | testnet | USDC (test) | 18 | Hoodi testnet — prediction-market collateral |
+| `sepolia_bridge` | testnet | TRUF (test) | 18 | Sepolia testnet, deprecated |
+
+Examples below use testnet identifiers; substitute the mainnet equivalent for production. Order-book actions (`createMarket`, `placeBuyOrder`, etc.) accept `"eth_usdc"` or `"eth_truf"` as the `bridge` field on mainnet.
 
 ### `client.getWalletBalance(bridgeIdentifier: string, walletAddress: string): Promise<string>`
 

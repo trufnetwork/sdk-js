@@ -9,8 +9,16 @@
 // Bridge Types
 // ============================================
 
-/** Valid bridge identifiers for collateral */
+/**
+ * Valid bridge identifiers for collateral.
+ *
+ * `eth_usdc` (USDC) and `eth_truf` (TRUF) are the production mainnet bridges.
+ * The others are testnet / legacy aliases retained for local-node
+ * and integration test use. `ethereum_bridge` was the legacy mainnet TRUF bridge.
+ */
 export type BridgeIdentifier =
+  | "eth_usdc"
+  | "eth_truf"
   | "hoodi_tt2"
   | "sepolia_bridge"
   | "ethereum_bridge";
