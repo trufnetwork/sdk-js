@@ -390,11 +390,21 @@ export function validateAmount(amount: number, operation: string): void {
 /**
  * Validates a bridge identifier.
  *
+ * eth_usdc (USDC) and eth_truf (TRUF) are the production mainnet bridges;
+ * the others are testnet / legacy aliases retained for local-node and
+ * integration test use. ethereum_bridge was the legacy mainnet TRUF bridge.
+ *
  * @param bridge - Bridge identifier to validate
  * @throws Error if bridge is invalid
  */
 export function validateBridge(bridge: string): void {
-  const validBridges = ["hoodi_tt2", "sepolia_bridge", "ethereum_bridge"];
+  const validBridges = [
+    "eth_usdc",
+    "eth_truf",
+    "hoodi_tt2",
+    "sepolia_bridge",
+    "ethereum_bridge",
+  ];
   if (!validBridges.includes(bridge)) {
     throw new Error(
       `Invalid bridge: ${bridge}. Must be one of: ${validBridges.join(", ")}`
