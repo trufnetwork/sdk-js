@@ -11,11 +11,14 @@ describe("Transaction History Integration Tests", { timeout: 120000 }, () => {
   let client: NodeTNClient;
 
   beforeAll(() => {
-    const endpoint = process.env.TEST_ENDPOINT;
-    const chainId = process.env.TEST_CHAIN_ID;
+    // Dedicated env vars (not TEST_ENDPOINT / TEST_CHAIN_ID, which the
+    // local-container suites use with localhost defaults). Required —
+    // refuse to silently fall back to mainnet on misconfiguration.
+    const endpoint = process.env.TEST_MAINNET_ENDPOINT;
+    const chainId = process.env.TEST_MAINNET_CHAIN_ID;
     if (!endpoint || !chainId) {
       throw new Error(
-        "TEST_ENDPOINT and TEST_CHAIN_ID must be set; refusing to silently default to mainnet.",
+        "TEST_MAINNET_ENDPOINT and TEST_MAINNET_CHAIN_ID must be set; refusing to silently default to mainnet.",
       );
     }
 
