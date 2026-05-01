@@ -60,7 +60,7 @@ const marketIndexStreamId = await StreamId.generate('market_index');
 
 ## Stream Deployment
 
-### `client.deployStream(streamId: StreamId, type: StreamType, synchronous?: boolean, allowZeros?: boolean): Promise<DeploymentResult>`
+### `client.deployStream(streamId: StreamId, type: StreamType, synchronous?: boolean, allowZeros?: boolean): Promise<Types.GenericResponse<Types.TxReceipt>>`
 Deploys a new stream to the TRUF.NETWORK.
 
 #### Parameters
@@ -70,9 +70,9 @@ Deploys a new stream to the TRUF.NETWORK.
 - `allowZeros?: boolean` - Per-stream toggle controlling whether `value=0` inserts are persisted. Default `false` preserves the historical behavior (zeros are silently dropped on insert and excluded from `getRecord` results). Set `true` for streams where zero is a meaningful measurement. This setting can be toggled later via `action.setAllowZeros`.
 
 #### Returns
-- `Promise<DeploymentResult>`
-  - `txHash: string` - Transaction hash
-  - `streamLocator: StreamLocator` - Stream location details
+- `Promise<Types.GenericResponse<Types.TxReceipt>>` — re-exported from `@trufnetwork/kwil-js`.
+  - `status: number` - HTTP-style status from the kwild RPC.
+  - `data?: { tx_hash: string }` - Present on success; `tx_hash` is the broadcast transaction hash. The deploy is in the mempool (or, with `synchronous: true`, mined) — pass the hash to `client.waitForTx(tx_hash)` before issuing dependent operations such as `insertRecord`.
 
 #### Example
 ```typescript

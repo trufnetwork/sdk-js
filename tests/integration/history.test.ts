@@ -9,14 +9,20 @@ import { NodeTNClient } from "../../src/client/nodeClient";
 // retired testnet ids (hoodi_tt / hoodi_tt2 / sepolia).
 describe("Transaction History Integration Tests", { timeout: 120000 }, () => {
   let client: NodeTNClient;
-  const endpoint = process.env.TEST_ENDPOINT || "https://gateway.mainnet.truf.network";
-  const chainId = process.env.TEST_CHAIN_ID || "tn-v2.1";
 
   beforeAll(() => {
-    const privateKey =
-      process.env.TEST_PRIVATE_KEY ||
-      "0x0000000000000000000000000000000000000000100000000100000000000001";
-    const wallet = new Wallet(privateKey);
+    const endpoint = process.env.TEST_ENDPOINT;
+    const chainId = process.env.TEST_CHAIN_ID;
+    if (!endpoint || !chainId) {
+      throw new Error(
+        "TEST_ENDPOINT and TEST_CHAIN_ID must be set; refusing to silently default to mainnet.",
+      );
+    }
+
+    // Read-only suite: a fresh random wallet is sufficient and avoids
+    // committing a private key. We expect getHistory to return [] for a
+    // wallet that has never touched a bridge.
+    const wallet = Wallet.createRandom();
 
     client = new NodeTNClient({
       endpoint,

@@ -199,10 +199,18 @@ async function waitForPostgresHealth(maxAttempts = 30) {
   return false;
 }
 
-async function waitForTnHealth(maxAttempts = 10) {
+async function waitForTnHealth(maxAttempts = 30) {
   for (let i = 0; i < maxAttempts; i++) {
+    // Per-attempt timeout: if kwild has bound port 8484 but stalls before
+    // responding (observed during init regressions), the bare fetch hangs
+    // indefinitely and the loop never advances — turning a recoverable
+    // wait into the opaque 900s "Hook timed out" we kept hitting.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 2000);
     try {
-      const response = await fetch("http://localhost:8484/api/v1/health");
+      const response = await fetch("http://localhost:8484/api/v1/health", {
+        signal: controller.signal,
+      });
       if (response.ok) {
         const data: any = await response.json();
         if (data?.healthy && data?.services?.user?.block_height >= 1) {
@@ -211,6 +219,9 @@ async function waitForTnHealth(maxAttempts = 10) {
         }
       }
     } catch {}
+    finally {
+      clearTimeout(timer);
+    }
     await new Promise((r) => setTimeout(r, 1000));
   }
   return false;
