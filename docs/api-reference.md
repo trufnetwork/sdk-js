@@ -67,7 +67,7 @@ Deploys a new stream to the TRUF.NETWORK.
 - `streamId: StreamId` - Unique stream identifier
 - `type: StreamType` - Stream type (Primitive or Composed)
 - `synchronous?: boolean` - When true, the kwild gateway holds the request open until the deploy transaction is confirmed.
-- `allowZeros?: boolean` - Per-stream toggle controlling whether `value=0` inserts are persisted. Default `false` preserves the historical behavior (zeros are silently dropped on insert and excluded from `getRecord` results). Set `true` for streams where zero is a meaningful measurement. Can be toggled later via `action.setAllowZeros`.
+- `allowZeros?: boolean` - Per-stream toggle controlling whether `value=0` inserts are persisted. Default `false` preserves the historical behavior (zeros are silently dropped on insert and excluded from `getRecord` results). Set `true` for streams where zero is a meaningful measurement. This setting can be toggled later via `action.setAllowZeros`.
 
 #### Returns
 - `Promise<DeploymentResult>`
