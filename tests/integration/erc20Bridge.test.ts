@@ -40,14 +40,14 @@ describe('ERC20 Bridge Tests', () => {
 
     // The wallet balance endpoint is actually publicly accessible
     // It returns a valid balance (could be 0) rather than throwing an error
-    const result = await unauthorizedClient.getWalletBalance("sepolia", "0x9160BBD07295b77BB168FF6295D66C74E575B5BE");
+    const result = await unauthorizedClient.getWalletBalance("eth_truf", "0x9160BBD07295b77BB168FF6295D66C74E575B5BE");
     expect(typeof result).toBe("string");
     expect(Number(result)).toBeGreaterThanOrEqual(0);
   }, 60000);
 
   test('get wallet balance - should pass with authorized client', async () => {
     try {
-      const balance = await authorizedClient.getWalletBalance("sepolia", "0x9160BBD07295b77BB168FF6295D66C74E575B5BE");
+      const balance = await authorizedClient.getWalletBalance("eth_truf", "0x9160BBD07295b77BB168FF6295D66C74E575B5BE");
       expect(Number(balance)).toBeGreaterThanOrEqual(0);
     } catch (error: any) {
       // Skip test if backend is unavailable in test environment
@@ -62,7 +62,7 @@ describe('ERC20 Bridge Tests', () => {
   test('get wallet rewards', async () => {
     try {
       const rewards = await authorizedClient.listWalletRewards(
-        "sepolia",
+        "eth_truf",
         "0x041AEfDc96655d3Dbf7788767dcEEB635eCD315C",
         true
       );
