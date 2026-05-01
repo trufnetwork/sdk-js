@@ -52,6 +52,10 @@ jobs:
         run: |
           cd tmp-node
           task docker:build:local
+          # Retag as :latest so the integration test setup (which defaults
+          # TN_DB_IMAGE to ghcr.io/trufnetwork/node:latest) picks up the
+          # freshly-built image instead of pulling a stale one from ghcr.io.
+          docker tag ghcr.io/trufnetwork/node:local ghcr.io/trufnetwork/node:latest
 
       - name: Cache kwil-cli build
         id: cache-kwil-build
@@ -90,6 +94,13 @@ jobs:
         env:
           NODE_REPO_DIR: ${{ github.workspace }}/tmp-node
           TEST_PRIVATE_KEY: ${{ secrets.TEST_PRIVATE_KEY }}
+          # The history suite is the only one that asserts non-default
+          # configuration (read-only mainnet gateway, eth_truf/eth_usdc
+          # bridges). It uses dedicated env vars so it does NOT collide
+          # with TEST_ENDPOINT/TEST_CHAIN_ID, which the local-container
+          # suites read for their localhost defaults.
+          TEST_MAINNET_ENDPOINT: https://gateway.mainnet.truf.network
+          TEST_MAINNET_CHAIN_ID: tn-v2.1
 
       - name: Cleanup
         # not act 

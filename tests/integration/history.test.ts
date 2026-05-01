@@ -1,45 +1,56 @@
-import { describe, expect, it } from "vitest";
-import { setupTrufNetwork, testWithDefaultWallet } from "./utils";
+import { describe, test, expect, beforeAll } from "vitest";
+import { Wallet } from "ethers";
+import { NodeTNClient } from "../../src/client/nodeClient";
 
-describe.sequential(
-  "Transaction History Integration Tests",
-  { timeout: 360000 },
-  () => {
-    // Spin up/tear down the local TN+Postgres containers once for this suite.
-    setupTrufNetwork();
+// getHistory is read-only and the bridge actions only exist on mainnet
+// (local node CI does not apply internal/migrations/erc20-bridge/*.sql via
+// migrate.sh), so this suite hits the mainnet gateway directly with
+// mainnet bridge identifiers (eth_truf / eth_usdc) instead of the
+// retired testnet ids (hoodi_tt / hoodi_tt2 / sepolia).
+describe("Transaction History Integration Tests", { timeout: 120000 }, () => {
+  let client: NodeTNClient;
 
-    testWithDefaultWallet(
-      "should return empty history for new wallet",
-      async ({ defaultClient }) => {
-        const walletAddress = defaultClient.address().getAddress();
-        
-        // Test with different bridge identifiers
-        const bridges = ["hoodi_tt", "hoodi_tt2", "sepolia"];
-        
-        for (const bridge of bridges) {
-            console.log(`Testing history for bridge: ${bridge}`);
-            const history = await defaultClient.getHistory(bridge, walletAddress, 10, 0);
-            
-            expect(Array.isArray(history)).toBe(true);
-            expect(history.length).toBe(0);
-            console.log(`✅ History for ${bridge} is empty as expected`);
-        }
-      }
-    );
+  beforeAll(() => {
+    // Dedicated env vars (not TEST_ENDPOINT / TEST_CHAIN_ID, which the
+    // local-container suites use with localhost defaults). Required —
+    // refuse to silently fall back to mainnet on misconfiguration.
+    const endpoint = process.env.TEST_MAINNET_ENDPOINT;
+    const chainId = process.env.TEST_MAINNET_CHAIN_ID;
+    if (!endpoint || !chainId) {
+      throw new Error(
+        "TEST_MAINNET_ENDPOINT and TEST_MAINNET_CHAIN_ID must be set; refusing to silently default to mainnet.",
+      );
+    }
 
-    testWithDefaultWallet(
-      "should accept pagination parameters",
-      async ({ defaultClient }) => {
-        const walletAddress = defaultClient.address().getAddress();
-        
-        // This should not throw
-        const history = await defaultClient.getHistory("hoodi_tt2", walletAddress, 5, 10);
-        expect(Array.isArray(history)).toBe(true);
-        console.log(`✅ Pagination parameters accepted`);
+    // Read-only suite: a fresh random wallet is sufficient and avoids
+    // committing a private key. We expect getHistory to return [] for a
+    // wallet that has never touched a bridge.
+    const wallet = Wallet.createRandom();
 
-        console.log("Sleeping for 60s to allow log inspection...");
-        await new Promise(r => setTimeout(r, 60000));
-      }
-    );
-  }
-);
+    client = new NodeTNClient({
+      endpoint,
+      signerInfo: {
+        address: wallet.address,
+        signer: wallet,
+      },
+      chainId,
+      timeout: 30000,
+    });
+  });
+
+  test("should return empty history for new wallet across mainnet bridges", async () => {
+    const walletAddress = client.address().getAddress();
+
+    for (const bridge of ["eth_truf", "eth_usdc"]) {
+      const history = await client.getHistory(bridge, walletAddress, 10, 0);
+      expect(Array.isArray(history)).toBe(true);
+      expect(history.length).toBe(0);
+    }
+  }, 60000);
+
+  test("should accept pagination parameters", async () => {
+    const walletAddress = client.address().getAddress();
+    const history = await client.getHistory("eth_usdc", walletAddress, 5, 10);
+    expect(Array.isArray(history)).toBe(true);
+  }, 60000);
+});

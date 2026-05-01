@@ -11,12 +11,22 @@ import { toVisibilityEnum, VisibilityEnum } from "../util/visibility";
 import { CacheMetadataParser } from "../util/cacheMetadataParser";
 import { CacheValidation } from "../util/cacheValidation";
 import {
+  isReservedMetadataKey,
   MetadataKey,
   MetadataKeyValueMap,
   MetadataTableKey,
   MetadataValueTypeForKey,
+  MutableMetadataKey,
   StreamType,
 } from "./contractValues";
+
+/** Thrown when a reserved metadata key is routed through setMetadata. */
+export class ReservedMetadataKeyError extends Error {
+  constructor(public readonly key: MetadataKey) {
+    super(`reserved metadata key '${key}': use the dedicated mutator (e.g. setAllowZeros)`);
+    this.name = "ReservedMetadataKeyError";
+  }
+}
 // ValueType is available as Types.ValueType
 
 export interface GetRecordInput {
@@ -490,11 +500,17 @@ export class Action {
     };
   }
 
-  protected async setMetadata<K extends MetadataKey>(
+  protected async setMetadata<K extends MutableMetadataKey>(
     stream: StreamLocator,
     key: K,
     value: MetadataValueTypeForKey<K>,
   ): Promise<Types.GenericResponse<Types.TxReceipt>> {
+    // Runtime guard backs up the type-level Exclude. Catches callers
+    // who reach setMetadata via `as any` / dynamic dispatch and would
+    // otherwise hit the friendlier-but-still-runtime node-side error.
+    if (isReservedMetadataKey(key)) {
+      throw new ReservedMetadataKeyError(key);
+    }
     return await this.executeWithNamedParams("insert_metadata", [{
         $data_provider: stream.dataProvider.getAddress(),
         $stream_id: stream.streamId.getId(),
@@ -648,6 +664,42 @@ export class Action {
     return head(result)
       .map((row) => toVisibilityEnum(row.value))
       .unwrapOr(null);
+  }
+
+  /**
+   * Toggles the per-stream allow_zeros flag. Owner-gated. Forward-only:
+   * historical state is not rewritten by flipping the flag.
+   *
+   * Default behavior (no metadata row, allow_zeros=false) drops value=0
+   * inserts. Setting allow_zeros=true persists zeros from that point on.
+   */
+  public async setAllowZeros(
+    stream: StreamLocator,
+    value: boolean,
+  ): Promise<Types.GenericResponse<Types.TxReceipt>> {
+    return await this.executeWithNamedParams("set_allow_zeros", [{
+      $data_provider: stream.dataProvider.getAddress(),
+      $stream_id: stream.streamId.getId(),
+      $value: value,
+    }]);
+  }
+
+  /**
+   * Returns the current allow_zeros setting for the stream. Returns
+   * false when the stream has no explicit metadata row, matching the
+   * implicit default applied at insert time.
+   */
+  public async getAllowZeros(stream: StreamLocator): Promise<boolean> {
+    const result = await this.call<{ allow_zeros: boolean }[]>(
+      "get_allow_zeros",
+      {
+        $data_provider: stream.dataProvider.getAddress(),
+        $stream_id: stream.streamId.getId(),
+      },
+    );
+    return result
+      .mapRight((rows) => head(rows).map((row) => Boolean(row.allow_zeros)).unwrapOr(false))
+      .throw();
   }
 
   /**

@@ -128,11 +128,13 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
     streamId: StreamId,
     streamType: StreamType,
     synchronous?: boolean,
+    allowZeros?: boolean,
   ): Promise<Types.GenericResponse<Types.TxReceipt>> {
     return await deployStream({
       streamId,
       streamType,
       synchronous,
+      allowZeros,
       kwilClient: this.getKwilClient(),
       kwilSigner: this.getKwilSigner(),
     });
