@@ -60,12 +60,14 @@ const marketIndexStreamId = await StreamId.generate('market_index');
 
 ## Stream Deployment
 
-### `client.deployStream(streamId: StreamId, type: StreamType): Promise<DeploymentResult>`
+### `client.deployStream(streamId: StreamId, type: StreamType, synchronous?: boolean, allowZeros?: boolean): Promise<DeploymentResult>`
 Deploys a new stream to the TRUF.NETWORK.
 
 #### Parameters
 - `streamId: StreamId` - Unique stream identifier
 - `type: StreamType` - Stream type (Primitive or Composed)
+- `synchronous?: boolean` - When true, the kwild gateway holds the request open until the deploy transaction is confirmed.
+- `allowZeros?: boolean` - Per-stream toggle controlling whether `value=0` inserts are persisted. Default `false` preserves the historical behavior (zeros are silently dropped on insert and excluded from `getRecord` results). Set `true` for streams where zero is a meaningful measurement. Can be toggled later via `action.setAllowZeros`.
 
 #### Returns
 - `Promise<DeploymentResult>`
@@ -78,7 +80,28 @@ const deploymentResult = await client.deployStream(
         marketIndexStreamId,
         StreamType.Composed
 );
+
+// Stream where zero is a valid value:
+await client.deployStream(
+  hormuzStreamId,
+  StreamType.Primitive,
+  /* synchronous */ false,
+  /* allowZeros */ true,
+);
 ```
+
+### `action.setAllowZeros(stream: StreamLocator, value: boolean)`
+Toggles the per-stream `allow_zeros` flag for an existing stream. Owner-gated.
+
+The flip is forward-only — historical inserts are not rewritten. Zero records that were dropped before the flip stay dropped; zeros that arrive after the flip persist.
+
+```typescript
+const action = client.loadAction();
+await action.setAllowZeros({ streamId, dataProvider }, true);
+```
+
+### `action.getAllowZeros(stream: StreamLocator): Promise<boolean>`
+Returns the current `allow_zeros` setting for the stream. Returns `false` when the stream has no explicit metadata row, matching the implicit default applied at insert time.
 
 ## Stream Destruction
 
