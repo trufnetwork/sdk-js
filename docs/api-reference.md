@@ -1010,6 +1010,33 @@ console.log(`Withdrawal initiated: ${txHash}`);
 - **Non-custodial bridges** (Hoodi): You must manually claim withdrawals using `getWithdrawalProof()`
 - **Wait time**: Withdrawals become claimable after the epoch period (typically 10 minutes)
 
+### `client.transfer(bridgeIdentifier: string, recipient: string, amount: string): Promise<string>`
+
+Sends tokens from the caller to another in-network wallet via the bridge's public transfer action. Binds to the on-chain action `<bridgeIdentifier>_transfer` — `eth_truf_transfer` / `eth_usdc_transfer` on mainnet, `ethereum_transfer` / `sepolia_transfer` on dev/test.
+
+The caller pays a **1-token action fee** on top of `amount`, denominated in the same token as the bridge (1 TRUF for `eth_truf`, 1 USDC for `eth_usdc`). The action reverts if the caller balance is below `amount + 1 token`.
+
+#### Parameters
+- `bridgeIdentifier: string` — Bridge / action namespace prefix (e.g. `"eth_truf"`, `"eth_usdc"`, `"sepolia"`).
+- `recipient: string` — Destination wallet address (Ethereum 0x… format).
+- `amount: string` — Transfer amount in wei (as string to preserve precision).
+
+#### Returns
+- `Promise<string>` — Transaction hash of the transfer.
+
+#### Example — Refill bot pattern
+```typescript
+import { parseEther } from "ethers";
+
+// Top up an adapter wallet; budget an extra 1 TRUF for the action fee.
+const txHash = await client.transfer(
+  "eth_truf",
+  "0xAdapterWallet...",
+  parseEther("100").toString(), // 100 TRUF
+);
+console.log(`Refill TX Hash: ${txHash}`);
+```
+
 ### `client.getWithdrawalProof(bridgeIdentifier: string, walletAddress: string): Promise<WithdrawalProof[]>`
 
 Gets withdrawal proofs for claiming withdrawals on non-custodial bridges. Returns merkle proofs and validator signatures needed for submitting claims to the destination chain contract.

@@ -1122,6 +1122,52 @@ export class Action {
   }
 
   /**
+   * Sends tokens from the caller to another in-network wallet.
+   *
+   * Binds to the on-chain action `<bridgeIdentifier>_transfer`:
+   * - `eth_truf_transfer` / `eth_usdc_transfer` (mainnet)
+   * - `ethereum_transfer` / `sepolia_transfer` (dev/test)
+   *
+   * The caller pays a 1-token action fee on top of `amount`, denominated in
+   * the same token as the bridge (e.g. 1 TRUF for `eth_truf`, 1 USDC for
+   * `eth_usdc`). The action reverts if the caller balance is below
+   * `amount + 1 token`.
+   *
+   * @param bridgeIdentifier The bridge / action namespace prefix
+   *   (e.g. "eth_truf", "eth_usdc", "sepolia").
+   * @param recipient The destination wallet address (Ethereum 0x… format).
+   * @param amount The transfer amount in wei (as string to preserve precision).
+   * @returns Promise that resolves to a transaction receipt.
+   * @example
+   * ```typescript
+   * // Mainnet: transfer 1 TRUF to a refill recipient
+   * const receipt = await action.transfer(
+   *   "eth_truf",
+   *   "0x742d35Cc...",
+   *   "1000000000000000000"
+   * );
+   *
+   * // Local devnet: testnet alias
+   * await action.transfer("sepolia", "0x742d35Cc...", "5000000000000000000");
+   * ```
+   */
+  public async transfer(
+    bridgeIdentifier: string,
+    recipient: string,
+    amount: string
+  ): Promise<Types.GenericResponse<Types.TxReceipt>> {
+    const numAmount = parseFloat(amount);
+    if (isNaN(numAmount) || numAmount <= 0) {
+      throw new Error(`Invalid amount: ${amount}. Amount must be greater than 0.`);
+    }
+
+    return await this.executeWithNamedParams(`${bridgeIdentifier}_transfer`, [{
+      $to_address: recipient,
+      $amount: amount,
+    }]);
+  }
+
+  /**
    * Lists wallet rewards for a specific bridge instance
    * @param bridgeIdentifier The bridge instance identifier (e.g., "sepolia", "hoodi_tt")
    * @param wallet The wallet address to list rewards for

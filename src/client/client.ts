@@ -332,6 +332,36 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
   }
 
   /**
+   * Sends tokens from the caller to another in-network wallet via the bridge's
+   * public transfer action (`<bridgeIdentifier>_transfer`).
+   *
+   * Costs a 1-token action fee on top of `amount`, in the same token as the
+   * bridge (1 TRUF for `eth_truf`, 1 USDC for `eth_usdc`).
+   *
+   * @param bridgeIdentifier Bridge / action namespace prefix
+   *   (e.g. "eth_truf", "eth_usdc", "sepolia").
+   * @param recipient The destination wallet address (Ethereum 0x… format).
+   * @param amount The transfer amount in wei (as string to preserve precision).
+   * @returns Promise that resolves to the transaction hash, or throws on error.
+   */
+  async transfer(bridgeIdentifier: string, recipient: string, amount: string): Promise<string> {
+    const action = this.loadAction();
+
+    const transferResult = await action.transfer(bridgeIdentifier, recipient, amount);
+    if (!transferResult.data?.tx_hash) {
+      throw new Error("Transfer operation failed: no transaction hash returned");
+    }
+
+    try {
+      await this.waitForTx(transferResult.data.tx_hash);
+    } catch (error) {
+      throw new Error(`Transfer transaction failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    return transferResult.data.tx_hash;
+  }
+
+  /**
    * Lists wallet rewards for a specific bridge instance
    * @param bridgeIdentifier The bridge instance identifier (e.g., "sepolia", "hoodi_tt")
    * @param wallet The wallet address to list rewards for
