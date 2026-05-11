@@ -1109,9 +1109,7 @@ export class Action {
     amount: string,
     recipient: string
   ): Promise<Types.GenericResponse<Types.TxReceipt>> {
-    // Validate amount is greater than 0
-    const numAmount = parseFloat(amount);
-    if (isNaN(numAmount) || numAmount <= 0) {
+    if (!/^[0-9]+$/.test(amount) || amount === "0") {
       throw new Error(`Invalid amount: ${amount}. Amount must be greater than 0.`);
     }
 
@@ -1156,8 +1154,7 @@ export class Action {
     recipient: string,
     amount: string
   ): Promise<Types.GenericResponse<Types.TxReceipt>> {
-    const numAmount = parseFloat(amount);
-    if (isNaN(numAmount) || numAmount <= 0) {
+    if (!/^[0-9]+$/.test(amount) || amount === "0") {
       throw new Error(`Invalid amount: ${amount}. Amount must be greater than 0.`);
     }
 
