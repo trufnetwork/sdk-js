@@ -20,6 +20,12 @@ import {
   StreamType,
 } from "./contractValues";
 
+function validateAmount(amount: string): void {
+  if (!/^[0-9]+$/.test(amount) || BigInt(amount) <= 0n) {
+    throw new Error(`Invalid amount: ${amount}. Amount must be greater than 0.`);
+  }
+}
+
 /** Thrown when a reserved metadata key is routed through setMetadata. */
 export class ReservedMetadataKeyError extends Error {
   constructor(public readonly key: MetadataKey) {
@@ -1109,9 +1115,7 @@ export class Action {
     amount: string,
     recipient: string
   ): Promise<Types.GenericResponse<Types.TxReceipt>> {
-    if (!/^[0-9]+$/.test(amount) || amount === "0") {
-      throw new Error(`Invalid amount: ${amount}. Amount must be greater than 0.`);
-    }
+    validateAmount(amount);
 
     return await this.executeWithNamedParams(`${bridgeIdentifier}_bridge_tokens`, [{
       $recipient: recipient,
@@ -1154,9 +1158,12 @@ export class Action {
     recipient: string,
     amount: string
   ): Promise<Types.GenericResponse<Types.TxReceipt>> {
-    if (!/^[0-9]+$/.test(amount) || amount === "0") {
-      throw new Error(`Invalid amount: ${amount}. Amount must be greater than 0.`);
+    try {
+      new EthereumAddress(recipient);
+    } catch {
+      throw new Error(`Invalid recipient address: ${recipient}`);
     }
+    validateAmount(amount);
 
     return await this.executeWithNamedParams(`${bridgeIdentifier}_transfer`, [{
       $to_address: recipient,
