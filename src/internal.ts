@@ -14,6 +14,7 @@ export { ComposedAction } from "./contracts-api/composedAction";
 export { RoleManagement } from "./contracts-api/roleManagement";
 export { AttestationAction } from "./contracts-api/attestationAction";
 export { OrderbookAction } from "./contracts-api/orderbookAction";
+export { MAAAction } from "./contracts-api/maaActions";
 export { deployStream } from "./contracts-api/deployStream";
 export { deleteStream } from "./contracts-api/deleteStream";
 export { LocalActions, type LocalActionsOptions } from "./contracts-api/localActions";
@@ -21,6 +22,8 @@ export { LocalActions, type LocalActionsOptions } from "./contracts-api/localAct
 // Utility classes
 export { StreamId } from "./util/StreamId";
 export { EthereumAddress } from "./util/EthereumAddress";
+export { MAAAddress } from "./util/MAAAddress";
+export type { MAABytesLike } from "./util/MAAAddress";
 export { visibility } from "./util/visibility";
 
 // Attestation encoding/decoding utilities
@@ -82,6 +85,20 @@ export type {
 
 // Bridge types
 export type { WithdrawalProof } from "./types/bridge";
+
+// Agent-wallet (Modular Agent Address) types
+export type {
+  MAACreateRuleInput,
+  MAACreateRuleResult,
+  MAAJoinResult,
+  MAARule,
+  MAAAllowedAction,
+  MAAInstance,
+  MAARuleRef,
+  MAAOwnedWallet,
+  MAARuleWallet,
+  MAAEvent,
+} from "./types/maa";
 
 // Visibility types
 export type { VisibilityEnum } from "./util/visibility";
