@@ -15,6 +15,7 @@ import { RoleManagement } from "../contracts-api/roleManagement";
 import { AttestationAction } from "../contracts-api/attestationAction";
 import { TransactionAction } from "../contracts-api/transactionAction";
 import { OrderbookAction } from "../contracts-api/orderbookAction";
+import { MAAAction } from "../contracts-api/maaActions";
 import { OwnerIdentifier } from "../types/role";
 
 export interface SignerInfo {
@@ -203,6 +204,19 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
     return new AttestationAction(
       this.getKwilClient() as WebKwil | NodeKwil,
       this.getKwilSigner(),
+    );
+  }
+
+  /**
+   * Loads the agent-wallet (Modular Agent Address) action API: derive addresses off-chain, register
+   * rules, join them, and read the public rule/wallet/audit surface.
+   * @returns An instance of MAAAction.
+   */
+  loadMAAAction(): MAAAction {
+    return new MAAAction(
+      this.getKwilClient() as WebKwil | NodeKwil,
+      this.getKwilSigner(),
+      this.address().getAddress(),
     );
   }
 
