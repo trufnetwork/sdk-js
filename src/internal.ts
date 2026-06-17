@@ -91,6 +91,7 @@ export type {
   MAACreateRuleInput,
   MAACreateRuleResult,
   MAAJoinResult,
+  MAAExecuteInput,
   MAARule,
   MAAAllowedAction,
   MAAInstance,
