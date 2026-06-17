@@ -17,6 +17,7 @@ import {
   MAACreateRuleInput,
   MAACreateRuleResult,
   MAAEvent,
+  MAAExecuteInput,
   MAAInstance,
   MAAJoinResult,
   MAAOwnedWallet,
@@ -122,6 +123,42 @@ export class MAAAction extends Action {
       throw new Error("joinAgentAddress: no transaction hash returned");
     }
     return { txHash, maaAddress, maaAddressHex: hexlify(maaAddress) };
+  }
+
+  /**
+   * executeAgentAction runs one allow-listed action AS the agent wallet (a maa_exec transaction). The
+   * signer is the rule's restricted agent (a delegated action) or the unrestricted owner (e.g. a
+   * withdrawal); the node rewrites @caller to the wallet after verifying the rule's role and allow-list.
+   * Returns the submission tx hash (parity with createAgentRule/joinAgentAddress and the Go/Python SDKs).
+   *
+   * The network must have activated maa_exec; before activation the node rejects the payload with an
+   * "unknown payload type" error, surfaced verbatim.
+   */
+  async executeAgentAction(input: MAAExecuteInput): Promise<string> {
+    const maaAddress = toBytes(input.maaAddress);
+    if (maaAddress.length !== 20) {
+      throw new Error(`maa_address must be 20 bytes, got ${maaAddress.length}`);
+    }
+    if (!input.action) {
+      throw new Error("action must not be empty");
+    }
+
+    const result = await this.kwilClient.maaExec(
+      {
+        maaAddress,
+        namespace: input.namespace ?? "main",
+        action: input.action,
+        inputs: input.args ?? [],
+        types: input.types,
+      },
+      this.kwilSigner,
+    );
+
+    const txHash = result.data?.tx_hash;
+    if (!txHash) {
+      throw new Error("executeAgentAction: no transaction hash returned");
+    }
+    return txHash;
   }
 
   /** getRule returns a rule's terms (maa_get_rule), or null if no such rule exists. */

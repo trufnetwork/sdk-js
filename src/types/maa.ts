@@ -8,6 +8,7 @@
  * (migration 048): addresses and hashes are 0x-prefixed lowercase hex as returned by the node.
  */
 
+import { Types } from "@trufnetwork/kwil-js";
 import { MAABytesLike } from "../util/MAAAddress";
 
 /** Parameters for createAgentRule (on-chain maa_create_rule). */
@@ -39,6 +40,30 @@ export interface MAAJoinResult {
   txHash: string;
   maaAddress: Uint8Array;
   maaAddressHex: string;
+}
+
+/**
+ * Parameters for executeAgentAction (a maa_exec transaction: run an inner action AS the agent wallet).
+ *
+ * The signer is either the rule's restricted agent (running a delegated, allow-listed action) or the
+ * unrestricted owner (e.g. withdrawing); the node rewrites @caller to maaAddress after checking the
+ * rule's role and allow-list.
+ */
+export interface MAAExecuteInput {
+  /** 20-byte agent-wallet (MAA) address to act as, as 0x-hex or raw bytes. */
+  maaAddress: MAABytesLike;
+  /** Inner action name to run as the wallet (must be allow-listed for the wallet's rule). */
+  action: string;
+  /** Positional arguments for the inner action (a single call). Omit for a no-arg action. */
+  args?: Types.ValueType[];
+  /** Inner action namespace; defaults to "main". */
+  namespace?: string;
+  /**
+   * Optional per-argument type overrides, parallel to args. A maa_exec payload is not schema-validated
+   * before broadcast, so NUMERIC/UUID/BYTEA arguments that can't be inferred from a plain JS value need
+   * an explicit type (e.g. Utils.DataType.Numeric(...)). Omit to let each type be inferred from the value.
+   */
+  types?: Types.MAAExecBody["types"];
 }
 
 /** A rule's terms (maa_get_rule). */
