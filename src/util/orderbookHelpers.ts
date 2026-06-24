@@ -397,6 +397,30 @@ export function validateAmount(amount: number, operation: string): void {
  * @param bridge - Bridge identifier to validate
  * @throws Error if bridge is invalid
  */
+/**
+ * Validates a wallet address argument for the by-wallet portfolio getters (migration 051): a
+ * 20-byte hex address, with or without a 0x prefix, matching the node's get_positions_by_wallet /
+ * get_collateral_by_wallet normalization.
+ *
+ * @param wallet - The wallet address to validate.
+ * @throws Error if it is empty, not 40 hex characters (after an optional 0x prefix), or non-hex.
+ */
+export function validateWalletHex(wallet: string): void {
+  if (!wallet) {
+    throw new Error("wallet address is required");
+  }
+  const hex =
+    wallet.startsWith("0x") || wallet.startsWith("0X") ? wallet.slice(2) : wallet;
+  if (hex.length !== 40) {
+    throw new Error(
+      `wallet address must be 40 hex characters (after an optional 0x prefix), got ${hex.length}`
+    );
+  }
+  if (!/^[0-9a-fA-F]{40}$/.test(hex)) {
+    throw new Error("wallet address contains invalid hex characters");
+  }
+}
+
 export function validateBridge(bridge: string): void {
   const validBridges = [
     "eth_usdc",
