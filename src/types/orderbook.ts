@@ -133,6 +133,31 @@ export interface UserPosition {
   lastUpdated: number;
 }
 
+/**
+ * A wallet's position in a market, read BY ADDRESS via get_positions_by_wallet (migration 051).
+ *
+ * Unlike UserPosition (the @caller-scoped get_user_positions), this carries a position_type
+ * ('holding' | 'buy_order' | 'sell_order') instead of a last-updated timestamp — it mirrors the
+ * columns the node's get_positions_by_wallet action returns.
+ */
+export interface WalletPosition {
+  /** Market identifier */
+  queryId: number;
+  /** Outcome: true=YES, false=NO */
+  outcome: boolean;
+  /**
+   * Price in cents:
+   * - Negative: Buy order
+   * - Zero: Holding
+   * - Positive: Sell order
+   */
+  price: number;
+  /** Number of shares */
+  amount: number;
+  /** Kind of position: 'holding' | 'buy_order' | 'sell_order' */
+  positionType: "holding" | "buy_order" | "sell_order";
+}
+
 /** Aggregated depth at a price level */
 export interface DepthLevel {
   /** Price level in cents */
@@ -389,6 +414,15 @@ export interface RawUserPosition {
   price: number;
   amount: number;
   last_updated: number;
+}
+
+/** @internal Raw wallet position from get_positions_by_wallet (migration 051) */
+export interface RawWalletPosition {
+  query_id: number;
+  outcome: boolean;
+  price: number;
+  amount: number;
+  position_type: string;
 }
 
 /** @internal Raw depth level from database */

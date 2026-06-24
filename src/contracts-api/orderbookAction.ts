@@ -12,6 +12,7 @@ import {
   MarketValidation,
   OrderBookEntry,
   UserPosition,
+  WalletPosition,
   DepthLevel,
   BestPrices,
   UserCollateral,
@@ -33,6 +34,7 @@ import {
   RawMarketSummary,
   RawOrderBookEntry,
   RawUserPosition,
+  RawWalletPosition,
   RawDepthLevel,
   RawBestPrices,
   RawUserCollateral,
@@ -52,6 +54,7 @@ import {
   validateBridge,
   validateMaxSpread,
   validateSettleTime,
+  validateWalletHex,
   settledFilterToBoolean,
 } from "../util/orderbookHelpers";
 
@@ -683,6 +686,87 @@ export class OrderbookAction {
         buyOrdersLocked: "0",
         sharesValue: "0",
       };
+    }
+
+    const row = rows[0];
+    return {
+      totalLocked: row.total_locked,
+      buyOrdersLocked: row.buy_orders_locked,
+      sharesValue: row.shares_value,
+    };
+  }
+
+  /**
+   * Gets a wallet's positions across all markets BY ADDRESS (get_positions_by_wallet, migration 051).
+   *
+   * Unlike getUserPositions (which reads the signer's own @caller positions), this reads the wallet
+   * you pass in — so an owner, or a delegated market-maker bot, can monitor an agent wallet's (MAA)
+   * inventory without holding its key.
+   *
+   * @param walletHex - The wallet to read, as a 20-byte hex address (with or without a 0x prefix).
+   * @returns The wallet's positions (an empty array if it has never traded).
+   */
+  async getPositionsByWallet(walletHex: string): Promise<WalletPosition[]> {
+    validateWalletHex(walletHex);
+
+    const result = await this.kwilClient.call(
+      {
+        namespace: "main",
+        name: "get_positions_by_wallet",
+        inputs: { $wallet_address: walletHex },
+      },
+      this.kwilSigner
+    );
+
+    if (result.status !== 200) {
+      throw new Error(`Failed to get positions by wallet: ${result.status}`);
+    }
+
+    const rows = (result.data?.result as RawWalletPosition[]) || [];
+    return rows.map((row) => ({
+      queryId: row.query_id,
+      outcome: row.outcome,
+      price: row.price,
+      amount: row.amount,
+      positionType: row.position_type as WalletPosition["positionType"],
+    }));
+  }
+
+  /**
+   * Gets a wallet's total locked collateral on one bridge BY ADDRESS (get_collateral_by_wallet,
+   * migration 051).
+   *
+   * Unlike getUserCollateral (which reads the signer), this reads the wallet you pass in. The bridge
+   * is required (per-bridge token decimals) — use the bridge the order-book markets settle in
+   * (e.g. hoodi_tt2 / eth_usdc), not the wallet's funding/fee bridge.
+   *
+   * @param walletHex - The wallet to read, as a 20-byte hex address (with or without a 0x prefix).
+   * @param bridge - The order-book collateral bridge namespace (required).
+   * @returns The wallet's collateral breakdown (all zeros if it has never traded).
+   */
+  async getCollateralByWallet(
+    walletHex: string,
+    bridge: string
+  ): Promise<UserCollateral> {
+    validateWalletHex(walletHex);
+    validateBridge(bridge);
+
+    const result = await this.kwilClient.call(
+      {
+        namespace: "main",
+        name: "get_collateral_by_wallet",
+        inputs: { $wallet_address: walletHex, $bridge: bridge },
+      },
+      this.kwilSigner
+    );
+
+    if (result.status !== 200) {
+      throw new Error(`Failed to get collateral by wallet: ${result.status}`);
+    }
+
+    const rows = result.data?.result as RawUserCollateral[];
+    if (!rows || rows.length === 0) {
+      return { totalLocked: "0", buyOrdersLocked: "0", sharesValue: "0" };
     }
 
     const row = rows[0];

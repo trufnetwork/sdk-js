@@ -112,6 +112,7 @@ export type {
   MarketValidation,
   OrderBookEntry,
   UserPosition,
+  WalletPosition,
   DepthLevel,
   BestPrices,
   UserCollateral,
