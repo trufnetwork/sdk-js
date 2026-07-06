@@ -393,21 +393,26 @@ export function decodedValueToJS(decoded: DecodedEncodedValue): any {
   // array is an empty array `[]` (a scalar SQL NULL is encoded as a single [0x00] element, never a
   // zero-length data array).
   if (decoded.type.is_array) {
-    return decoded.data.map((item) =>
-      item.length === 0 || item[0] === 0 ? null : decodeSingleValue(typeName, item.slice(1))
-    );
+    return decoded.data.map((item) => decodeFlaggedValue(item, typeName));
   }
 
   // Scalar types: an empty data array or a leading 0x00 null-flag both mean SQL NULL.
   if (decoded.data.length === 0) {
     return null;
   }
-  const firstItem = decoded.data[0];
-  if (firstItem.length === 0 || firstItem[0] === 0) {
+  return decodeFlaggedValue(decoded.data[0], typeName);
+}
+
+/**
+ * Decodes one null-flagged data element: an empty slice or a leading 0x00 flag is SQL NULL, otherwise
+ * the remaining bytes are decoded per the type. Shared by the scalar and array paths so both stay in
+ * sync.
+ */
+function decodeFlaggedValue(item: Uint8Array, typeName: string): any {
+  if (item.length === 0 || item[0] === 0) {
     return null;
   }
-
-  return decodeSingleValue(typeName, firstItem.slice(1));
+  return decodeSingleValue(typeName, item.slice(1));
 }
 
 /**

@@ -1,6 +1,7 @@
 import { KwilSigner, NodeKwil, WebKwil } from "@trufnetwork/kwil-js";
 import { TransactionEvent, FeeDistribution, GetTransactionEventInput } from "../types/transaction";
-import { decodeTransactionPayload, DecodedTransactionPayload } from "../util/TransactionPayload";
+import { decodeTransactionPayload } from "../util/TransactionPayload";
+import type { DecodedTransactionPayload } from "../util/TransactionPayload";
 
 /**
  * Decodes a base64 string to bytes in both Node.js and browser environments.
@@ -254,7 +255,12 @@ export class TransactionAction {
     const payloadBytes =
       typeof body.payload === "string" ? base64ToBytes(body.payload) : (body.payload as Uint8Array);
 
-    return decodeTransactionPayload(payloadBytes);
+    try {
+      return decodeTransactionPayload(payloadBytes);
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      throw new Error(`Failed to decode transaction input for ${input.txId}: ${detail}`);
+    }
   }
 
   /**

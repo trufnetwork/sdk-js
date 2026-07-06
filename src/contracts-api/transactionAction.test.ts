@@ -103,4 +103,13 @@ describe("TransactionAction.getTransactionInput", () => {
     const action = makeAction(txInfo);
     await expect(action.getTransactionInput({ txId: "abc123" })).rejects.toThrow(/not an action call/);
   });
+
+  it("wraps a decode failure with the transaction id", async () => {
+    // A truncated execute payload makes the decoder throw; the tx id must be in the message.
+    const txInfo = vi.fn().mockResolvedValue(okReceipt(hexToBytes("0000"), "execute"));
+    const action = makeAction(txInfo);
+    await expect(action.getTransactionInput({ txId: "0xdeadbeef" })).rejects.toThrow(
+      /Failed to decode transaction input for 0xdeadbeef/
+    );
+  });
 });
