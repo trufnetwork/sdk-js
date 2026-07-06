@@ -154,6 +154,17 @@ export function decodeQueryComponents(encoded: Uint8Array): {
 }
 
 /**
+ * Formats 16 raw bytes as a canonical 8-4-4-4-12 UUID string.
+ */
+function bytesToUuidString(bytes: Uint8Array): string {
+  let hex = '';
+  for (let i = 0; i < bytes.length; i++) {
+    hex += bytes[i].toString(16).padStart(2, '0');
+  }
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+/**
  * Helper to convert hex string to Uint8Array
  */
 function hexToBytes(hex: string): Uint8Array {
@@ -375,39 +386,33 @@ export function decodeEncodedValue(
  * @returns JavaScript value (string, number, boolean, null, Uint8Array, or array)
  */
 export function decodedValueToJS(decoded: DecodedEncodedValue): any {
-  // Handle NULL values (data array is empty or first item indicates null)
+  const typeName = decoded.type.name.toLowerCase();
+
+  // Array types must be handled before the scalar NULL check: each element is independently
+  // null-flagged, so a NULL first element does not make the whole value NULL, and an empty data
+  // array is an empty array `[]` (a scalar SQL NULL is encoded as a single [0x00] element, never a
+  // zero-length data array).
+  if (decoded.type.is_array) {
+    return decoded.data.map((item) => decodeFlaggedValue(item, typeName));
+  }
+
+  // Scalar types: an empty data array or a leading 0x00 null-flag both mean SQL NULL.
   if (decoded.data.length === 0) {
     return null;
   }
+  return decodeFlaggedValue(decoded.data[0], typeName);
+}
 
-  // Check the null indicator (first byte of first data item)
-  const firstItem = decoded.data[0];
-  if (firstItem.length === 0 || firstItem[0] === 0) {
+/**
+ * Decodes one null-flagged data element: an empty slice or a leading 0x00 flag is SQL NULL, otherwise
+ * the remaining bytes are decoded per the type. Shared by the scalar and array paths so both stay in
+ * sync.
+ */
+function decodeFlaggedValue(item: Uint8Array, typeName: string): any {
+  if (item.length === 0 || item[0] === 0) {
     return null;
   }
-
-  // Extract actual value bytes (skip null indicator byte)
-  const valueBytes = firstItem.slice(1);
-
-  // Decode based on type name
-  const typeName = decoded.type.name.toLowerCase();
-
-  if (decoded.type.is_array) {
-    // Handle array types
-    const result: any[] = [];
-    for (const item of decoded.data) {
-      if (item.length === 0 || item[0] === 0) {
-        result.push(null);
-      } else {
-        const itemBytes = item.slice(1);
-        result.push(decodeSingleValue(typeName, itemBytes));
-      }
-    }
-    return result;
-  }
-
-  // Handle scalar types
-  return decodeSingleValue(typeName, valueBytes);
+  return decodeSingleValue(typeName, item.slice(1));
 }
 
 /**
@@ -416,8 +421,12 @@ export function decodedValueToJS(decoded: DecodedEncodedValue): any {
 function decodeSingleValue(typeName: string, bytes: Uint8Array): any {
   switch (typeName) {
     case 'text':
-    case 'uuid':
       return new TextDecoder().decode(bytes);
+
+    case 'uuid':
+      // 16 raw bytes -> canonical 8-4-4-4-12 hex string (kwil encodes a uuid as its raw bytes, not
+      // as text). Fall back to text decoding for any unexpected length.
+      return bytes.length === 16 ? bytesToUuidString(bytes) : new TextDecoder().decode(bytes);
 
     case 'int':
     case 'int8':
@@ -939,6 +948,41 @@ if (import.meta.vitest) {
     it('should throw on invalid version', () => {
       const payload = new Uint8Array(1);
       expect(() => parseAttestationPayload(payload)).toThrow();
+    });
+  });
+
+  describe('decodedValueToJS — value fidelity', () => {
+    // Round-trip through the real kwil-js encoder so these assert the actual wire format.
+    const roundTrip = (val: any, typeHint?: any): any => {
+      const ev = Utils.formatEncodedValue(val, typeHint);
+      const { value } = decodeEncodedValue(Utils.encodeEncodedValue(ev), 0);
+      return decodedValueToJS(value);
+    };
+    const textArray = { name: 'text', is_array: true, metadata: [0, 0] };
+
+    it('formats a uuid argument as a canonical string, not mojibake', () => {
+      const uuid = '123e4567-e89b-42d3-a456-426614174000';
+      expect(roundTrip(uuid)).toBe(uuid);
+    });
+
+    it('preserves a text array whose FIRST element is null', () => {
+      expect(roundTrip([null, 'b'], textArray)).toEqual([null, 'b']);
+    });
+
+    it('preserves a text array whose last element is null', () => {
+      expect(roundTrip(['a', null], textArray)).toEqual(['a', null]);
+    });
+
+    it('decodes an empty array as [] rather than null', () => {
+      expect(roundTrip([], textArray)).toEqual([]);
+    });
+
+    it('still decodes a scalar null as null', () => {
+      expect(roundTrip(null)).toBeNull();
+    });
+
+    it('still decodes a fully-populated text array', () => {
+      expect(roundTrip(['a', 'b', 'c'], textArray)).toEqual(['a', 'b', 'c']);
     });
   });
 }
