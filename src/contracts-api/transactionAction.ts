@@ -1,5 +1,21 @@
 import { KwilSigner, NodeKwil, WebKwil } from "@trufnetwork/kwil-js";
 import { TransactionEvent, FeeDistribution, GetTransactionEventInput } from "../types/transaction";
+import { decodeTransactionPayload, DecodedTransactionPayload } from "../util/TransactionPayload";
+
+/**
+ * Decodes a base64 string to bytes in both Node.js and browser environments.
+ */
+function base64ToBytes(b64: string): Uint8Array {
+  if (typeof Buffer !== "undefined") {
+    return new Uint8Array(Buffer.from(b64, "base64"));
+  }
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
 
 const INDEXER_BASE = "https://indexer.infra.truf.network";
 
@@ -186,6 +202,59 @@ export class TransactionAction {
       metadata: row.metadata || undefined,
       feeDistributions,
     };
+  }
+
+  /**
+   * Fetches a transaction and decodes its input payload — the action that was called and its
+   * arguments (e.g. the deployed stream IDs from a deploy, the records from an insert).
+   *
+   * Unlike {@link getTransactionEvent} (which reads the ledger for fee data), this decodes the raw
+   * `execute` payload, so it works for any action-call transaction without a dedicated view action.
+   *
+   * @param input Transaction query input containing the tx hash
+   * @returns Promise resolving to the decoded namespace, action, and native arguments
+   * @throws Error if the transaction is not found, has no payload, or is not an action call
+   *
+   * @example
+   * ```typescript
+   * const txAction = client.loadTransactionAction();
+   * const { action, arguments: args } = await txAction.getTransactionInput({
+   *   txId: "0xabcdef123456...",
+   * });
+   * // action === "insert_records"; args is one array of native values per batched call
+   * ```
+   */
+  async getTransactionInput(input: GetTransactionEventInput): Promise<DecodedTransactionPayload> {
+    if (!input.txId || input.txId.trim() === "") {
+      throw new Error("tx_id is required");
+    }
+
+    // The node's tx_query expects a 64-character hex hash; a leading "0x" (66 chars) is rejected.
+    const hash = input.txId.trim().replace(/^0x/i, "");
+
+    const result = await this.kwilClient.txInfo(hash);
+
+    if (result.status !== 200 || !result.data) {
+      throw new Error(`Failed to get transaction info: HTTP ${result.status}`);
+    }
+
+    const body = result.data.tx?.body;
+    if (!body || body.payload === null || body.payload === undefined) {
+      throw new Error(`Transaction has no payload: ${input.txId}`);
+    }
+
+    // Data-provision writes (deploy, insert, ...) are all `execute` (action call) payloads.
+    if (body.type !== "execute") {
+      throw new Error(
+        `Transaction ${input.txId} is a "${body.type}" payload, not an action call; cannot decode input`
+      );
+    }
+
+    // The receipt type declares Uint8Array, but be tolerant of a base64 string over the wire.
+    const payloadBytes =
+      typeof body.payload === "string" ? base64ToBytes(body.payload) : (body.payload as Uint8Array);
+
+    return decodeTransactionPayload(payloadBytes);
   }
 
   /**

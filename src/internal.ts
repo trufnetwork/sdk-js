@@ -38,6 +38,10 @@ export type {
   ParsedAttestationPayload
 } from "./util/AttestationEncoding";
 
+// Transaction payload decoding
+export { decodeTransactionPayload } from "./util/TransactionPayload";
+export type { DecodedTransactionPayload } from "./util/TransactionPayload";
+
 // Contract values and types
 export { StreamType } from "./contracts-api/contractValues";
 
