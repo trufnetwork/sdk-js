@@ -145,9 +145,10 @@ export {
   hexToBytes,
   bytesToHex,
   decodeMarketData,
+  decodeCreateMarketPayload,
 } from "./util/orderbookHelpers";
 
-export type { MarketData } from "./util/orderbookHelpers";
+export type { MarketData, CreateMarketPayload } from "./util/orderbookHelpers";
 
 // Local actions types
 export type {

@@ -11,6 +11,7 @@ import {
   decodeActionArgs,
   decodeQueryComponents
 } from "./AttestationEncoding";
+import type { DecodedTransactionPayload } from "./TransactionPayload";
 
 /**
  * Structured content of a prediction market's query components
@@ -78,6 +79,97 @@ export function decodeMarketData(encoded: string | Uint8Array): MarketData {
   }
 
   return market;
+}
+
+/**
+ * A decoded `create_market` transaction: its five action arguments turned into structured fields,
+ * with the ABI-encoded `query_components` further decoded into {@link MarketData}. Returned by
+ * {@link decodeCreateMarketPayload}.
+ */
+export interface CreateMarketPayload {
+  /** Collateral bridge namespace, e.g. `"eth_usdc"` / `"hoodi_tt2"`. */
+  bridge: string;
+  /** The raw ABI-encoded query_components bytes (kept for hashing / re-decoding). */
+  queryComponents: Uint8Array;
+  /**
+   * The query_components decoded into a market type and its thresholds, or `null` when they can't
+   * be decoded — a committed-but-execution-failed create_market can carry empty/garbage
+   * query_components, and an explorer should still see the top-level fields.
+   */
+  market: MarketData | null;
+  /** Unix timestamp at which the market settles. */
+  settleTime: number;
+  /** Maximum bid-ask spread allowed, in cents. */
+  maxSpread: number;
+  /** Minimum order size in the bridge token's base units (string to avoid precision loss). */
+  minOrderSize: string;
+}
+
+/** The on-chain action name whose payload {@link decodeCreateMarketPayload} understands. */
+const CREATE_MARKET_ACTION = "create_market";
+
+/**
+ * Decodes a `create_market` transaction (as returned by `TransactionAction.getTransactionInput`)
+ * into a structured {@link CreateMarketPayload}, including the market details nested inside its
+ * ABI-encoded `query_components` argument.
+ *
+ * This is the transaction-level counterpart to `OrderbookAction.createMarket`: it knows
+ * create_market's argument order (`$bridge, $query_components, $settle_time, $max_spread,
+ * $min_order_size`), so a block explorer or indexer reading the transaction doesn't have to.
+ *
+ * @param payload - A decoded execute payload from `getTransactionInput` / `decodeTransactionPayload`.
+ * @returns The structured market creation, or `null` if `payload` is not a create_market call.
+ *   Its `market` field is `null` when the query_components can't be decoded (e.g. a
+ *   committed-but-failed create_market with empty/garbage components).
+ * @throws If the call is a create_market but does not carry its five expected arguments.
+ *
+ * @example
+ * ```typescript
+ * const payload = await client.loadTransactionAction().getTransactionInput({ txId });
+ * const created = decodeCreateMarketPayload(payload);
+ * if (created) {
+ *   console.log(created.market.type, created.market.thresholds, created.settleTime);
+ * }
+ * ```
+ */
+export function decodeCreateMarketPayload(
+  payload: DecodedTransactionPayload
+): CreateMarketPayload | null {
+  if (payload.action !== CREATE_MARKET_ACTION) {
+    return null;
+  }
+
+  const call = payload.arguments[0];
+  if (!call || call.length < 5) {
+    throw new Error(
+      `create_market payload must carry 5 arguments ` +
+        `($bridge, $query_components, $settle_time, $max_spread, $min_order_size), ` +
+        `got ${call?.length ?? 0}`
+    );
+  }
+
+  const [bridge, queryComponents, settleTime, maxSpread, minOrderSize] = call;
+  const queryComponentsBytes = dbBytesToUint8Array(
+    queryComponents as string | Uint8Array
+  );
+
+  let market: MarketData | null;
+  try {
+    market = decodeMarketData(queryComponentsBytes);
+  } catch {
+    // Non-fatal: a committed-but-execution-failed create_market can carry empty/garbage
+    // query_components. Surface the top-level fields with a null market rather than crashing.
+    market = null;
+  }
+
+  return {
+    bridge: String(bridge),
+    queryComponents: queryComponentsBytes,
+    market,
+    settleTime: Number(settleTime),
+    maxSpread: Number(maxSpread),
+    minOrderSize: String(minOrderSize),
+  };
 }
 
 /**
