@@ -13,7 +13,9 @@ import {
   validateMaxSpread,
   validateSettleTime,
   settledFilterToBoolean,
+  decodeCreateMarketPayload,
 } from "./orderbookHelpers";
+import type { DecodedTransactionPayload } from "./TransactionPayload";
 
 // Valid 32-character stream ID for testing
 const TEST_STREAM_ID = "stbtc000000000000000000000000000"; // exactly 32 chars
@@ -370,6 +372,88 @@ describe("orderbookHelpers", () => {
         const decoded = decodeMarketData(encoded);
         expect(decoded.type).toBe("equals");
         expect(decoded.thresholds).toEqual([target, tolerance]);
+    });
+  });
+
+  describe("decodeCreateMarketPayload", () => {
+    const buildQueryComponents = () =>
+      encodeQueryComponents(
+        TEST_DATA_PROVIDER,
+        TEST_STREAM_ID,
+        "price_above_threshold",
+        encodeActionArgs(TEST_DATA_PROVIDER, TEST_STREAM_ID, 1700000000, "50.00", 0)
+      );
+
+    // A create_market call as decodeTransactionPayload surfaces it: create_market's on-chain
+    // signature is ($bridge TEXT, $query_components BYTEA, $settle_time INT8, $max_spread INT,
+    // $min_order_size INT8), so args decode to string, Uint8Array, and bigint (INT/INT8) respectively.
+    const createMarketTx = (
+      queryComponents: Uint8Array
+    ): DecodedTransactionPayload => ({
+      namespace: "main",
+      action: "create_market",
+      arguments: [
+        // min_order_size is 1e18 + 1: NOT exactly representable as an IEEE-754 double, so it pins
+        // that the field is kept as a string (a String(Number(...)) regression would drop the +1).
+        ["hoodi_tt2", queryComponents, 1700003600n, 10n, 1000000000000000001n],
+      ],
+    });
+
+    it("decodes a create_market transaction into structured fields", () => {
+      const queryComponents = buildQueryComponents();
+      const decoded = decodeCreateMarketPayload(createMarketTx(queryComponents));
+
+      expect(decoded).not.toBeNull();
+      expect(decoded!.bridge).toBe("hoodi_tt2");
+      expect(decoded!.settleTime).toBe(1700003600);
+      expect(decoded!.maxSpread).toBe(10);
+      expect(decoded!.minOrderSize).toBe("1000000000000000001");
+      expect(decoded!.queryComponents).toEqual(queryComponents);
+    });
+
+    it("decodes the nested market details from query_components", () => {
+      const decoded = decodeCreateMarketPayload(createMarketTx(buildQueryComponents()));
+
+      expect(decoded!.market).not.toBeNull();
+      expect(decoded!.market!.type).toBe("above");
+      expect(decoded!.market!.thresholds).toEqual(["50.00"]);
+      expect(decoded!.market!.streamId).toBe(TEST_STREAM_ID);
+      expect(decoded!.market!.dataProvider).toBe(TEST_DATA_PROVIDER.toLowerCase());
+    });
+
+    it("keeps the top-level fields and leaves market null when query_components can't be decoded", () => {
+      // A committed-but-execution-failed create_market can still carry empty/garbage
+      // query_components; an explorer must get the top-level fields, not an opaque crash.
+      const badTx: DecodedTransactionPayload = {
+        namespace: "main",
+        action: "create_market",
+        arguments: [
+          ["hoodi_tt2", new Uint8Array(), 1700003600n, 10n, 1000000000000000000n],
+        ],
+      };
+      const decoded = decodeCreateMarketPayload(badTx);
+      expect(decoded).not.toBeNull();
+      expect(decoded!.market).toBeNull();
+      expect(decoded!.bridge).toBe("hoodi_tt2");
+      expect(decoded!.settleTime).toBe(1700003600);
+    });
+
+    it("returns null when the transaction is not a create_market", () => {
+      const notMarket: DecodedTransactionPayload = {
+        namespace: "main",
+        action: "insert_records",
+        arguments: [["0xabc", "stream"]],
+      };
+      expect(decodeCreateMarketPayload(notMarket)).toBeNull();
+    });
+
+    it("throws when a create_market call is missing arguments", () => {
+      const truncated: DecodedTransactionPayload = {
+        namespace: "main",
+        action: "create_market",
+        arguments: [["hoodi_tt2"]],
+      };
+      expect(() => decodeCreateMarketPayload(truncated)).toThrow(/create_market/);
     });
   });
 });
