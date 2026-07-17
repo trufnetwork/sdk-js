@@ -2,6 +2,7 @@ import { KwilSigner, NodeKwil, WebKwil } from "@trufnetwork/kwil-js";
 import { TransactionEvent, FeeDistribution, GetTransactionEventInput } from "../types/transaction";
 import { decodeTransactionPayload } from "../util/TransactionPayload";
 import type { DecodedTransactionPayload } from "../util/TransactionPayload";
+import { resolveBlockStamps } from "../util/blockStamps";
 
 /**
  * Decodes a base64 string to bytes in both Node.js and browser environments.
@@ -16,45 +17,6 @@ function base64ToBytes(b64: string): Uint8Array {
     bytes[i] = binary.charCodeAt(i);
   }
   return bytes;
-}
-
-const INDEXER_BASE = "https://indexer.infra.truf.network";
-
-function normalizeTransactionId(txId: string): string {
-  const lower = txId.toLowerCase();
-  return lower.startsWith("0x") ? lower : `0x${lower}`;
-}
-
-async function fetchTransactionStampMs(blockHeight: number, txId: string): Promise<number> {
-  const url = `${INDEXER_BASE}/v0/chain/transactions?from-block=${blockHeight}&to-block=${blockHeight}&order=desc`;
-  try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      console.warn(`Indexer returned ${response.status} while fetching block ${blockHeight} for tx ${txId}`);
-      return 0;
-    }
-
-    const data = await response.json() as {
-      ok: boolean;
-      data: Array<{
-        block_height: number;
-        hash: string;
-        stamp_ms: number | null;
-      }>;
-    };
-
-    if (!data.ok || !Array.isArray(data.data)) {
-      console.warn(`Indexer payload malformed for block ${blockHeight} (tx ${txId})`);
-      return 0;
-    }
-
-    const normalizedTargetHash = normalizeTransactionId(txId);
-    const tx = data.data.find(entry => normalizeTransactionId(entry.hash) === normalizedTargetHash);
-    return tx?.stamp_ms ?? 0;
-  } catch (error) {
-    console.warn(`Failed to fetch stamp_ms for tx ${txId} at block ${blockHeight}`, error);
-    return 0;
-  }
 }
 
 /**
@@ -190,7 +152,10 @@ export class TransactionAction {
       throw new Error(`Invalid block height: ${row.block_height} (tx: ${row.tx_id})`);
     }
 
-    const stampMs = await fetchTransactionStampMs(blockHeight, row.tx_id);
+    // Read the block time from the node's block header (indexer fallback for
+    // blocks the node has pruned); all txs in a block share the block's stamp.
+    const stampByBlock = await resolveBlockStamps(this.kwilClient, [blockHeight]);
+    const stampMs = stampByBlock.get(blockHeight) ?? 0;
 
     return {
       txId: row.tx_id,

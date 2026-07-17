@@ -1,8 +1,7 @@
 import { WebKwil, NodeKwil, KwilSigner } from "@trufnetwork/kwil-js";
 import { GetLastTransactionsInput } from "../internal";
 import { LastTransaction } from "../types/transaction";
-
-const INDEXER_BASE = "https://indexer.infra.truf.network";
+import { resolveBlockStamps } from "../util/blockStamps";
 
 type LedgerRow = {
     tx_id: string;
@@ -57,10 +56,11 @@ export async function getLastTransactions(
         return [];
     }
 
-    // Best-effort indexer lookup for block timestamps only. Sender and tx hash
-    // already come from the chain via the action result, so a missed timestamp
-    // degrades to stampMs=0 rather than "(unknown)" identity fields.
-    const stampByBlock = await fetchBlockStamps(
+    // Block timestamps are read from the node's block header (indexer fallback for
+    // pruned blocks). The tx list itself carries the sender and hash, so a block
+    // whose stamp can't be resolved degrades to stampMs=0 rather than a bad age.
+    const stampByBlock = await resolveBlockStamps(
+        kwilClient,
         ordered.map((r) => r.created_at)
     );
 
@@ -71,33 +71,4 @@ export async function getLastTransactions(
         transactionHash: r.tx_id,
         stampMs: stampByBlock.get(r.created_at) ?? 0,
     }));
-}
-
-async function fetchBlockStamps(
-    blockHeights: number[]
-): Promise<Map<number, number>> {
-    const result = new Map<number, number>();
-    if (blockHeights.length === 0) return result;
-
-    const min = Math.min(...blockHeights);
-    const max = Math.max(...blockHeights);
-    const url = `${INDEXER_BASE}/v0/chain/transactions?from-block=${min}&to-block=${max}&order=desc`;
-
-    try {
-        const resp = await fetch(url);
-        if (!resp.ok) return result;
-        const json = (await resp.json()) as {
-            ok: boolean;
-            data: Array<{ block_height: number; stamp_ms: number | null }>;
-        };
-        if (!json.ok) return result;
-        for (const tx of json.data) {
-            if (tx.stamp_ms != null && !result.has(tx.block_height)) {
-                result.set(tx.block_height, tx.stamp_ms);
-            }
-        }
-    } catch {
-        // Indexer timestamp lookup is best-effort; falling back to 0 is acceptable.
-    }
-    return result;
 }

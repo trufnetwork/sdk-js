@@ -7,7 +7,10 @@ export interface LastTransaction {
     sender: string;
     /** Hash of the on‐chain transaction */
     transactionHash: string;
-    /** Millisecond timestamp from the block header */
+    /**
+     * Block time in unix milliseconds, read from the node's block header
+     * (indexer fallback for pruned blocks). 0 when neither source can resolve it.
+     */
     stampMs: number;
 }
 
@@ -41,8 +44,8 @@ export interface TransactionEvent {
     /** Block height when transaction was included */
     blockHeight: number;
     /**
-     * Millisecond timestamp from the block header via indexer lookup.
-     * Will be 0 when the indexer is unavailable.
+     * Block time in unix milliseconds, read from the node's block header
+     * (indexer fallback for pruned blocks). 0 when neither source can resolve it.
      */
     stampMs: number;
     /** Method name (e.g., "deployStream", "insertRecords") */
