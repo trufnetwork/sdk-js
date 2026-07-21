@@ -1,5 +1,11 @@
 import { KwilSigner, NodeKwil, WebKwil } from "@trufnetwork/kwil-js";
-import { TransactionEvent, FeeDistribution, GetTransactionEventInput } from "../types/transaction";
+import {
+  TransactionEvent,
+  FeeDistribution,
+  GetTransactionEventInput,
+  ListTransactionFeesInput,
+  TransactionFeeEntry,
+} from "../types/transaction";
 import { decodeTransactionPayload } from "../util/TransactionPayload";
 import type { DecodedTransactionPayload } from "../util/TransactionPayload";
 import { resolveBlockStamps } from "../util/blockStamps";
@@ -31,6 +37,22 @@ interface TransactionEventRow {
   fee_recipient?: string | null;
   metadata?: string | null;
   fee_distributions: string;
+}
+
+/**
+ * Database row structure returned from list_transaction_fees action
+ */
+interface TransactionFeeRow {
+  tx_id: string;
+  block_height: string | number;
+  method: string;
+  caller: string;
+  total_fee: string | number;
+  fee_recipient?: string | null;
+  metadata?: string | null;
+  distribution_sequence?: string | number | null;
+  distribution_recipient?: string | null;
+  distribution_amount?: string | number | null;
 }
 
 /**
@@ -168,6 +190,93 @@ export class TransactionAction {
       metadata: row.metadata || undefined,
       feeDistributions,
     };
+  }
+
+  /**
+   * Lists a wallet's fee-ledger entries in one call, instead of one
+   * {@link getTransactionEvent} call per transaction hash.
+   *
+   * The node returns one row per fee distribution, so a transaction with several
+   * distributions appears more than once. Group by `txId` to reassemble it.
+   *
+   * `limit` and `offset` count transactions rather than rows, because the node
+   * paginates before expanding the distributions — so the array can be longer than
+   * `limit`.
+   *
+   * @param input Wallet, match mode, and pagination
+   * @returns Promise resolving to the ledger rows, empty when the wallet has none
+   * @throws Error if the wallet is missing or the query fails
+   *
+   * @example
+   * ```typescript
+   * const txAction = client.loadTransactionAction();
+   * const entries = await txAction.listTransactionFees({
+   *   wallet: client.address().getAddress(),
+   *   mode: "both",
+   *   limit: 200,
+   * });
+   *
+   * // Collect every distribution, rather than letting later rows overwrite earlier ones.
+   * const rowsByTx = new Map<string, TransactionFeeEntry[]>();
+   * for (const entry of entries) {
+   *   const existing = rowsByTx.get(entry.txId) ?? [];
+   *   existing.push(entry);
+   *   rowsByTx.set(entry.txId, existing);
+   * }
+   * ```
+   */
+  async listTransactionFees(input: ListTransactionFeesInput): Promise<TransactionFeeEntry[]> {
+    if (!input.wallet || input.wallet.trim() === "") {
+      throw new Error("wallet is required");
+    }
+
+    const result = await this.kwilClient.call(
+      {
+        namespace: "main",
+        name: "list_transaction_fees",
+        inputs: {
+          $wallet: input.wallet,
+          $mode: input.mode ?? "paid",
+          $limit: input.limit ?? 20,
+          $offset: input.offset ?? 0,
+        },
+      },
+      this.kwilSigner
+    );
+
+    if (result.status !== 200) {
+      throw new Error(`Failed to list transaction fees: HTTP ${result.status}`);
+    }
+
+    const rows = (result.data?.result ?? []) as TransactionFeeRow[];
+
+    return rows.map((row) => {
+      // INT8 arrives as a string over the wire; block heights and sequences are
+      // small enough to hold in a number, unlike the NUMERIC fee amounts.
+      const blockHeight =
+        typeof row.block_height === "number" ? row.block_height : parseInt(row.block_height, 10);
+      if (!Number.isFinite(blockHeight) || blockHeight < 0) {
+        throw new Error(`Invalid block height: ${row.block_height} (tx: ${row.tx_id})`);
+      }
+
+      const entry: TransactionFeeEntry = {
+        txId: row.tx_id,
+        blockHeight,
+        method: row.method,
+        caller: row.caller,
+        totalFee: String(row.total_fee ?? "0"),
+        distributionSequence: Number(row.distribution_sequence ?? 0),
+      };
+
+      if (row.fee_recipient) entry.feeRecipient = row.fee_recipient;
+      if (row.metadata) entry.metadata = row.metadata;
+      if (row.distribution_recipient) entry.distributionRecipient = row.distribution_recipient;
+      if (row.distribution_amount !== null && row.distribution_amount !== undefined) {
+        entry.distributionAmount = String(row.distribution_amount);
+      }
+
+      return entry;
+    });
   }
 
   /**

@@ -1357,9 +1357,22 @@ export class Action {
       }
     );
 
+    // INT8 columns arrive as strings over the wire, so coerce them to match the
+    // numbers BridgeHistory declares. Heights and unix seconds fit a JS number.
+    const toNumber = (value: unknown): number =>
+      typeof value === "number" ? value : Number(value);
+
     return result
       .mapRight((rows) => {
-        return rows || [];
+        return (rows || []).map((row) => ({
+          ...row,
+          block_height: toNumber(row.block_height),
+          block_timestamp: toNumber(row.block_timestamp),
+          external_block_height:
+            row.external_block_height === null || row.external_block_height === undefined
+              ? null
+              : toNumber(row.external_block_height),
+        }));
       })
       .throw();
   }

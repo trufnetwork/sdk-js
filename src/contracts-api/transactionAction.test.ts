@@ -113,3 +113,162 @@ describe("TransactionAction.getTransactionInput", () => {
     );
   });
 });
+
+/**
+ * Unit tests for listTransactionFees. The node action (migration 027) is the canonical
+ * source of the query semantics; this layer only forwards the parameters and maps rows,
+ * so the kwil client is mocked. Row values mirror a real mainnet response: INT8 columns
+ * arrive as strings, and NUMERIC(78, 0) amounts must survive as strings.
+ */
+
+/** A real mainnet fee row, with the wire types the node actually sends. */
+const feeRow = {
+  tx_id: "0xfd6e1e210b855d27e278500f23de2880cbe21e70e854a0c79c1d8878b7d1f206",
+  block_height: "1954022",
+  method: "insertRecords",
+  caller: "0x4710a8d8f0d845da110086812a32de6d90d7ff5c",
+  total_fee: "1000000000000000000",
+  fee_recipient: "0xe89eb212c4dbce9576dec2cf079d7e4580a60a91",
+  metadata: null,
+  distribution_sequence: 1,
+  distribution_recipient: "0xe89eb212c4dbce9576dec2cf079d7e4580a60a91",
+  distribution_amount: "1000000000000000000",
+};
+
+function makeFeeAction(call: ReturnType<typeof vi.fn>) {
+  const mockKwil = { call } as unknown as NodeKwil;
+  return new TransactionAction(mockKwil, mockSigner);
+}
+
+const okRows = (rows: unknown[]) => ({ status: 200, data: { result: rows } });
+
+describe("TransactionAction.listTransactionFees", () => {
+  it("calls list_transaction_fees and maps a row to camelCase", async () => {
+    const call = vi.fn().mockResolvedValue(okRows([feeRow]));
+    const action = makeFeeAction(call);
+
+    const entries = await action.listTransactionFees({ wallet: feeRow.caller });
+
+    expect(call.mock.calls[0][0]).toMatchObject({
+      namespace: "main",
+      name: "list_transaction_fees",
+    });
+    expect(entries).toEqual([
+      {
+        txId: feeRow.tx_id,
+        blockHeight: 1954022,
+        method: "insertRecords",
+        caller: feeRow.caller,
+        totalFee: "1000000000000000000",
+        feeRecipient: feeRow.fee_recipient,
+        distributionSequence: 1,
+        distributionRecipient: feeRow.distribution_recipient,
+        distributionAmount: "1000000000000000000",
+      },
+    ]);
+  });
+
+  it("defaults mode to paid and pins the node's other defaults", async () => {
+    const call = vi.fn().mockResolvedValue(okRows([]));
+    const action = makeFeeAction(call);
+
+    await action.listTransactionFees({ wallet: feeRow.caller });
+
+    expect(call.mock.calls[0][0].inputs).toEqual({
+      $wallet: feeRow.caller,
+      $mode: "paid",
+      $limit: 20,
+      $offset: 0,
+    });
+  });
+
+  it("forwards mode, limit, and offset", async () => {
+    const call = vi.fn().mockResolvedValue(okRows([]));
+    const action = makeFeeAction(call);
+
+    await action.listTransactionFees({
+      wallet: feeRow.caller,
+      mode: "both",
+      limit: 200,
+      offset: 40,
+    });
+
+    expect(call.mock.calls[0][0].inputs).toEqual({
+      $wallet: feeRow.caller,
+      $mode: "both",
+      $limit: 200,
+      $offset: 40,
+    });
+  });
+
+  it("keeps fee amounts as strings so 18-decimal precision survives", async () => {
+    // 78-digit NUMERIC is far past Number.MAX_SAFE_INTEGER; Number() would corrupt it.
+    const big = "685701000000000000000000";
+    const call = vi.fn().mockResolvedValue(
+      okRows([{ ...feeRow, total_fee: big, distribution_amount: big }])
+    );
+    const action = makeFeeAction(call);
+
+    const [entry] = await action.listTransactionFees({ wallet: feeRow.caller });
+
+    expect(entry.totalFee).toBe(big);
+    expect(entry.distributionAmount).toBe(big);
+    expect(String(Number(big))).not.toBe(big);
+  });
+
+  it("converts the INT8 block height to a number", async () => {
+    const call = vi.fn().mockResolvedValue(okRows([feeRow]));
+    const action = makeFeeAction(call);
+
+    const [entry] = await action.listTransactionFees({ wallet: feeRow.caller });
+
+    expect(entry.blockHeight).toBe(1954022);
+    expect(typeof entry.blockHeight).toBe("number");
+  });
+
+  it("omits optional fields the node returned as null", async () => {
+    const call = vi.fn().mockResolvedValue(
+      okRows([
+        {
+          ...feeRow,
+          fee_recipient: null,
+          metadata: null,
+          distribution_recipient: null,
+          distribution_amount: null,
+        },
+      ])
+    );
+    const action = makeFeeAction(call);
+
+    const [entry] = await action.listTransactionFees({ wallet: feeRow.caller });
+
+    expect(entry).not.toHaveProperty("feeRecipient");
+    expect(entry).not.toHaveProperty("metadata");
+    expect(entry).not.toHaveProperty("distributionRecipient");
+    expect(entry).not.toHaveProperty("distributionAmount");
+  });
+
+  it("returns an empty array when the wallet has no fee rows", async () => {
+    const call = vi.fn().mockResolvedValue(okRows([]));
+    const action = makeFeeAction(call);
+
+    await expect(action.listTransactionFees({ wallet: feeRow.caller })).resolves.toEqual([]);
+  });
+
+  it("rejects an empty wallet before calling the node", async () => {
+    const call = vi.fn();
+    const action = makeFeeAction(call);
+
+    await expect(action.listTransactionFees({ wallet: "   " })).rejects.toThrow(/wallet is required/);
+    expect(call).not.toHaveBeenCalled();
+  });
+
+  it("throws on a non-200 response", async () => {
+    const call = vi.fn().mockResolvedValue({ status: 500, data: undefined });
+    const action = makeFeeAction(call);
+
+    await expect(action.listTransactionFees({ wallet: feeRow.caller })).rejects.toThrow(
+      /Failed to list transaction fees: HTTP 500/
+    );
+  });
+});

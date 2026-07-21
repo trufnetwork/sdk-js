@@ -17,6 +17,69 @@ describe("Action", () => {
         signatureType: "secp256k1_ep",
     } as unknown as KwilSigner;
 
+    it("coerces INT8 columns the node sends as strings into the declared numbers", async () => {
+        // block_height / block_timestamp are INT8, which arrives as a string over the
+        // wire even though BridgeHistory declares them as number. A real mainnet row.
+        const action = new Action(mockKwil, mockSigner);
+        const callSpy = vi.spyOn(action as any, "call");
+
+        callSpy.mockResolvedValue(
+            Either.right([
+                {
+                    type: "transfer",
+                    amount: "1000000000000000000",
+                    from_address: "RxCo2PDYRdoRAIaBKjLebZDX/1w=",
+                    to_address: "6J6yEsTbzpV23sLPB51+RYCmCpE=",
+                    internal_tx_hash: "/qipiretMAD0LqJOijtZ5pOzPvvBP4xYqU/NYaoeqFY=",
+                    external_tx_hash: null,
+                    status: "completed",
+                    block_height: "1954099",
+                    block_timestamp: "1784644272",
+                    external_block_height: null,
+                } as unknown as BridgeHistory,
+            ])
+        );
+
+        const [row] = await action.getHistory("eth_truf", "0x123", 1, 0);
+
+        expect(row.block_height).toBe(1954099);
+        expect(row.block_timestamp).toBe(1784644272);
+        expect(typeof row.block_height).toBe("number");
+        expect(typeof row.block_timestamp).toBe("number");
+        // A null external height stays null rather than becoming 0.
+        expect(row.external_block_height).toBeNull();
+        // NUMERIC amounts must NOT be coerced; precision would be lost.
+        expect(row.amount).toBe("1000000000000000000");
+    });
+
+    it("leaves numeric INT8 values untouched", async () => {
+        const action = new Action(mockKwil, mockSigner);
+        const callSpy = vi.spyOn(action as any, "call");
+
+        callSpy.mockResolvedValue(
+            Either.right([
+                {
+                    type: "deposit",
+                    amount: "100",
+                    from_address: null,
+                    to_address: "0x123",
+                    internal_tx_hash: null,
+                    external_tx_hash: "0xabc",
+                    status: "completed",
+                    block_height: 10,
+                    block_timestamp: 1000,
+                    external_block_height: 5,
+                } as BridgeHistory,
+            ])
+        );
+
+        const [row] = await action.getHistory("sepolia_bridge", "0x123", 1, 0);
+
+        expect(row.block_height).toBe(10);
+        expect(row.block_timestamp).toBe(1000);
+        expect(row.external_block_height).toBe(5);
+    });
+
     it("should call get_history with correct parameters", async () => {
         const action = new Action(mockKwil, mockSigner);
         
