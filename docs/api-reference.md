@@ -576,12 +576,12 @@ Lists transactions filtered by wallet address and mode, with pagination support.
 #### Parameters
 - `input: Object`
   - `wallet: string` - Ethereum address to query (required)
-  - `mode: 'paid' | 'received' | 'both'` - Filter mode:
+  - `mode?: 'paid' | 'received' | 'both'` - Filter mode (optional, default: `'paid'`):
     - `'paid'` - Transactions where wallet paid fees
     - `'received'` - Transactions where wallet received fee distributions
     - `'both'` - All transactions involving the wallet
-  - `limit?: number` - Maximum results to return (optional, default: 20, max: 1000)
-  - `offset?: number` - Pagination offset (optional, default: 0)
+  - `limit?: number` - Maximum **transactions** to return (optional, default: 20; the node errors above 1000). The node paginates before expanding each transaction into one row per fee distribution, so the returned array can be longer than this.
+  - `offset?: number` - Transactions to skip, for pagination (optional, default: 0)
 
 #### Returns
 - `Promise<TransactionFeeEntry[]>` - Array of transaction entries, each containing:
@@ -601,7 +601,7 @@ Lists transactions filtered by wallet address and mode, with pagination support.
 #### Example - List Fees Paid
 ```typescript
 const transactionAction = client.loadTransactionAction();
-const wallet = client.address;
+const wallet = client.address().getAddress();
 
 const entries = await transactionAction.listTransactionFees({
   wallet,

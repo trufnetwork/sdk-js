@@ -14,6 +14,7 @@ export { ComposedAction } from "./contracts-api/composedAction";
 export { RoleManagement } from "./contracts-api/roleManagement";
 export { AttestationAction } from "./contracts-api/attestationAction";
 export { OrderbookAction } from "./contracts-api/orderbookAction";
+export { TransactionAction } from "./contracts-api/transactionAction";
 export { MAAAction } from "./contracts-api/maaActions";
 export { deployStream } from "./contracts-api/deployStream";
 export { deleteStream } from "./contracts-api/deleteStream";
@@ -90,10 +91,22 @@ export type {
 // Bridge types
 export type {
   WithdrawalProof,
+  BridgeHistory,
   BalanceToken,
   OrderedBalancesOptions,
   TokenBalance,
 } from "./types/bridge";
+
+// Transaction ledger types
+export type {
+  LastTransaction,
+  FeeDistribution,
+  TransactionEvent,
+  GetTransactionEventInput,
+  TransactionFeeMode,
+  ListTransactionFeesInput,
+  TransactionFeeEntry,
+} from "./types/transaction";
 
 // Agent-wallet (Modular Agent Address) types
 export type {

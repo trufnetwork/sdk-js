@@ -112,14 +112,20 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
 
   /**
    * Returns the Kwil client used by the client.
-   * @returns An instance of Kwil.
+   *
+   * Typed as the concrete client rather than the abstract `Kwil` base, because
+   * `call` and `execute` are declared on `NodeKwil`/`WebKwil` — the base only has a
+   * protected `baseCall`. Returning the base made callers cast to reach an action
+   * the SDK does not wrap yet.
+   *
+   * @returns The environment's Kwil client.
    * @throws If the Kwil client is not initialized.
    */
-  getKwilClient(): Types.Kwil<EnvironmentType> {
+  getKwilClient(): NodeKwil | WebKwil {
     if (!this.kwilClient) {
       throw new Error("Kwil client not initialized");
     }
-    return this.kwilClient;
+    return this.kwilClient as NodeKwil | WebKwil;
   }
 
   /**
