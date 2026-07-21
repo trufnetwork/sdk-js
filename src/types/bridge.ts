@@ -131,3 +131,52 @@ export interface BridgeHistory {
    */
   external_block_height: number | null;
 }
+
+/**
+ * A token whose balance ledger can be ranked by get_ordered_balances (migration 053).
+ *
+ * The node resolves each name to a bridge's reward_id and rejects anything else, so this union is
+ * the complete set.
+ */
+export type BalanceToken = "TRUF" | "USDC";
+
+/** Options for reading a token's wallet balances in balance order (the "richlist"). */
+export interface OrderedBalancesOptions {
+  /** Which token's balance ledger to rank. */
+  token: BalanceToken;
+  /** Smallest balance first when true. Defaults to false (largest first). */
+  ascending?: boolean;
+  /**
+   * How many wallets to return. Defaults to 20.
+   *
+   * The node clamps this to a hard maximum of 50 — asking for more returns 50 rather than failing.
+   * The cap is deliberately not re-checked here, so it stays owned in one place.
+   */
+  limit?: number;
+  /**
+   * Only include wallets at or above this balance, in token base units. Defaults to no threshold.
+   *
+   * A string for the same reason balances are returned as strings — see TokenBalance.balance.
+   */
+  minBalance?: string;
+}
+
+/** One wallet's balance, as returned by get_ordered_balances (migration 053). */
+export interface TokenBalance {
+  /** The wallet, as a 0x-prefixed lowercase hex address. */
+  address: string;
+  /**
+   * The balance in token base units (18 decimals for TRUF, 6 for USDC).
+   *
+   * A string, not a number: real TRUF balances run to 24 digits, well past
+   * Number.MAX_SAFE_INTEGER (~9.0e15), so a numeric representation would silently drop the
+   * low-order digits.
+   */
+  balance: string;
+}
+
+/** @internal Raw row from get_ordered_balances (migration 053) */
+export interface RawTokenBalance {
+  address: string;
+  balance: string;
+}

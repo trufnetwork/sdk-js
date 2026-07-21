@@ -980,6 +980,50 @@ const balanceInTokens = formatEther(hoodiBalance);
 console.log(`Balance: ${balanceInTokens} tokens`);
 ```
 
+### `client.getOrderedBalances(options: OrderedBalancesOptions): Promise<TokenBalance[]>`
+
+Gets a token's wallet balances in balance order — a "richlist". Where `getWalletBalance` reads one
+wallet on one bridge, this ranks every holder of a token and returns the top (or bottom) slice.
+
+#### Parameters
+- `options.token: "TRUF" | "USDC"` - Which token's balance ledger to rank
+- `options.ascending?: boolean` - Smallest balance first. Defaults to `false` (largest first)
+- `options.limit?: number` - How many wallets to return. Defaults to `20`, and the node clamps it to a maximum of **50** — asking for more returns 50 rather than failing
+- `options.minBalance?: string` - Only include wallets at or above this balance, in token base units. Defaults to no threshold
+
+#### Returns
+- `Promise<TokenBalance[]>` - Matching wallets ordered by balance, each `{ address, balance }`. `address` is 0x-prefixed lowercase hex; `balance` is in token base units (18 decimals for TRUF, 6 for USDC), as a string.
+
+Returns an empty array when no wallet clears the threshold — that is a legitimate result, not an error. An unsupported token throws.
+
+> **Balances are strings, and converting them to `number` loses data.** A real mainnet TRUF balance
+> such as `685701000000000000000000` has 24 digits, well past `Number.MAX_SAFE_INTEGER` (~9.0e15).
+> Use `BigInt` for arithmetic and `formatUnits` for display.
+
+#### Example
+```typescript
+// The 10 largest TRUF holders
+const top = await client.getOrderedBalances({ token: "TRUF", limit: 10 });
+for (const { address, balance } of top) {
+  console.log(`${address}: ${balance}`);
+}
+
+// The smallest USDC holders still holding at least 1 USDC (6 decimals)
+const small = await client.getOrderedBalances({
+  token: "USDC",
+  ascending: true,
+  limit: 5,
+  minBalance: "1000000",
+});
+
+// Comparing or summing balances — use BigInt, never Number
+const total = top.reduce((sum, r) => sum + BigInt(r.balance), 0n);
+
+// Display in human-readable units
+import { formatUnits } from 'ethers';
+console.log(`Top holder: ${formatUnits(top[0].balance, 18)} TRUF`);
+```
+
 ### `client.withdraw(bridgeIdentifier: string, amount: string, recipient: string): Promise<string>`
 
 Initiates a withdrawal by bridging tokens from TN to a destination chain. This is a convenience method that calls `bridgeTokens` and waits for transaction confirmation.

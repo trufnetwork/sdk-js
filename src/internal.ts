@@ -88,7 +88,12 @@ export type {
 } from "./types/attestation";
 
 // Bridge types
-export type { WithdrawalProof } from "./types/bridge";
+export type {
+  WithdrawalProof,
+  BalanceToken,
+  OrderedBalancesOptions,
+  TokenBalance,
+} from "./types/bridge";
 
 // Agent-wallet (Modular Agent Address) types
 export type {
