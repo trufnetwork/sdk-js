@@ -5,7 +5,12 @@ import { deleteStream } from "../contracts-api/deleteStream";
 import { PrimitiveAction } from "../contracts-api/primitiveAction";
 import { Action, ListMetadataByHeightParams, MetadataQueryResult } from "../contracts-api/action";
 import { StreamType } from "../contracts-api/contractValues";
-import { WithdrawalProof, BridgeHistory } from "../types/bridge";
+import {
+  WithdrawalProof,
+  BridgeHistory,
+  OrderedBalancesOptions,
+  TokenBalance,
+} from "../types/bridge";
 import { StreamLocator, TNStream } from "../types/stream";
 import { EthereumAddress } from "../util/EthereumAddress";
 import { StreamId } from "../util/StreamId";
@@ -316,6 +321,17 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
   async getWalletBalance(bridgeIdentifier: string, walletAddress: string) {
     const action = this.loadAction();
     return action.getWalletBalance(bridgeIdentifier, walletAddress);
+  }
+
+  /**
+   * Gets a token's wallet balances in balance order — a "richlist"
+   * @param options Which token to rank, and how (sort direction, row count, minimum balance)
+   * @returns Promise resolving to the matching wallets ordered by balance, each with its balance
+   *   as a string in token base units. Empty if no wallet clears the threshold.
+   */
+  async getOrderedBalances(options: OrderedBalancesOptions): Promise<TokenBalance[]> {
+    const action = this.loadAction();
+    return action.getOrderedBalances(options);
   }
 
   /**

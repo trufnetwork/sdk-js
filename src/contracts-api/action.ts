@@ -1,6 +1,12 @@
-import {KwilSigner, NodeKwil, WebKwil, Types} from "@trufnetwork/kwil-js";
+import {KwilSigner, NodeKwil, WebKwil, Types, Utils} from "@trufnetwork/kwil-js";
 import { Either } from "monads-io";
-import { WithdrawalProof, BridgeHistory } from "../types/bridge";
+import {
+  WithdrawalProof,
+  BridgeHistory,
+  OrderedBalancesOptions,
+  TokenBalance,
+  RawTokenBalance,
+} from "../types/bridge";
 import { DateString } from "../types/other";
 import { StreamLocator } from "../types/stream";
 import { CacheAwareResponse, GetRecordOptions, GetIndexOptions, GetIndexChangeOptions, GetFirstRecordOptions } from "../types/cache";
@@ -142,16 +148,22 @@ export class Action {
 
   /**
    * Calls a method on the stream
+   *
+   * @param types - Optional explicit types for the named params. Needed when a value's type cannot
+   *   be inferred from its JavaScript representation — notably NUMERIC(78,0) arguments, which are
+   *   carried as strings and are otherwise rejected by the node as text.
    */
   protected async call<T>(
     method: string,
     inputs: Types.NamedParams,
+    types?: Record<string, any>,
   ): Promise<Either<number, T>> {
     const result = await this.kwilClient.call(
       {
         namespace: "main",
         name: method,
         inputs: inputs,
+        ...(types ? { types } : {}),
       },
       this.kwilSigner,
     );
@@ -1064,6 +1076,77 @@ export class Action {
 
         return row.balance;
       })
+      .throw();
+  }
+
+  /**
+   * Gets a token's wallet balances in balance order — a "richlist" (get_ordered_balances,
+   * migration 053).
+   *
+   * Where {@link getWalletBalance} reads one wallet on one bridge, this ranks every holder of a
+   * token and returns the top (or bottom) slice.
+   *
+   * @example
+   * ```typescript
+   * // The 10 largest TRUF holders
+   * const top = await action.getOrderedBalances({ token: "TRUF", limit: 10 });
+   *
+   * // The smallest USDC holders still holding at least 1 USDC (6 decimals)
+   * const small = await action.getOrderedBalances({
+   *   token: "USDC",
+   *   ascending: true,
+   *   minBalance: "1000000",
+   * });
+   * ```
+   *
+   * @param options - Which token to rank, and how. See {@link OrderedBalancesOptions}.
+   * @returns The matching wallets, ordered by balance. Empty when the token has no holders above
+   *   the threshold — which is a legitimate result here, not an error.
+   * @throws If the token is not one the node supports, or the query fails.
+   */
+  public async getOrderedBalances(
+    options: OrderedBalancesOptions
+  ): Promise<TokenBalance[]> {
+    const token = options.token?.toUpperCase();
+    // Validated here rather than left to the node: the node does raise an error for an unknown
+    // token, but kwil-js surfaces it as an empty 200, which is indistinguishable from a token
+    // that simply has no holders. Failing before the round trip keeps the two apart.
+    if (token !== "TRUF" && token !== "USDC") {
+      throw new Error(
+        `unsupported token (want TRUF or USDC): ${options.token}`
+      );
+    }
+
+    // Every parameter is sent, including the ones the node would default, because kwil-js resolves
+    // named params positionally — omitting a middle one shifts the later arguments into the wrong
+    // slots. These defaults mirror migration 053 and are pinned by a unit test.
+    const inputs = {
+      $token: token,
+      $ascending: options.ascending ?? false,
+      $limit: options.limit ?? 20,
+      $min_balance: options.minBalance ?? null,
+    };
+
+    // NUMERIC(78,0) is carried as a string and must be typed explicitly; the node rejects an
+    // untyped string as text.
+    const types = { $min_balance: Utils.DataType.Numeric(78, 0) };
+
+    const result = await this.call<RawTokenBalance[]>(
+      "get_ordered_balances",
+      inputs,
+      types
+    );
+
+    return result
+      .mapRight((rows) =>
+        (rows ?? []).map((row) => ({
+          address: row.address,
+          balance: row.balance,
+        }))
+      )
+      .mapLeft(
+        (status) => new Error(`Failed to get ordered balances: ${status}`)
+      )
       .throw();
   }
 

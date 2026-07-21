@@ -157,3 +157,157 @@ describe("Action", () => {
         });
     });
 });
+
+/**
+ * Unit tests for getOrderedBalances (migration 053, the "richlist").
+ *
+ * The kwil client is mocked; this layer only forwards the call with the right action name, named
+ * params and types, and maps the returned rows. On-chain behaviour — including the hard cap of 50,
+ * which cannot be exercised against mainnet because no token has more than 24 holders — is covered
+ * by node/tests/streams/order_book/richlist_test.go.
+ *
+ * Three behaviours below are load-bearing rather than cosmetic, each documented in the design spec
+ * (0GoalViewTransactionsInExplorer/2026-07-21_sdk-js-ordered-balances-design.md):
+ *   - All four params are always sent. kwil-js resolves named params positionally, so omitting a
+ *     middle one silently shifts later arguments into the wrong slots (spec F1).
+ *   - $min_balance carries an explicit Numeric(78,0) type, without which the node rejects it as
+ *     text (spec F2).
+ *   - An unsupported token is rejected client-side, because kwil-js reports the node's ERROR as an
+ *     empty 200, making it otherwise indistinguishable from "no holders" (spec F3).
+ */
+describe("Action.getOrderedBalances", () => {
+    const mockSigner = { signatureType: "secp256k1_ep" } as unknown as KwilSigner;
+
+    const ok = (result: unknown) => ({ status: 200, data: { result } });
+
+    function makeAction(call: ReturnType<typeof vi.fn>) {
+        return new Action({ call } as unknown as NodeKwil, mockSigner);
+    }
+
+    /** A real mainnet TRUF balance: 24 digits, far beyond Number.MAX_SAFE_INTEGER (~9.0e15). */
+    const BIG_BALANCE = "685701000000000000000000";
+
+    it("calls get_ordered_balances and maps the returned rows", async () => {
+        const call = vi.fn().mockResolvedValue(
+            ok([
+                { address: "0xaaa", balance: BIG_BALANCE },
+                { address: "0xbbb", balance: "661171000000000000000000" },
+            ]),
+        );
+        const action = makeAction(call);
+
+        const balances = await action.getOrderedBalances({ token: "TRUF" });
+
+        expect(call).toHaveBeenCalledTimes(1);
+        const [body] = call.mock.calls[0];
+        expect(body.namespace).toBe("main");
+        expect(body.name).toBe("get_ordered_balances");
+        expect(balances).toEqual([
+            { address: "0xaaa", balance: BIG_BALANCE },
+            { address: "0xbbb", balance: "661171000000000000000000" },
+        ]);
+    });
+
+    it("preserves a 24-digit balance exactly, without routing it through a number", async () => {
+        const call = vi.fn().mockResolvedValue(ok([{ address: "0xaaa", balance: BIG_BALANCE }]));
+        const action = makeAction(call);
+
+        const [balance] = await action.getOrderedBalances({ token: "TRUF" });
+
+        // The guard: Number(BIG_BALANCE) rounds to 6.85701e+23 and drops the low-order digits.
+        expect(balance.balance).toBe(BIG_BALANCE);
+        expect(typeof balance.balance).toBe("string");
+    });
+
+    it("sends the node's own defaults when the caller omits the optional params", async () => {
+        const call = vi.fn().mockResolvedValue(ok([]));
+        const action = makeAction(call);
+
+        await action.getOrderedBalances({ token: "TRUF" });
+
+        const [body] = call.mock.calls[0];
+        // Pinned against migration 053: ascending=false, limit=20, min_balance=NULL. kwil-js
+        // resolves named params positionally, so each must be present and in the declared order.
+        expect(body.inputs).toEqual({
+            $token: "TRUF",
+            $ascending: false,
+            $limit: 20,
+            $min_balance: null,
+        });
+        expect(Object.keys(body.inputs)).toEqual([
+            "$token",
+            "$ascending",
+            "$limit",
+            "$min_balance",
+        ]);
+    });
+
+    it("types $min_balance as numeric(78,0) so the node does not reject it as text", async () => {
+        const call = vi.fn().mockResolvedValue(ok([]));
+        const action = makeAction(call);
+
+        await action.getOrderedBalances({ token: "USDC", minBalance: "1000000" });
+
+        const [body] = call.mock.calls[0];
+        expect(body.types.$min_balance).toEqual(
+            expect.objectContaining({ name: "numeric", metadata: [78, 0] }),
+        );
+        expect(body.inputs.$min_balance).toBe("1000000");
+    });
+
+    it("forwards ascending, limit and minBalance when supplied", async () => {
+        const call = vi.fn().mockResolvedValue(ok([]));
+        const action = makeAction(call);
+
+        await action.getOrderedBalances({
+            token: "USDC",
+            ascending: true,
+            limit: 5,
+            minBalance: "1000000",
+        });
+
+        const [body] = call.mock.calls[0];
+        expect(body.inputs).toEqual({
+            $token: "USDC",
+            $ascending: true,
+            $limit: 5,
+            $min_balance: "1000000",
+        });
+    });
+
+    it("rejects an unsupported token before making any call", async () => {
+        const call = vi.fn();
+        const action = makeAction(call);
+
+        await expect(
+            action.getOrderedBalances({ token: "ETH" as unknown as "TRUF" }),
+        ).rejects.toThrow(/unsupported token/i);
+
+        // The node reports its own ERROR as an empty 200, so a bad token would otherwise look
+        // identical to a token with no holders. Failing before the round trip is the fix.
+        expect(call).not.toHaveBeenCalled();
+    });
+
+    it("returns an empty array when no wallet clears the threshold", async () => {
+        const call = vi.fn().mockResolvedValue(ok([]));
+        const action = makeAction(call);
+
+        const balances = await action.getOrderedBalances({
+            token: "TRUF",
+            minBalance: "999999999999999999999999999",
+        });
+
+        // Deliberately unlike getWalletBalance, which throws on zero rows: for a richlist,
+        // "nobody is above your threshold" is a legitimate answer rather than a failure.
+        expect(balances).toEqual([]);
+    });
+
+    it("throws when the node returns a non-200 status", async () => {
+        const call = vi.fn().mockResolvedValue({ status: 500, data: undefined });
+        const action = makeAction(call);
+
+        await expect(action.getOrderedBalances({ token: "TRUF" })).rejects.toThrow(
+            /ordered balances/i,
+        );
+    });
+});
