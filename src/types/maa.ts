@@ -52,7 +52,10 @@ export interface MAAJoinAndFundInput {
   ruleId: MAABytesLike;
   /** Bridge identifier the funds are held under (e.g. "eth_truf" on mainnet, "hoodi_tt" on dev). */
   bridge: string;
-  /** Funding amount in the token's base units, as a decimal string (must be greater than 0). */
+  /**
+   * Funding amount in the token's base units, as a positive base-10 integer string. Must fit
+   * NUMERIC(78,0) — at most 78 digits (max 10^78 - 1).
+   */
   amount: string;
 }
 

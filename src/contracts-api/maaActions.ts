@@ -145,9 +145,17 @@ export class MAAAction extends Action {
     if (!input.bridge || input.bridge.trim() === "") {
       throw new Error("bridge is required");
     }
-    // Same positive-integer-base-units contract as the bridged-token transfer.
-    if (!/^[0-9]+$/.test(input.amount) || BigInt(input.amount) <= 0n) {
-      throw new Error(`Invalid amount: ${input.amount}. Amount must be greater than 0.`);
+    // $amount is NUMERIC(78,0): a positive base-10 integer string in base units, at most 78 digits
+    // (max 10^78 - 1). Reject a non-string, a non-integer, or an over-precision value locally rather
+    // than round-tripping to a node overflow.
+    if (
+      typeof input.amount !== "string" ||
+      !/^[0-9]{1,78}$/.test(input.amount) ||
+      BigInt(input.amount) <= 0n
+    ) {
+      throw new Error(
+        `Invalid amount: ${input.amount}. Amount must be a positive base-10 integer string within NUMERIC(78,0) (at most 78 digits).`,
+      );
     }
     const unrestricted = this.ownerBytes();
 

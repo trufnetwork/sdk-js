@@ -222,15 +222,25 @@ describe("MAAAction.joinAndFundAgentAddress", () => {
     expect(execute).not.toHaveBeenCalled();
   });
 
-  it("rejects a non-positive or non-integer amount before any call", async () => {
-    for (const amount of ["0", "-1", "1.5", "", "abc"]) {
+  it("rejects a non-string, non-positive, non-integer, or over-78-digit amount before any call", async () => {
+    // A numeric amount (not a string) and a 79-digit string (over NUMERIC(78,0)) must be rejected
+    // locally, alongside the zero/negative/non-integer cases — none may reach getRule or the write.
+    const badAmounts: any[] = ["0", "-1", "1.5", "", "abc", 40, "1".repeat(79)];
+    for (const amount of badAmounts) {
       const { action, call, execute } = makeJoinFundAction();
       await expect(
         action.joinAndFundAgentAddress({ ruleId: ruleIdHex, bridge: "eth_truf", amount }),
-      ).rejects.toThrow("Amount must be greater than 0");
+      ).rejects.toThrow("positive base-10 integer string within NUMERIC(78,0)");
       expect(call).not.toHaveBeenCalled();
       expect(execute).not.toHaveBeenCalled();
     }
+  });
+
+  it("accepts an amount at the NUMERIC(78,0) boundary (78 digits)", async () => {
+    const { action, execute } = makeJoinFundAction();
+    const maxAmount = "9".repeat(78); // 10^78 - 1, the largest NUMERIC(78,0) value
+    await action.joinAndFundAgentAddress({ ruleId: ruleIdHex, bridge: "eth_truf", amount: maxAmount });
+    expect(execute.mock.calls[0][0].inputs[0].$amount).toBe(maxAmount);
   });
 
   it("throws unknown rule_id when the rule does not exist, without submitting", async () => {

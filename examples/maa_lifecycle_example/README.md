@@ -49,7 +49,7 @@ joined-but-unfunded wallet.
 const { maaAddressHex, txHash } = await ownerMaa.joinAndFundAgentAddress({
   ruleId,
   bridge: "eth_truf",              // the bridge the funds are held under
-  amount: "250000000000000000000", // base units; the owner must already hold this on TN
+  amount: "250000000000000000000", // positive base-10 string in base units, fits NUMERIC(78,0) (≤ 78 digits)
 });
 ```
 
