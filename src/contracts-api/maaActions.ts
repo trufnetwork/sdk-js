@@ -19,6 +19,7 @@ import {
   MAAEvent,
   MAAExecuteInput,
   MAAInstance,
+  MAAJoinAndFundInput,
   MAAJoinResult,
   MAAOwnedWallet,
   MAARule,
@@ -121,6 +122,51 @@ export class MAAAction extends Action {
     const txHash = result.data?.tx_hash;
     if (!txHash) {
       throw new Error("joinAgentAddress: no transaction hash returned");
+    }
+    return { txHash, maaAddress, maaAddressHex: hexlify(maaAddress) };
+  }
+
+  /**
+   * joinAndFundAgentAddress joins a rule and funds the derived agent wallet in one atomic transaction:
+   * the caller (signer) becomes the owner and, in the same on-chain action, transfers `amount` of the
+   * chosen bridged token from their own balance into the new wallet. Either both legs commit or neither
+   * does, so activation cannot strand a joined-but-unfunded wallet — unlike a joinAgentAddress followed
+   * by a separate transfer. Returns the locally-derived MAA address and the submission tx hash.
+   *
+   * The caller must already hold at least `amount` of `bridge` on TN (funds arriving from L1 are a
+   * bridge deposit, which is a separate cross-chain step). Requires the on-chain maa_join_and_fund
+   * action (node migration 054) to be deployed on the target network.
+   */
+  async joinAndFundAgentAddress(input: MAAJoinAndFundInput): Promise<MAAJoinResult> {
+    const idBytes = toBytes(input.ruleId);
+    if (idBytes.length !== 32) {
+      throw new Error(`rule_id must be 32 bytes, got ${idBytes.length}`);
+    }
+    if (!input.bridge || input.bridge.trim() === "") {
+      throw new Error("bridge is required");
+    }
+    // Same positive-integer-base-units contract as the bridged-token transfer.
+    if (!/^[0-9]+$/.test(input.amount) || BigInt(input.amount) <= 0n) {
+      throw new Error(`Invalid amount: ${input.amount}. Amount must be greater than 0.`);
+    }
+    const unrestricted = this.ownerBytes();
+
+    // Resolve the rule's restricted creator so the wallet can be derived locally (also validates the rule).
+    const rule = await this.getRule(idBytes);
+    if (!rule) {
+      throw new Error("unknown rule_id");
+    }
+    const maaAddress = MAAAddress.deriveMAAAddress(unrestricted, rule.restricted, idBytes);
+
+    // $amount is NUMERIC(78,0) on-chain; pin it so a plain JS string isn't inferred as text.
+    const result = await this.executeWithNamedParams(
+      "maa_join_and_fund",
+      [{ $rule_id: idBytes, $bridge: input.bridge, $amount: input.amount }],
+      { $amount: Utils.DataType.Numeric(78, 0) },
+    );
+    const txHash = result.data?.tx_hash;
+    if (!txHash) {
+      throw new Error("joinAndFundAgentAddress: no transaction hash returned");
     }
     return { txHash, maaAddress, maaAddressHex: hexlify(maaAddress) };
   }

@@ -113,6 +113,7 @@ export type {
   MAACreateRuleInput,
   MAACreateRuleResult,
   MAAJoinResult,
+  MAAJoinAndFundInput,
   MAAExecuteInput,
   MAARule,
   MAAAllowedAction,
