@@ -43,6 +43,23 @@ export interface MAAJoinResult {
 }
 
 /**
+ * Parameters for joinAndFundAgentAddress (on-chain maa_join_and_fund): join a rule and fund the
+ * derived wallet in one atomic transaction. The caller (signer) must already hold `amount` of the
+ * bridged token on TN; both the join and the funding transfer commit together or not at all.
+ */
+export interface MAAJoinAndFundInput {
+  /** 32-byte rule_id to join, as 0x-hex or raw bytes. */
+  ruleId: MAABytesLike;
+  /** Bridge identifier the funds are held under (e.g. "eth_truf" on mainnet, "hoodi_tt" on dev). */
+  bridge: string;
+  /**
+   * Funding amount in the token's base units, as a positive base-10 integer string. Must fit
+   * NUMERIC(78,0) — at most 78 digits (max 10^78 - 1).
+   */
+  amount: string;
+}
+
+/**
  * Parameters for executeAgentAction (a maa_exec transaction: run an inner action AS the agent wallet).
  *
  * The signer is either the rule's restricted agent (running a delegated, allow-listed action) or the

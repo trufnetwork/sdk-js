@@ -37,6 +37,25 @@ The agent and the owner are **different keys**:
 | **Restricted agent** | `AGENT_PRIVATE_KEY` | `createAgentRule`, runs allow-listed actions as the MAA | the `restricted` address baked into `rule_id` |
 | **Unrestricted owner** | `OWNER_PRIVATE_KEY` | `joinAgentAddress`, funds, withdraws | the `unrestricted` address; controls the funds |
 
+## Atomic join + fund (one transaction)
+
+This example funds in two steps — `joinAgentAddress`, then a separate `client.transfer` — which is the
+general flow and the one to use for topping up a wallet that already exists. To activate a **new**
+wallet in a single signed transaction, use `joinAndFundAgentAddress`: it joins the rule and moves the
+funding from the owner's balance into the derived wallet atomically, so a failure can never leave a
+joined-but-unfunded wallet.
+
+```ts
+const { maaAddressHex, txHash } = await ownerMaa.joinAndFundAgentAddress({
+  ruleId,
+  bridge: "eth_truf",              // the bridge the funds are held under
+  amount: "250000000000000000000", // positive base-10 string in base units, fits NUMERIC(78,0) (≤ 78 digits)
+});
+```
+
+The owner must already hold the funds on TN; bringing tokens in from L1 is a separate bridge deposit.
+Requires the on-chain `maa_join_and_fund` action (node migration 054) on the target network.
+
 ## Run
 
 Configuration is read from a `.env` file next to the program (real environment variables still take

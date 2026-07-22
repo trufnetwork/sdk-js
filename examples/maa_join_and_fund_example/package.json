@@ -1,0 +1,16 @@
+{
+  "name": "tn-sdk-maa-join-and-fund-example",
+  "version": "1.0.0",
+  "description": "Atomic MAA activation (join + fund in one transaction) smoke test for @trufnetwork/sdk-js",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "tsx main.ts"
+  },
+  "dependencies": {
+    "@trufnetwork/sdk-js": "file:../..",
+    "@trufnetwork/kwil-js": "0.9.14",
+    "ethers": "^6.13.5",
+    "tsx": "^4.19.1"
+  }
+}
