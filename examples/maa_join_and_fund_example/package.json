@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@trufnetwork/sdk-js": "file:../..",
-    "@trufnetwork/kwil-js": "0.9.12",
+    "@trufnetwork/kwil-js": "0.9.14",
     "ethers": "^6.13.5",
     "tsx": "^4.19.1"
   }
