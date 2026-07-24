@@ -608,6 +608,18 @@ export function decodeABIBoolean(data: Uint8Array): DecodedRow[] {
     throw new Error(`Binary action result must be 32 bytes (abi-encoded bool), got ${data.length}`);
   }
 
+  // Reject non-canonical ABI booleans: bytes 0-30 must be zero and byte 31 must
+  // be 0 or 1. Mirrors go-ethereum's strict readBool (the node's decoder). ethers'
+  // AbiCoder would otherwise accept any nonzero word as `true`.
+  for (let i = 0; i < 31; i++) {
+    if (data[i] !== 0) {
+      throw new Error('Binary action result is not a canonical ABI boolean (non-zero high bytes)');
+    }
+  }
+  if (data[31] > 1) {
+    throw new Error(`Binary action result is not a canonical ABI boolean (got 0x${data[31].toString(16).padStart(2, '0')})`);
+  }
+
   const abiCoder = AbiCoder.defaultAbiCoder();
 
   try {
@@ -1054,6 +1066,12 @@ if (import.meta.vitest) {
       expect(() => parseAttestationPayload(buildPayload(7, new Uint8Array(16)))).toThrow(
         /Binary action result must be 32 bytes/
       );
+    });
+
+    it('rejects a non-canonical boolean word (ending in 0x02)', () => {
+      const badWord = new Uint8Array(32);
+      badWord[31] = 0x02; // neither 0 nor 1 — go-ethereum's readBool rejects this
+      expect(() => parseAttestationPayload(buildPayload(6, badWord))).toThrow(/canonical/i);
     });
   });
 
