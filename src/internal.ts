@@ -32,6 +32,7 @@ export {
   parseAttestationPayload,
   decodeActionArgs,
   decodeQueryComponents,
+  isBinaryAction,
 } from "./util/AttestationEncoding";
 
 export type {

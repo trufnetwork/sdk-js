@@ -579,6 +579,46 @@ export function decodeABIDatapoints(data: Uint8Array): DecodedRow[] {
 }
 
 /**
+ * Reports whether an attestation action returns a binary (boolean) result.
+ *
+ * Binary actions (price_above_threshold, price_below_threshold, value_in_range,
+ * value_equals) occupy action IDs 6-9 and encode their result as abi.encode(bool)
+ * rather than abi.encode(uint256[], int256[]). Mirrors the node's
+ * tn_utils.IsBinaryAction.
+ *
+ * @param actionId - Attestation action ID
+ * @returns true for binary actions (IDs 6-9)
+ */
+export function isBinaryAction(actionId: number): boolean {
+  return actionId >= 6 && actionId <= 9;
+}
+
+/**
+ * Decodes a binary action result (abi.encode(bool), a single 32-byte word).
+ *
+ * Returned as a single-row/single-column result so the shape stays a DecodedRow[],
+ * matching the node's "single row, single boolean column" model.
+ *
+ * @param data - ABI-encoded boolean bytes (must be exactly 32 bytes)
+ * @returns One row holding the decoded boolean
+ * @throws Error if the payload is not a 32-byte ABI-encoded boolean
+ */
+export function decodeABIBoolean(data: Uint8Array): DecodedRow[] {
+  if (data.length !== 32) {
+    throw new Error(`Binary action result must be 32 bytes (abi-encoded bool), got ${data.length}`);
+  }
+
+  const abiCoder = AbiCoder.defaultAbiCoder();
+
+  try {
+    const decoded = abiCoder.decode(['bool'], data);
+    return [{ values: [decoded[0] as boolean] }];
+  } catch (err) {
+    throw new Error(`Failed to decode ABI boolean: ${err}`);
+  }
+}
+
+/**
  * Formats a fixed-point integer value to decimal string
  *
  * @param value - BigInt value with fixed decimals
@@ -750,8 +790,13 @@ export function parseAttestationPayload(payload: Uint8Array): ParsedAttestationP
   }
   const resultBytes = payload.slice(offset, offset + resultLen);
 
-  // Decode result (ABI-encoded as uint256[], int256[])
-  const result = decodeABIDatapoints(resultBytes);
+  // Decode result based on action ID. Binary actions (6-9) return
+  // abi.encode(bool); every other action returns abi.encode(uint256[], int256[]).
+  // Mirrors the node encoder (tn_utils.EncodeDataPointsABI) and decoder
+  // (parseAttestationBooleanHandler / IsBinaryAction).
+  const result = isBinaryAction(actionId)
+    ? decodeABIBoolean(resultBytes)
+    : decodeABIDatapoints(resultBytes);
 
   return {
     version,
@@ -948,6 +993,67 @@ if (import.meta.vitest) {
     it('should throw on invalid version', () => {
       const payload = new Uint8Array(1);
       expect(() => parseAttestationPayload(payload)).toThrow();
+    });
+
+    // Build a canonical attestation payload (no signature) for a given action + result.
+    const buildPayload = (actionId: number, resultBytes: Uint8Array): Uint8Array => {
+      const dataProvider = new Uint8Array(20); // 20-byte address (all zeros)
+      const streamId = new TextEncoder().encode('st000000000000000000000000000000'); // 32 chars
+      const args = new Uint8Array(0);
+
+      const parts: number[] = [];
+      const pushU32BE = (n: number) => parts.push((n >>> 24) & 0xff, (n >>> 16) & 0xff, (n >>> 8) & 0xff, n & 0xff);
+      const pushU16BE = (n: number) => parts.push((n >>> 8) & 0xff, n & 0xff);
+      const pushBytes = (b: Uint8Array) => b.forEach(x => parts.push(x));
+
+      parts.push(1); // version
+      parts.push(0); // algorithm (secp256k1)
+      pushBytes(new Uint8Array(8)); // block height = 0
+      pushU32BE(dataProvider.length);
+      pushBytes(dataProvider);
+      pushU32BE(streamId.length);
+      pushBytes(streamId);
+      pushU16BE(actionId);
+      pushU32BE(args.length);
+      pushBytes(args);
+      pushU32BE(resultBytes.length);
+      pushBytes(resultBytes);
+
+      return new Uint8Array(parts);
+    };
+
+    const boolAbi = (value: boolean): Uint8Array => {
+      const hex = AbiCoder.defaultAbiCoder().encode(['bool'], [value]);
+      return Uint8Array.from(Buffer.from(hex.slice(2), 'hex'));
+    };
+
+    it('decodes a binary action (id 6) result of TRUE as a single boolean row', () => {
+      const parsed = parseAttestationPayload(buildPayload(6, boolAbi(true)));
+      expect(parsed.actionId).toBe(6);
+      expect(parsed.result).toEqual([{ values: [true] }]);
+    });
+
+    it('decodes a binary action (id 9) result of FALSE as a single boolean row', () => {
+      const parsed = parseAttestationPayload(buildPayload(9, boolAbi(false)));
+      expect(parsed.actionId).toBe(9);
+      expect(parsed.result).toEqual([{ values: [false] }]);
+    });
+
+    it('still decodes a numeric action (id 1) result as datapoints', () => {
+      const datapoints = AbiCoder.defaultAbiCoder().encode(
+        ['uint256[]', 'int256[]'],
+        [[1700000000n], [1500000000000000000n]]
+      );
+      const resultBytes = Uint8Array.from(Buffer.from(datapoints.slice(2), 'hex'));
+      const parsed = parseAttestationPayload(buildPayload(1, resultBytes));
+      expect(parsed.actionId).toBe(1);
+      expect(parsed.result).toEqual([{ values: ['1700000000', '1.5'] }]);
+    });
+
+    it('throws when a binary action result is not 32 bytes', () => {
+      expect(() => parseAttestationPayload(buildPayload(7, new Uint8Array(16)))).toThrow(
+        /Binary action result must be 32 bytes/
+      );
     });
   });
 
