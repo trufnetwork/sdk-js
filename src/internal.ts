@@ -168,7 +168,11 @@ export {
   decodeCreateMarketPayload,
 } from "./util/orderbookHelpers";
 
-export type { MarketData, CreateMarketPayload } from "./util/orderbookHelpers";
+export type {
+  MarketData,
+  DecodedMarketData,
+  CreateMarketPayload,
+} from "./util/orderbookHelpers";
 
 // Market forecasting: the single value a market's bucket order books imply.
 export {
