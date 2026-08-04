@@ -1517,6 +1517,184 @@ console.log(`Buy Orders: ${collateral.buyOrdersLocked} wei`);
 console.log(`Shares Value: ${collateral.sharesValue} wei`);
 ```
 
+### Market Forecasting
+
+Prediction markets price **ranges**, not values. A five-bucket EPS market says
+"34% chance EPS lands between $2.06 and $2.21"; it never says "EPS will be
+$2.14". These helpers invert that, collapsing the order books across every
+bucket of one market into the single number they collectively imply.
+
+```text
+market says                     ->  forecast says
+"34% between 2.06 and 2.21"         "2.14, p10..p90 1.91..2.38"
+```
+
+This is the same algorithm as `sdk-py`'s `get_market_forecast`, and the two are
+verified to produce the same numbers.
+
+#### `orderbook.getMarketForecast(queryIds: number[]): Promise<MarketForecast | null>`
+
+Collapses a market's bucket books into the single value they imply.
+
+**Parameters:**
+- `queryIds: number[]` — The bucket query_ids of **one** market. Order does not
+  matter; they are sorted by bound internally. See *Finding a market's
+  queryIds* below.
+
+**Returns:** A `MarketForecast`, or `null` when no bucket has a usable quote.
+
+**Throws:** if fewer than two query_ids are given, if any is repeated, if they
+do not all belong to the same market, or if a market is missing the
+`queryComponents` needed to derive its bounds.
+
+One forecast covers the buckets of **one** market. A repeated query_id would
+have its bucket counted twice, and mixing two markets would normalise unrelated
+probabilities into a single distribution — both are rejected rather than warned
+about. Buckets of one market differ only in their strike, so the identity
+compared is `(dataProvider, streamId, bridge, settleTime, timestamp, frozenAt)`
+— the bridge included because an identical question collateralised two ways is
+two markets with two separate books.
+
+**Cost:** two order-book reads plus one market-info read per bucket. Both the
+YES and NO books are fetched, because on this venue a resting BUY NO at *p* is
+hittable by a BUY YES at *100-p* (mint match), so NO liquidity is executable
+YES liquidity and ignoring it would discard real quotes.
+
+```typescript
+const forecast = await orderbook.getMarketForecast([419, 420, 421, 422, 423]);
+if (forecast) {
+  console.log(forecast.value.toFixed(4)); // 2.1362
+
+  // p10/p90 are null when the market has too few strikes to place them.
+  const band =
+    forecast.p10 !== null && forecast.p90 !== null
+      ? `${forecast.p10.toFixed(4)}..${forecast.p90.toFixed(4)}`
+      : "unresolved";
+  console.log(band); // 1.9053..2.3792
+
+  for (const bucket of forecast.buckets) {
+    console.log(`  ${bucket.lower}-${bucket.upper}: ${(bucket.probability * 100).toFixed(1)}%`);
+  }
+  for (const warning of forecast.warnings) {
+    console.log(`  ! ${warning}`);
+  }
+}
+```
+
+#### `MarketForecast`
+
+| Field | Type | Meaning |
+|-------|------|---------|
+| `value` | `number` | The point estimate: the **median** of the implied distribution |
+| `p10`, `p90` | `number \| null` | The published band. The market implies an 80% chance the outcome lands inside it |
+| `marginOfError` | `number` | Half the P10..P90 band. **Not** a standard error — see below |
+| `sigma` | `number` | The band scaled to a normal-equivalent standard deviation |
+| `valueBasis` | `ForecastBasis` | `"interior"`, `"tail"`, or `"unresolved"` — see below |
+| `p10Basis`, `p90Basis` | `ForecastBasis` | Same flags, for each end of the band |
+| `method` | `ForecastMethod` | `"rank"` normally, `"discrete"` on a degenerate book |
+| `buckets` | `BucketEstimate[]` | Per-bucket detail |
+| `warnings` | `string[]` | Book-quality problems worth surfacing |
+| `multimodal`, `nPeaks` | `boolean`, `number` | Whether the book implies more than one peak |
+| `low`, `high` | `number` | `value -/+ marginOfError` |
+
+Each `BucketEstimate` carries `queryId`, `lower`, `upper`, `probability`
+(normalised, sums to 1), `rawProbability`, `confidence`, `oneSided` and
+`quoted`. `forecastToJSON(forecast)` gives a flat, JSON-serialisable form.
+
+**`marginOfError` is a band, not a precision.** It is half the P10..P90 spread,
+so it describes how uncertain the **outcome** is, not how tightly the book pins
+your estimate. Expect it to be large — on a live five-bucket EPS market, roughly
+0.24 against a value of 2.14. Publishing it as "± 0.24" is correct; reading it
+as "our estimate is accurate to 0.24" is not.
+
+**Check the `Basis` flags before displaying a number.** The outer two buckets are
+open-ended, so the books say nothing about how far out they extend. When a
+percentile falls inside one, an exponential tail model supplies the number and
+the corresponding flag reads `"tail"`. `"interior"` means it was read between
+real strikes with no shape assumption. `"unresolved"` means the market has too
+few strikes to place it at all.
+
+**Read `warnings`.** Unquoted or one-sided buckets, crossed books, and
+dutch-book deviations are reported rather than silently smoothed over.
+
+#### Finding a market's queryIds
+
+Each bucket is a **separate market** with its own query_id, so a "market" is a
+set of them. They can be reassembled from chain data alone: buckets of the same
+market share a data stream and a settlement time.
+
+```typescript
+import { decodeMarketData } from "@trufnetwork/sdk-js";
+
+const groups = new Map<string, number[]>();
+for (const summary of await orderbook.listMarkets({ settledFilter: false, limit: 100 })) {
+  const info = await orderbook.getMarketInfo(summary.id);
+  // Legacy markets carry no query_components and cannot be decoded.
+  if (!info.queryComponents || info.queryComponents.length === 0) continue;
+  const marketData = decodeMarketData(info.queryComponents);
+  const key = `${marketData.streamId}@${summary.settleTime}`;
+  groups.set(key, [...(groups.get(key) ?? []), summary.id]);
+}
+
+// A complete market tiles the line: one "below" bucket, one "above", ranges
+// between. A stream can also carry a market that is not part of a bucket set at
+// all, so skip anything too small to forecast rather than letting it throw.
+for (const [, queryIds] of groups) {
+  if (queryIds.length < 2) continue;
+  const forecast = await orderbook.getMarketForecast(queryIds);
+}
+```
+
+A layout that does not tile the line is still estimated, with the problem
+reported in `warnings` rather than thrown.
+
+#### Forecasting from your own book data
+
+If you already hold the books, the algorithm is available as pure functions with
+no I/O. `forecastFromDepth` is the preferred entry point; it consolidates the
+YES and NO ladders itself.
+
+```typescript
+import {
+  forecastFromDepth,
+  forecastFromBuckets,
+  type BucketDepth,
+  type BucketBook,
+} from "@trufnetwork/sdk-js";
+
+// Full ladders. Prices are positive 1-99 cents on every side.
+const buckets: BucketDepth[] = [
+  {
+    lower: null,                          // null = open-ended outer bucket
+    upper: 1.91,
+    yesBids: [{ price: 4, size: 386 }],
+    yesAsks: [],
+    noBids: [{ price: 83, size: 25 }],
+    noAsks: [{ price: 97, size: 6 }],
+    queryId: 419,
+  },
+  // ... remaining buckets, ascending
+];
+const forecast = forecastFromDepth(buckets);
+
+// Or, if you only have top-of-book (no consolidation, weaker estimate):
+const fromQuotes = forecastFromBuckets([
+  { lower: null, upper: 1.91, bestBid: 4, bestAsk: 17, queryId: 419 },
+  // ...
+] as BucketBook[]);
+```
+
+A complete market spans the whole line, with the first bucket open below
+(`lower: null`) and the last open above (`upper: null`). That is what the
+algorithm is designed for, but it is not enforced: an interior-only or gapped
+set still returns a forecast, with the problem reported in `warnings`. The mass
+beyond an unrepresented tail simply has nowhere to go, so treat those results
+accordingly.
+
+`bucketBoundsFromMarketData(marketData)` converts the output of
+`decodeMarketData` into a `{ lower, upper }` pair, handling the `below`,
+`between`, `above` and `equals` market types.
+
 ### Settlement Operations
 
 #### `orderbook.settleMarket(queryId: number): Promise<TxReceipt>`
