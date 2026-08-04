@@ -311,8 +311,11 @@ export interface ListMarketsInput {
   /**
    * Filter by settlement status:
    * - null/undefined: All markets
-   * - true: Unsettled markets only
-   * - false: Settled markets only
+   * - true: Settled markets only
+   * - false: Active (unsettled) markets only
+   *
+   * The value passes straight through to `list_markets`, which filters on
+   * `WHERE settled = $settled_filter`.
    */
   settledFilter?: boolean | null;
   /** Maximum number of markets to return */
