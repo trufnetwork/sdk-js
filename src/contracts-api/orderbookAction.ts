@@ -49,6 +49,7 @@ import {
   encodeRangeActionArgs,
   encodeEqualsActionArgs,
   dbBytesToUint8Array,
+  decodeMarketData,
   validatePrice,
   validateAmount,
   validateBridge,
@@ -57,6 +58,13 @@ import {
   validateWalletHex,
   settledFilterToBoolean,
 } from "../util/orderbookHelpers";
+import { bucketBoundsFromMarketData } from "../util/marketBuckets";
+import { forecastFromDepth } from "../util/forecast";
+import type {
+  BookLevel,
+  BucketDepth,
+  MarketForecast,
+} from "../util/forecast";
 
 /**
  * OrderbookAction provides methods for interacting with binary prediction markets.
@@ -658,6 +666,130 @@ export class OrderbookAction {
       bestAsk: row.best_ask,
       spread: row.spread,
     };
+  }
+
+  /**
+   * Collapses a market's bucket books into the single value they imply.
+   *
+   * A prediction market prices ranges: each bucket is its own query_id with its
+   * own binary book. This reads every bucket's FULL YES and NO ladders and its
+   * bounds, then returns the one number the books collectively imply plus the
+   * band around it. See the `forecast` module for the algorithm.
+   *
+   * The YES and NO books are both fetched because the forecast consolidates
+   * them: on this venue a resting BUY NO at p is hittable by a BUY YES at 100-p
+   * (mint match), so NO liquidity is executable YES liquidity and ignoring it
+   * would discard real quotes. That costs two order-book reads per bucket.
+   *
+   * @param queryIds - The bucket query_ids of ONE market. Order does not matter,
+   *   they are sorted by lower bound here. The buckets are expected to tile the
+   *   whole line, with the bottom one open below and the top one open above; a
+   *   layout that does not is still estimated, with the problem reported in
+   *   `warnings`.
+   * @returns The forecast, or `null` when no bucket has a usable quote.
+   * @throws If fewer than two query_ids are given, or a market is missing the
+   *   query_components needed to derive its bounds.
+   *
+   * @example
+   * ```typescript
+   * const forecast = await orderbook.getMarketForecast([419, 420, 421, 422, 423]);
+   * if (forecast) {
+   *   console.log(forecast.value, forecast.p10, forecast.p90, forecast.warnings);
+   * }
+   * ```
+   */
+  async getMarketForecast(queryIds: number[]): Promise<MarketForecast | null> {
+    if (queryIds.length < 2) {
+      throw new Error(
+        `a market forecast needs at least 2 bucket query_ids, got ${queryIds.length}`
+      );
+    }
+
+    const books: BucketDepth[] = [];
+    for (const queryId of queryIds) {
+      const info = await this.getMarketInfo(queryId);
+      if (!info.queryComponents || info.queryComponents.length === 0) {
+        throw new Error(
+          `market ${queryId} has no query_components, so its bucket bounds ` +
+            `cannot be derived`
+        );
+      }
+      const { lower, upper } = bucketBoundsFromMarketData(
+        decodeMarketData(info.queryComponents)
+      );
+      const yes = await this.orderBookLadders(queryId, true);
+      const no = await this.orderBookLadders(queryId, false);
+      books.push({
+        lower,
+        upper,
+        yesBids: yes.bids,
+        yesAsks: yes.asks,
+        noBids: no.bids,
+        noAsks: no.asks,
+        queryId,
+      });
+    }
+
+    // Open below sorts first, which is where that bucket belongs.
+    books.sort((a, b) => {
+      if (a.lower === null) return b.lower === null ? 0 : -1;
+      if (b.lower === null) return 1;
+      return a.lower - b.lower;
+    });
+
+    const layout: string[] = [];
+    if (books[0].lower !== null) {
+      layout.push("lowest bucket is not open below");
+    }
+    if (books[books.length - 1].upper !== null) {
+      layout.push("highest bucket is not open above");
+    }
+    let breaks = 0;
+    for (let i = 0; i + 1 < books.length; i++) {
+      if (books[i].upper !== books[i + 1].lower) breaks += 1;
+    }
+    if (breaks) {
+      layout.push(`${breaks} gap(s) or overlap(s) between bucket bounds`);
+    }
+
+    const forecast = forecastFromDepth(books);
+    if (forecast === null) return null;
+    forecast.warnings.unshift(...layout);
+    return forecast;
+  }
+
+  /**
+   * One outcome's resting book, split into bid and ask ladders.
+   *
+   * `getOrderBook` marks bids with a NEGATIVE price and asks with a positive
+   * one; price 0 means shares held with no resting order, which is not part of
+   * the book. Prices come back to the forecast as the positive 1-99 cent
+   * convention it expects.
+   *
+   * Both fields are coerced with Number() rather than trusted: the node returns
+   * `amount` as a NUMERIC, which arrives over the wire as a STRING even though
+   * OrderBookEntry types it as a number. Left uncoerced it survives
+   * multiplication (JS coerces) but turns `+=` into string concatenation, so the
+   * bug would hide until some future reader of the ladder happened to sum sizes.
+   *
+   * @internal
+   */
+  private async orderBookLadders(
+    queryId: number,
+    outcome: boolean
+  ): Promise<{ bids: BookLevel[]; asks: BookLevel[] }> {
+    const bids: BookLevel[] = [];
+    const asks: BookLevel[] = [];
+    for (const entry of await this.getOrderBook(queryId, outcome)) {
+      const price = Number(entry.price);
+      const size = Number(entry.amount);
+      if (price < 0) {
+        bids.push({ price: -price, size });
+      } else if (price > 0) {
+        asks.push({ price, size });
+      }
+    }
+    return { bids, asks };
   }
 
   /**

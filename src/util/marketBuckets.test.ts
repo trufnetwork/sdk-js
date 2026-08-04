@@ -1,0 +1,307 @@
+/**
+ * Tests for the SDK-side glue around the forecast algorithm.
+ *
+ * The algorithm itself is covered by forecast.test.ts / forecastDepth.test.ts.
+ * What is tested here is only what the SDK adds: deriving bucket bounds from
+ * decoded market data, and assembling a market's order books into a forecast.
+ *
+ * Ported from sdk-py's tests/test_market_buckets.py, with one improvement: the
+ * bucket bounds are read out of REAL ABI-encoded query components rather than a
+ * stubbed decoder, so the encode -> decode -> bounds path is exercised end to
+ * end.
+ */
+
+import { describe, it, expect } from "vitest";
+import { OrderbookAction } from "../contracts-api/orderbookAction";
+import type { MarketInfo, OrderBookEntry } from "../types/orderbook";
+import { BookLevel, BucketDepth, forecastFromDepth } from "./forecast";
+import { bucketBoundsFromMarketData } from "./marketBuckets";
+import {
+  encodeActionArgs,
+  encodeQueryComponents,
+  encodeRangeActionArgs,
+} from "./orderbookHelpers";
+
+describe("bucketBoundsFromMarketData", () => {
+  it("reads a below market as the open bottom bucket", () => {
+    expect(
+      bucketBoundsFromMarketData({ type: "below", thresholds: ["4.04"] })
+    ).toEqual({ lower: null, upper: 4.04 });
+  });
+
+  it("reads an above market as the open top bucket", () => {
+    expect(
+      bucketBoundsFromMarketData({ type: "above", thresholds: ["4.92"] })
+    ).toEqual({ lower: 4.92, upper: null });
+  });
+
+  it("reads a between market as an interior bucket", () => {
+    expect(
+      bucketBoundsFromMarketData({ type: "between", thresholds: ["4.33", "4.62"] })
+    ).toEqual({ lower: 4.33, upper: 4.62 });
+  });
+
+  it("reads an equals market as target plus or minus tolerance", () => {
+    // Its thresholds are (target, tolerance), NOT (lower, upper). Reading them
+    // positionally the way `between` is read would yield the bucket
+    // (5.25, 0.10): inverted, and silently wrong rather than loud.
+    const { lower, upper } = bucketBoundsFromMarketData({
+      type: "equals",
+      thresholds: ["5.25", "0.10"],
+    });
+    expect(lower).toBeCloseTo(5.15, 10);
+    expect(upper).toBeCloseTo(5.35, 10);
+    expect(lower!).toBeLessThan(upper!);
+  });
+
+  it("rejects a market type that cannot describe a bucket", () => {
+    expect(() =>
+      bucketBoundsFromMarketData({ type: "unknown", thresholds: [] })
+    ).toThrow(/cannot derive bucket bounds/);
+  });
+
+  it("rejects missing thresholds", () => {
+    expect(() =>
+      bucketBoundsFromMarketData({ type: "between", thresholds: ["4.33"] })
+    ).toThrow(/threshold/);
+  });
+});
+
+// --- client assembly ---------------------------------------------------------
+
+const DATA_PROVIDER = "0x4710a8d8f0d845da110086812a32de6d90d7ff5c";
+const STREAM_ID = "stmsft00000000000000000000000000";
+const TIMESTAMP = 1700000000;
+
+/** Big enough that even a 1c level clears DEPTH_MIN_SIDE_NOTIONAL_USD. */
+const SIZE = 1000;
+
+function belowComponents(threshold: string): Uint8Array {
+  return encodeQueryComponents(
+    DATA_PROVIDER,
+    STREAM_ID,
+    "price_below_threshold",
+    encodeActionArgs(DATA_PROVIDER, STREAM_ID, TIMESTAMP, threshold, 0)
+  );
+}
+
+function aboveComponents(threshold: string): Uint8Array {
+  return encodeQueryComponents(
+    DATA_PROVIDER,
+    STREAM_ID,
+    "price_above_threshold",
+    encodeActionArgs(DATA_PROVIDER, STREAM_ID, TIMESTAMP, threshold, 0)
+  );
+}
+
+function betweenComponents(min: string, max: string): Uint8Array {
+  return encodeQueryComponents(
+    DATA_PROVIDER,
+    STREAM_ID,
+    "value_in_range",
+    encodeRangeActionArgs(DATA_PROVIDER, STREAM_ID, TIMESTAMP, min, max, 0)
+  );
+}
+
+interface FakeMarket {
+  components: Uint8Array;
+  bounds: { lower: number | null; upper: number | null };
+  yesBid: number | null;
+  yesAsk: number | null;
+}
+
+/**
+ * The live mainnet MSFT book, as five separate markets. Bounds are carried in
+ * each bucket's own query_components, exactly as on chain. Quotes are
+ * (yesBid, yesAsk) in cents; null means nothing resting on that side.
+ */
+const MSFT_MARKETS: Record<number, FakeMarket> = {
+  101: {
+    components: belowComponents("4.04"),
+    bounds: { lower: null, upper: 4.04 },
+    yesBid: 1,
+    yesAsk: null,
+  },
+  102: {
+    components: betweenComponents("4.04", "4.33"),
+    bounds: { lower: 4.04, upper: 4.33 },
+    yesBid: 16,
+    yesAsk: 28,
+  },
+  103: {
+    components: betweenComponents("4.33", "4.62"),
+    bounds: { lower: 4.33, upper: 4.62 },
+    yesBid: 44,
+    yesAsk: 56,
+  },
+  104: {
+    components: betweenComponents("4.62", "4.92"),
+    bounds: { lower: 4.62, upper: 4.92 },
+    yesBid: 9,
+    yesAsk: 21,
+  },
+  105: {
+    components: aboveComponents("4.92"),
+    bounds: { lower: 4.92, upper: null },
+    yesBid: 1,
+    yesAsk: null,
+  },
+};
+
+const ALL_QUERY_IDS = Object.keys(MSFT_MARKETS).map(Number);
+
+function row(price: number): OrderBookEntry {
+  return {
+    walletAddress: new Uint8Array(20),
+    price,
+    amount: SIZE,
+    lastUpdated: TIMESTAMP,
+  };
+}
+
+/**
+ * An OrderbookAction whose network calls are stubbed.
+ *
+ * Built with Object.create so no Kwil client is needed: this exercises the
+ * assembly logic (bounds, sorting, layout checks) with no node.
+ */
+function fakeAction(options?: {
+  markets?: Record<number, FakeMarket>;
+  queryComponents?: boolean;
+  noBooks?: Record<number, OrderBookEntry[]>;
+}): OrderbookAction {
+  const markets = options?.markets ?? MSFT_MARKETS;
+  const withComponents = options?.queryComponents ?? true;
+  const noBooks = options?.noBooks ?? {};
+
+  const action = Object.create(OrderbookAction.prototype) as OrderbookAction;
+
+  action.getMarketInfo = async (queryId: number) =>
+    ({
+      queryComponents: withComponents
+        ? markets[queryId].components
+        : new Uint8Array(0),
+    }) as MarketInfo;
+
+  action.getOrderBook = async (queryId: number, outcome: boolean) => {
+    if (!outcome) return noBooks[queryId] ?? [];
+    const { yesBid, yesAsk } = markets[queryId];
+    const rows: OrderBookEntry[] = [];
+    // Bids carry a NEGATIVE price on the wire, asks a positive one.
+    if (yesBid !== null) rows.push(row(-yesBid));
+    if (yesAsk !== null) rows.push(row(yesAsk));
+    return rows;
+  };
+
+  return action;
+}
+
+/** The same books, built directly, to compare the assembled path against. */
+function depths(): BucketDepth[] {
+  return ALL_QUERY_IDS.sort((a, b) => a - b).map((queryId) => {
+    const { bounds, yesBid, yesAsk } = MSFT_MARKETS[queryId];
+    const yesBids: BookLevel[] =
+      yesBid !== null ? [{ price: yesBid, size: SIZE }] : [];
+    const yesAsks: BookLevel[] =
+      yesAsk !== null ? [{ price: yesAsk, size: SIZE }] : [];
+    return { ...bounds, yesBids, yesAsks, queryId };
+  });
+}
+
+describe("getMarketForecast", () => {
+  it("matches a direct call to the algorithm", async () => {
+    // Assembly must not change the answer: same books in, same number out.
+    const assembled = (await fakeAction().getMarketForecast(ALL_QUERY_IDS))!;
+    const direct = forecastFromDepth(depths())!;
+
+    expect(assembled.value).toBeCloseTo(direct.value, 10);
+    expect(assembled.p10).toBeCloseTo(direct.p10!, 10);
+    expect(assembled.p90).toBeCloseTo(direct.p90!, 10);
+    assembled.buckets.forEach((b, i) => {
+      expect(b.probability).toBeCloseTo(direct.buckets[i].probability, 10);
+    });
+  });
+
+  it("lands inside the leading bucket", async () => {
+    // The live MSFT book: the tight 44-56 bucket leads, so the value belongs
+    // inside it.
+    const f = (await fakeAction().getMarketForecast(ALL_QUERY_IDS))!;
+    const probs = f.buckets.map((b) => b.probability);
+    expect(probs[2]).toBe(Math.max(...probs));
+    expect(f.value).toBeGreaterThanOrEqual(4.33);
+    expect(f.value).toBeLessThanOrEqual(4.62);
+  });
+
+  it("consolidates NO-side liquidity into the estimate", async () => {
+    // A resting BUY NO at p is hittable by a BUY YES at 100-p, so NO depth is
+    // executable YES depth. Adding a NO bid must therefore supply the missing
+    // YES ask and stop the bucket reading as one-sided.
+    const bare = (await fakeAction().getMarketForecast(ALL_QUERY_IDS))!;
+    // A NO bid at 84 mirrors to a YES ask at 16 on the open bottom bucket.
+    const withNo = (await fakeAction({
+      noBooks: { 101: [row(-84)] },
+    }).getMarketForecast(ALL_QUERY_IDS))!;
+
+    expect(bare.buckets[0].oneSided).toBe(true);
+    expect(withNo.buckets[0].oneSided).toBe(false);
+    expect(withNo.buckets[0].confidence).toBeGreaterThan(
+      bare.buckets[0].confidence
+    );
+  });
+
+  it("accepts the query ids in any order", async () => {
+    // Buckets are sorted by bound here, so callers need not track which
+    // query_id is the bottom of the line.
+    const ordered = (await fakeAction().getMarketForecast([
+      101, 102, 103, 104, 105,
+    ]))!;
+    const shuffled = (await fakeAction().getMarketForecast([
+      103, 105, 101, 104, 102,
+    ]))!;
+
+    expect(shuffled.value).toBeCloseTo(ordered.value, 10);
+    expect(shuffled.buckets.map((b) => b.queryId)).toEqual([
+      101, 102, 103, 104, 105,
+    ]);
+  });
+
+  it("reports a gap in the bucket layout instead of hiding it", async () => {
+    // A market missing an interior bucket still gets an estimate, but the caller
+    // must be able to see that the line was not fully tiled.
+    const f = await fakeAction().getMarketForecast([101, 102, 104, 105]);
+    expect(f).not.toBeNull();
+    expect(f!.warnings.some((w) => w.includes("gap"))).toBe(true);
+  });
+
+  it("warns when the line is not open ended", async () => {
+    // Interior buckets only: nothing covers the tails, so the mass beyond them
+    // is unrepresented and the caller should know.
+    const f = (await fakeAction().getMarketForecast([102, 103, 104]))!;
+    expect(f.warnings.some((w) => w.includes("not open below"))).toBe(true);
+    expect(f.warnings.some((w) => w.includes("not open above"))).toBe(true);
+  });
+
+  it("rejects a single bucket", async () => {
+    await expect(fakeAction().getMarketForecast([103])).rejects.toThrow(
+      /at least 2/
+    );
+  });
+
+  it("rejects a market without query components", async () => {
+    // Legacy markets carry no bounds, and guessing them would be worse than
+    // failing.
+    await expect(
+      fakeAction({ queryComponents: false }).getMarketForecast([101, 102])
+    ).rejects.toThrow(/query_components/);
+  });
+
+  it("yields no forecast for an unquoted market", async () => {
+    const dead: Record<number, FakeMarket> = {};
+    for (const [id, market] of Object.entries(MSFT_MARKETS)) {
+      dead[Number(id)] = { ...market, yesBid: null, yesAsk: null };
+    }
+    expect(
+      await fakeAction({ markets: dead }).getMarketForecast(ALL_QUERY_IDS)
+    ).toBeNull();
+  });
+});

@@ -170,6 +170,41 @@ export {
 
 export type { MarketData, CreateMarketPayload } from "./util/orderbookHelpers";
 
+// Market forecasting: the single value a market's bucket order books imply.
+export {
+  bucketProbability,
+  bucketEstimateFromDepth,
+  typicalHalfSpread,
+  forecastFromBuckets,
+  forecastFromDepth,
+  consolidatedBids,
+  consolidatedAsks,
+  bestView,
+  usableBid,
+  usableAsk,
+  forecastToJSON,
+  DEPTH_MIN_SIDE_NOTIONAL_USD,
+  LOW_TOTAL_NOTIONAL_WARN_USD,
+  MIN_QUOTE_NOTIONAL_CENT_SHARES,
+  PEAK_PROMINENCE,
+} from "./util/forecast";
+
+export type {
+  BookLevel,
+  BucketBook,
+  BucketDepth,
+  BucketEstimate,
+  BucketQuoteEstimate,
+  BucketDepthEstimate,
+  MarketForecast,
+  MarketForecastJSON,
+  ForecastBasis,
+  ForecastMethod,
+} from "./util/forecast";
+
+export { bucketBoundsFromMarketData } from "./util/marketBuckets";
+export type { BucketBounds } from "./util/marketBuckets";
+
 // Local actions types
 export type {
   ILocalActions,
