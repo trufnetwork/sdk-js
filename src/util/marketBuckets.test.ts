@@ -17,10 +17,13 @@ import type { MarketInfo, OrderBookEntry } from "../types/orderbook";
 import { BookLevel, BucketDepth, forecastFromDepth } from "./forecast";
 import { bucketBoundsFromMarketData, requireQueryTime } from "./marketBuckets";
 import {
+  decodeMarketData,
   encodeActionArgs,
   encodeQueryComponents,
   encodeRangeActionArgs,
 } from "./orderbookHelpers";
+import { encodeActionArgs as encodeKwilArgs } from "./AttestationEncoding";
+import { Utils } from "@trufnetwork/kwil-js";
 
 describe("bucketBoundsFromMarketData", () => {
   it("reads a below market as the open bottom bucket", () => {
@@ -98,6 +101,65 @@ describe("bucketBoundsFromMarketData", () => {
         })
       ).toThrow(/positive tolerance/);
     }
+  });
+
+  it("rejects equals bounds that collapse or overflow", () => {
+    // A positive tolerance is not enough. Absorbed by a large target it leaves
+    // both edges on the same value, and near the float limits the sum
+    // overflows; either way the bucket cannot hold an outcome.
+    expect(1e300 - 1e-300).toBe(1e300 + 1e-300); // the collapse, demonstrated
+    expect(() =>
+      bucketBoundsFromMarketData({
+        type: "equals",
+        thresholds: ["1e300", "1e-300"],
+      })
+    ).toThrow(/usable bucket/);
+
+    expect(() =>
+      bucketBoundsFromMarketData({
+        type: "equals",
+        thresholds: ["1.7e308", "1.7e308"],
+      })
+    ).toThrow(/usable bucket/);
+  });
+});
+
+describe("decodeMarketData query time", () => {
+  const DP = "0x4710a8d8f0d845da110086812a32de6d90d7ff5c";
+  const SID = "stmsft00000000000000000000000000";
+
+  it("keeps an explicit ABI NULL frozenAt as null", () => {
+    // Every well-formed market on chain carries NULL there, meaning "latest".
+    const market = decodeMarketData(
+      encodeQueryComponents(
+        DP,
+        SID,
+        "price_below_threshold",
+        encodeActionArgs(DP, SID, 1700000000, "4.04", 0)
+      )
+    );
+    expect(market.timestamp).toBe(1700000000);
+    expect(market.frozenAt).toBeNull();
+  });
+
+  it("leaves the timestamp unread when the argument list is truncated", () => {
+    // A missing final INT8 would otherwise decode to null, which is
+    // indistinguishable from the explicit NULL above — so a malformed market
+    // would match a healthy one on that component of its identity. Dropping the
+    // timestamp instead routes it to requireQueryTime, which refuses it.
+    const truncated = encodeKwilArgs([DP, SID, 1700000000, "4.04"], {
+      3: Utils.DataType.Numeric(36, 18),
+    });
+    const market = decodeMarketData(
+      encodeQueryComponents(DP, SID, "price_below_threshold", truncated)
+    );
+
+    expect(market.type).toBe("below");
+    expect(market.thresholds).toHaveLength(1);
+    expect(market.timestamp).toBeNull();
+    expect(() => requireQueryTime(101, market)).toThrow(
+      /no readable query timestamp/
+    );
   });
 });
 

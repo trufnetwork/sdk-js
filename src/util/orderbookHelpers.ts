@@ -76,6 +76,13 @@ export function decodeMarketData(encoded: string | Uint8Array): MarketData {
    * last. Only the thresholds in between change shape.
    */
   const readQueryTime = (frozenAtIndex: number): void => {
+    // Both slots have to exist for either to mean anything. A truncated
+    // argument list would otherwise leave frozenAt null, which is
+    // indistinguishable from the explicit ABI NULL that every well-formed
+    // market carries to mean "latest" — so a malformed market would match a
+    // healthy one on that component of its identity. Leaving timestamp null
+    // instead hands the whole market to the caller's readability check.
+    if (args.length <= frozenAtIndex) return;
     market.timestamp = argInt(2);
     market.frozenAt = argInt(frozenAtIndex);
   };

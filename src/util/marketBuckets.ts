@@ -117,12 +117,15 @@ export function bucketBoundsFromMarketData(
       }
       const lower = target - tolerance;
       const upper = target + tolerance;
-      // Both operands are finite, but the sum or difference can still overflow
-      // near the float limits.
-      if (!Number.isFinite(lower) || !Number.isFinite(upper)) {
+      // A positive tolerance does not guarantee a non-empty bucket. Near the
+      // float limits the sum can overflow to Infinity, and a tolerance small
+      // enough relative to the target is absorbed entirely, collapsing both
+      // edges onto the same value: 1e300 +/- 1e-300 is 1e300 twice.
+      if (!Number.isFinite(lower) || !Number.isFinite(upper) || lower >= upper) {
         throw new Error(
           `an '${marketType}' market with target ${target} and tolerance ` +
-            `${tolerance} overflows its bounds`
+            `${tolerance} does not describe a usable bucket: ` +
+            `[${lower}, ${upper})`
         );
       }
       return { lower, upper };
