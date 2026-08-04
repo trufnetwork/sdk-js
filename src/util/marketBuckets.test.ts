@@ -76,29 +76,34 @@ const TIMESTAMP = 1700000000;
 /** Big enough that even a 1c level clears DEPTH_MIN_SIDE_NOTIONAL_USD. */
 const SIZE = 1000;
 
+/** frozenAt 0 encodes as NULL, which is how "latest" is expressed on chain. */
+const LATEST = 0;
+
 function belowComponents(
   threshold: string,
   streamId = STREAM_ID,
-  timestamp = TIMESTAMP
+  timestamp = TIMESTAMP,
+  frozenAt = LATEST
 ): Uint8Array {
   return encodeQueryComponents(
     DATA_PROVIDER,
     streamId,
     "price_below_threshold",
-    encodeActionArgs(DATA_PROVIDER, streamId, timestamp, threshold, 0)
+    encodeActionArgs(DATA_PROVIDER, streamId, timestamp, threshold, frozenAt)
   );
 }
 
 function aboveComponents(
   threshold: string,
   streamId = STREAM_ID,
-  timestamp = TIMESTAMP
+  timestamp = TIMESTAMP,
+  frozenAt = LATEST
 ): Uint8Array {
   return encodeQueryComponents(
     DATA_PROVIDER,
     streamId,
     "price_above_threshold",
-    encodeActionArgs(DATA_PROVIDER, streamId, timestamp, threshold, 0)
+    encodeActionArgs(DATA_PROVIDER, streamId, timestamp, threshold, frozenAt)
   );
 }
 
@@ -106,13 +111,21 @@ function betweenComponents(
   min: string,
   max: string,
   streamId = STREAM_ID,
-  timestamp = TIMESTAMP
+  timestamp = TIMESTAMP,
+  frozenAt = LATEST
 ): Uint8Array {
   return encodeQueryComponents(
     DATA_PROVIDER,
     streamId,
     "value_in_range",
-    encodeRangeActionArgs(DATA_PROVIDER, streamId, timestamp, min, max, 0)
+    encodeRangeActionArgs(
+      DATA_PROVIDER,
+      streamId,
+      timestamp,
+      min,
+      max,
+      frozenAt
+    )
   );
 }
 
@@ -210,6 +223,39 @@ const LATER_MARKETS: Record<number, FakeMarket> = {
   },
   303: {
     components: aboveComponents("4.33", STREAM_ID, LATER_TIMESTAMP),
+    bounds: { lower: 4.33, upper: null },
+    yesBid: 44,
+    yesAsk: 56,
+  },
+};
+
+/**
+ * A fourth set identical to MSFT_MARKETS in every field but `frozenAt`: the
+ * same question asked of data pinned to a block rather than of latest data.
+ * That is a different query, and only frozenAt says so.
+ */
+const PINNED_BLOCK = 987654;
+const PINNED_MARKETS: Record<number, FakeMarket> = {
+  401: {
+    components: belowComponents("4.04", STREAM_ID, TIMESTAMP, PINNED_BLOCK),
+    bounds: { lower: null, upper: 4.04 },
+    yesBid: 1,
+    yesAsk: null,
+  },
+  402: {
+    components: betweenComponents(
+      "4.04",
+      "4.33",
+      STREAM_ID,
+      TIMESTAMP,
+      PINNED_BLOCK
+    ),
+    bounds: { lower: 4.04, upper: 4.33 },
+    yesBid: 16,
+    yesAsk: 28,
+  },
+  403: {
+    components: aboveComponents("4.33", STREAM_ID, TIMESTAMP, PINNED_BLOCK),
     bounds: { lower: 4.33, upper: null },
     yesBid: 44,
     yesAsk: 56,
@@ -381,6 +427,18 @@ describe("getMarketForecast", () => {
     // settlement, but a different point in the stream. Without timestamp in the
     // identity these two would merge silently.
     const both = { ...MSFT_MARKETS, ...LATER_MARKETS };
+    await expect(
+      fakeAction({ markets: both }).getMarketForecast(
+        Object.keys(both).map(Number)
+      )
+    ).rejects.toThrow(/different event/);
+  });
+
+  it("rejects two markets that differ only in the block they freeze", async () => {
+    // frozenAt is the other query field settleTime cannot see: the same
+    // question asked of pinned data and of latest data is two different
+    // queries.
+    const both = { ...MSFT_MARKETS, ...PINNED_MARKETS };
     await expect(
       fakeAction({ markets: both }).getMarketForecast(
         Object.keys(both).map(Number)
