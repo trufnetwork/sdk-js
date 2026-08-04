@@ -735,19 +735,25 @@ export class OrderbookAction {
       const marketData = decodeMarketData(info.queryComponents);
 
       // Buckets of one market differ only in their strike: they share a data
-      // provider, a stream and a settlement time. Forecasting across two events
-      // would normalise unrelated probabilities into one distribution and
-      // return a confident number about nothing, so it is rejected rather than
-      // warned about.
+      // provider, a stream, a settlement time and the query time they observe.
+      // Forecasting across two events would normalise unrelated probabilities
+      // into one distribution and return a confident number about nothing, so
+      // it is rejected rather than warned about.
+      //
+      // The query's own timestamp and frozenAt are included, not just the
+      // settlement time: two markets can settle at the same moment while
+      // observing the stream at different points.
       const thisIdentity =
-        `${marketData.dataProvider}|${marketData.streamId}|${info.settleTime}`;
+        `${marketData.dataProvider}|${marketData.streamId}|${info.settleTime}` +
+        `|${marketData.timestamp}|${marketData.frozenAt}`;
       if (identity === null) {
         identity = thisIdentity;
       } else if (thisIdentity !== identity) {
         throw new Error(
           `market ${queryId} belongs to a different event than the first ` +
-            `bucket: (dataProvider, streamId, settleTime) is ${thisIdentity} ` +
-            `against ${identity}. One forecast covers the buckets of ONE market.`
+            `bucket: (dataProvider, streamId, settleTime, timestamp, frozenAt) ` +
+            `is ${thisIdentity} against ${identity}. One forecast covers the ` +
+            `buckets of ONE market.`
         );
       }
 

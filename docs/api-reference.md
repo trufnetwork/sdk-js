@@ -1543,8 +1543,15 @@ Collapses a market's bucket books into the single value they imply.
 
 **Returns:** A `MarketForecast`, or `null` when no bucket has a usable quote.
 
-**Throws:** if fewer than two query_ids are given, or a market is missing the
+**Throws:** if fewer than two query_ids are given, if any is repeated, if they
+do not all belong to the same market, or if a market is missing the
 `queryComponents` needed to derive its bounds.
+
+One forecast covers the buckets of **one** market. A repeated query_id would
+have its bucket counted twice, and mixing two markets would normalise unrelated
+probabilities into a single distribution — both are rejected rather than warned
+about. Buckets of one market differ only in their strike, so the identity
+compared is `(dataProvider, streamId, settleTime, timestamp, frozenAt)`.
 
 **Cost:** two order-book reads plus one market-info read per bucket. Both the
 YES and NO books are fetched, because on this venue a resting BUY NO at *p* is

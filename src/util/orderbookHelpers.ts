@@ -22,6 +22,16 @@ export interface MarketData {
   actionId: string;
   type: "above" | "below" | "between" | "equals" | "unknown";
   thresholds: string[];
+  /**
+   * The point in the stream the query observes, in unix seconds. Every bucket
+   * of one market shares it; null only when the arguments could not be read.
+   */
+  timestamp: number | null;
+  /**
+   * The block height the data is pinned to. Encoded as NULL to mean "latest",
+   * so null is a real value rather than a decode failure.
+   */
+  frozenAt: number | null;
 }
 
 /**
@@ -47,6 +57,27 @@ export function decodeMarketData(encoded: string | Uint8Array): MarketData {
     actionId,
     type: "unknown",
     thresholds: [],
+    timestamp: null,
+    frozenAt: null,
+  };
+
+  /** INT8 arguments arrive as bigint, and NULL is a value rather than an error. */
+  const argInt = (index: number): number | null => {
+    if (index >= args.length) return null;
+    const value = args[index];
+    if (value === null || value === undefined) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  };
+
+  /**
+   * Every binary action takes ($data_provider, $stream_id, $timestamp, ...,
+   * $frozen_at), so the timestamp is always argument 2 and frozen_at is always
+   * last. Only the thresholds in between change shape.
+   */
+  const readQueryTime = (frozenAtIndex: number): void => {
+    market.timestamp = argInt(2);
+    market.frozenAt = argInt(frozenAtIndex);
   };
 
   // Map action_id to market type and thresholds
@@ -57,24 +88,28 @@ export function decodeMarketData(encoded: string | Uint8Array): MarketData {
       if (args.length >= 4) {
         market.thresholds.push(args[3].toString());
       }
+      readQueryTime(4);
       break;
     case "price_below_threshold":
       market.type = "below";
       if (args.length >= 4) {
         market.thresholds.push(args[3].toString());
       }
+      readQueryTime(4);
       break;
     case "value_in_range":
       market.type = "between";
       if (args.length >= 5) {
         market.thresholds.push(args[3].toString(), args[4].toString());
       }
+      readQueryTime(5);
       break;
     case "value_equals":
       market.type = "equals";
       if (args.length >= 5) {
         market.thresholds.push(args[3].toString(), args[4].toString());
       }
+      readQueryTime(5);
       break;
   }
 

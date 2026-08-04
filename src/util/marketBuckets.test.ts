@@ -76,34 +76,43 @@ const TIMESTAMP = 1700000000;
 /** Big enough that even a 1c level clears DEPTH_MIN_SIDE_NOTIONAL_USD. */
 const SIZE = 1000;
 
-function belowComponents(threshold: string, streamId = STREAM_ID): Uint8Array {
+function belowComponents(
+  threshold: string,
+  streamId = STREAM_ID,
+  timestamp = TIMESTAMP
+): Uint8Array {
   return encodeQueryComponents(
     DATA_PROVIDER,
     streamId,
     "price_below_threshold",
-    encodeActionArgs(DATA_PROVIDER, streamId, TIMESTAMP, threshold, 0)
+    encodeActionArgs(DATA_PROVIDER, streamId, timestamp, threshold, 0)
   );
 }
 
-function aboveComponents(threshold: string, streamId = STREAM_ID): Uint8Array {
+function aboveComponents(
+  threshold: string,
+  streamId = STREAM_ID,
+  timestamp = TIMESTAMP
+): Uint8Array {
   return encodeQueryComponents(
     DATA_PROVIDER,
     streamId,
     "price_above_threshold",
-    encodeActionArgs(DATA_PROVIDER, streamId, TIMESTAMP, threshold, 0)
+    encodeActionArgs(DATA_PROVIDER, streamId, timestamp, threshold, 0)
   );
 }
 
 function betweenComponents(
   min: string,
   max: string,
-  streamId = STREAM_ID
+  streamId = STREAM_ID,
+  timestamp = TIMESTAMP
 ): Uint8Array {
   return encodeQueryComponents(
     DATA_PROVIDER,
     streamId,
     "value_in_range",
-    encodeRangeActionArgs(DATA_PROVIDER, streamId, TIMESTAMP, min, max, 0)
+    encodeRangeActionArgs(DATA_PROVIDER, streamId, timestamp, min, max, 0)
   );
 }
 
@@ -174,6 +183,33 @@ const OTHER_MARKETS: Record<number, FakeMarket> = {
   },
   203: {
     components: aboveComponents("4.33", OTHER_STREAM_ID),
+    bounds: { lower: 4.33, upper: null },
+    yesBid: 44,
+    yesAsk: 56,
+  },
+};
+
+/**
+ * A third set that settle_time alone cannot tell apart: same provider, same
+ * stream, same settlement, but observing the stream a day later. Only the
+ * query timestamp separates it from MSFT_MARKETS.
+ */
+const LATER_TIMESTAMP = TIMESTAMP + 86400;
+const LATER_MARKETS: Record<number, FakeMarket> = {
+  301: {
+    components: belowComponents("4.04", STREAM_ID, LATER_TIMESTAMP),
+    bounds: { lower: null, upper: 4.04 },
+    yesBid: 1,
+    yesAsk: null,
+  },
+  302: {
+    components: betweenComponents("4.04", "4.33", STREAM_ID, LATER_TIMESTAMP),
+    bounds: { lower: 4.04, upper: 4.33 },
+    yesBid: 16,
+    yesAsk: 28,
+  },
+  303: {
+    components: aboveComponents("4.33", STREAM_ID, LATER_TIMESTAMP),
     bounds: { lower: 4.33, upper: null },
     yesBid: 44,
     yesAsk: 56,
@@ -333,6 +369,18 @@ describe("getMarketForecast", () => {
     // the other's total and return a confident number about nothing. Both sets
     // are individually valid, so nothing but the identity check catches this.
     const both = { ...MSFT_MARKETS, ...OTHER_MARKETS };
+    await expect(
+      fakeAction({ markets: both }).getMarketForecast(
+        Object.keys(both).map(Number)
+      )
+    ).rejects.toThrow(/different event/);
+  });
+
+  it("rejects two markets that differ only in the time they observe", async () => {
+    // The case settleTime alone cannot see: same provider, same stream, same
+    // settlement, but a different point in the stream. Without timestamp in the
+    // identity these two would merge silently.
+    const both = { ...MSFT_MARKETS, ...LATER_MARKETS };
     await expect(
       fakeAction({ markets: both }).getMarketForecast(
         Object.keys(both).map(Number)
