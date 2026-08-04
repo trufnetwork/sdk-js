@@ -172,6 +172,16 @@ describe("requireQueryTime", () => {
     );
   });
 
+  it("rejects a market that omits the timestamp entirely", () => {
+    // `timestamp` is optional on MarketData so hand-built objects still
+    // compile. An object that leaves it out is exactly as unpinnable as one
+    // that decoded to null, so it has to fail the same way rather than
+    // slipping through as "undefined" in the identity string.
+    expect(() => requireQueryTime(101, { type: "below" })).toThrow(
+      /no readable query timestamp/
+    );
+  });
+
   it("accepts a readable timestamp", () => {
     expect(() =>
       requireQueryTime(101, { type: "below", timestamp: 1700000000 })
