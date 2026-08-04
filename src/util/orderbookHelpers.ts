@@ -606,7 +606,7 @@ export function validateSettleTime(settleTime: number): void {
 /**
  * Converts settled filter boolean to the value for Kuneiform.
  *
- * @param filter - Boolean filter (null/undefined=all, true=unsettled, false=settled)
+ * @param filter - Boolean filter (null/undefined=all, true=settled, false=active)
  * @returns Boolean or null (null=all, true/false=filter by settled status)
  */
 export function settledFilterToBoolean(
@@ -615,5 +615,5 @@ export function settledFilterToBoolean(
   if (filter === null || filter === undefined) {
     return null; // All markets
   }
-  return filter; // true=unsettled, false=settled
+  return filter; // passed to `WHERE settled = $settled_filter`
 }
