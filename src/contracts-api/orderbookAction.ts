@@ -58,7 +58,10 @@ import {
   validateWalletHex,
   settledFilterToBoolean,
 } from "../util/orderbookHelpers";
-import { bucketBoundsFromMarketData } from "../util/marketBuckets";
+import {
+  bucketBoundsFromMarketData,
+  requireQueryTime,
+} from "../util/marketBuckets";
 import { forecastFromDepth } from "../util/forecast";
 import type {
   BookLevel,
@@ -743,15 +746,22 @@ export class OrderbookAction {
       // The query's own timestamp and frozenAt are included, not just the
       // settlement time: two markets can settle at the same moment while
       // observing the stream at different points.
+      //
+      // The bridge is in here too, and it is the one field that lives outside
+      // the query components: it is a createMarket argument, so two markets can
+      // ask an identical question while collateralising it differently. Those
+      // are separate markets with separate books.
+      requireQueryTime(queryId, marketData);
       const thisIdentity =
-        `${marketData.dataProvider}|${marketData.streamId}|${info.settleTime}` +
-        `|${marketData.timestamp}|${marketData.frozenAt}`;
+        `${marketData.dataProvider}|${marketData.streamId}|${info.bridge}` +
+        `|${info.settleTime}|${marketData.timestamp}|${marketData.frozenAt}`;
       if (identity === null) {
         identity = thisIdentity;
       } else if (thisIdentity !== identity) {
         throw new Error(
           `market ${queryId} belongs to a different event than the first ` +
-            `bucket: (dataProvider, streamId, settleTime, timestamp, frozenAt) ` +
+            `bucket: (dataProvider, streamId, bridge, settleTime, timestamp, ` +
+            `frozenAt) ` +
             `is ${thisIdentity} against ${identity}. One forecast covers the ` +
             `buckets of ONE market.`
         );

@@ -16,6 +16,33 @@ export interface BucketBounds {
 }
 
 /**
+ * Throws when a market's query timestamp could not be read.
+ *
+ * Every binary action carries one at argument 2; only `frozenAt` is nullable. A
+ * null timestamp stringifies to `"null"` in the market identity, so two
+ * malformed markets would COLLIDE on that component and match each other — the
+ * identity check failing open in exactly the case it exists to catch. Better to
+ * refuse a market we cannot pin down than to match it by accident.
+ *
+ * Unknown action types are left alone: their layout is unknown, so argument 2
+ * need not be a timestamp at all, and {@link bucketBoundsFromMarketData} already
+ * turns them away with a clearer message.
+ *
+ * @internal Not part of the package's public surface.
+ */
+export function requireQueryTime(
+  queryId: number,
+  marketData: Pick<MarketData, "type" | "timestamp">
+): void {
+  if (marketData.type !== "unknown" && marketData.timestamp === null) {
+    throw new Error(
+      `market ${queryId} carries no readable query timestamp, so it cannot ` +
+        `be matched against the other buckets of its market`
+    );
+  }
+}
+
+/**
  * Turns one bucket market's decoded data into its `[lower, upper)` bounds.
  *
  * `null` means open-ended, which is how the outer two buckets of a market are
@@ -64,15 +91,41 @@ export function bucketBoundsFromMarketData(
       return { lower: null, upper: threshold(0) };
     case "above":
       return { lower: threshold(0), upper: null };
-    case "between":
-      return { lower: threshold(0), upper: threshold(1) };
+    case "between": {
+      const lower = threshold(0);
+      const upper = threshold(1);
+      // Bounds are half-open [lower, upper), so lower === upper is an empty
+      // bucket and lower > upper is an inverted one. Neither can hold an
+      // outcome, and both would quietly distort the tiling.
+      if (lower >= upper) {
+        throw new Error(
+          `a '${marketType}' market needs lower < upper, got [${lower}, ${upper})`
+        );
+      }
+      return { lower, upper };
+    }
     case "equals": {
       // thresholds are (target, tolerance), NOT (lower, upper). Reading them
       // positionally the way `between` is read would give an inverted bucket and
       // be silently wrong rather than loud.
       const target = threshold(0);
       const tolerance = threshold(1);
-      return { lower: target - tolerance, upper: target + tolerance };
+      if (tolerance <= 0) {
+        throw new Error(
+          `an '${marketType}' market needs a positive tolerance, got ${tolerance}`
+        );
+      }
+      const lower = target - tolerance;
+      const upper = target + tolerance;
+      // Both operands are finite, but the sum or difference can still overflow
+      // near the float limits.
+      if (!Number.isFinite(lower) || !Number.isFinite(upper)) {
+        throw new Error(
+          `an '${marketType}' market with target ${target} and tolerance ` +
+            `${tolerance} overflows its bounds`
+        );
+      }
+      return { lower, upper };
     }
     default:
       throw new Error(

@@ -1551,7 +1551,9 @@ One forecast covers the buckets of **one** market. A repeated query_id would
 have its bucket counted twice, and mixing two markets would normalise unrelated
 probabilities into a single distribution — both are rejected rather than warned
 about. Buckets of one market differ only in their strike, so the identity
-compared is `(dataProvider, streamId, settleTime, timestamp, frozenAt)`.
+compared is `(dataProvider, streamId, bridge, settleTime, timestamp, frozenAt)`
+— the bridge included because an identical question collateralised two ways is
+two markets with two separate books.
 
 **Cost:** two order-book reads plus one market-info read per bucket. Both the
 YES and NO books are fetched, because on this venue a resting BUY NO at *p* is

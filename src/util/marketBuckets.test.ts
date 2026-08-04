@@ -15,7 +15,7 @@ import { describe, it, expect } from "vitest";
 import { OrderbookAction } from "../contracts-api/orderbookAction";
 import type { MarketInfo, OrderBookEntry } from "../types/orderbook";
 import { BookLevel, BucketDepth, forecastFromDepth } from "./forecast";
-import { bucketBoundsFromMarketData } from "./marketBuckets";
+import { bucketBoundsFromMarketData, requireQueryTime } from "./marketBuckets";
 import {
   encodeActionArgs,
   encodeQueryComponents,
@@ -64,6 +64,64 @@ describe("bucketBoundsFromMarketData", () => {
     expect(() =>
       bucketBoundsFromMarketData({ type: "between", thresholds: ["4.33"] })
     ).toThrow(/threshold/);
+  });
+
+  it("rejects a non-finite threshold", () => {
+    // Number("Infinity") is a value, not an error; left alone it surfaces as a
+    // NaN forecast rather than as this market being unreadable.
+    for (const threshold of ["NaN", "Infinity", "-Infinity", "abc"]) {
+      expect(() =>
+        bucketBoundsFromMarketData({ type: "below", thresholds: [threshold] })
+      ).toThrow(/not a number/);
+    }
+  });
+
+  it("rejects an inverted or empty between bucket", () => {
+    // Bounds are half-open [lower, upper): equal bounds are empty and inverted
+    // ones can never hold an outcome.
+    for (const thresholds of [
+      ["4.62", "4.33"],
+      ["4.33", "4.33"],
+    ]) {
+      expect(() =>
+        bucketBoundsFromMarketData({ type: "between", thresholds })
+      ).toThrow(/lower < upper/);
+    }
+  });
+
+  it("rejects a non-positive equals tolerance", () => {
+    for (const tolerance of ["0", "-0.10"]) {
+      expect(() =>
+        bucketBoundsFromMarketData({
+          type: "equals",
+          thresholds: ["5.25", tolerance],
+        })
+      ).toThrow(/positive tolerance/);
+    }
+  });
+});
+
+describe("requireQueryTime", () => {
+  it("rejects a market whose query timestamp could not be read", () => {
+    // The identity stringifies null as "null", so two malformed markets would
+    // collide there and match each other. Refusing them is the point.
+    expect(() => requireQueryTime(101, { type: "below", timestamp: null })).toThrow(
+      /no readable query timestamp/
+    );
+  });
+
+  it("accepts a readable timestamp", () => {
+    expect(() =>
+      requireQueryTime(101, { type: "below", timestamp: 1700000000 })
+    ).not.toThrow();
+  });
+
+  it("leaves an unknown action type alone", () => {
+    // Its layout is unknown, so argument 2 need not be a timestamp at all; the
+    // bounds derivation rejects it with a better message.
+    expect(() =>
+      requireQueryTime(101, { type: "unknown", timestamp: null })
+    ).not.toThrow();
   });
 });
 
@@ -131,6 +189,8 @@ function betweenComponents(
 
 interface FakeMarket {
   components: Uint8Array;
+  /** Collateral namespace; part of the market's identity. */
+  bridge?: string;
   bounds: { lower: number | null; upper: number | null };
   yesBid: number | null;
   yesAsk: number | null;
@@ -294,6 +354,7 @@ function fakeAction(options?: {
         ? markets[queryId].components
         : new Uint8Array(0),
       settleTime: TIMESTAMP,
+      bridge: markets[queryId].bridge ?? "eth_usdc",
     }) as MarketInfo;
 
   action.getOrderBook = async (queryId: number, outcome: boolean) => {
@@ -439,6 +500,22 @@ describe("getMarketForecast", () => {
     // question asked of pinned data and of latest data is two different
     // queries.
     const both = { ...MSFT_MARKETS, ...PINNED_MARKETS };
+    await expect(
+      fakeAction({ markets: both }).getMarketForecast(
+        Object.keys(both).map(Number)
+      )
+    ).rejects.toThrow(/different event/);
+  });
+
+  it("rejects two markets that differ only in their bridge", async () => {
+    // The bridge is the one identity field outside the query components: it is
+    // a createMarket argument, so an identical question can be collateralised
+    // two ways. Those are separate markets with separate books.
+    const bridged: Record<number, FakeMarket> = {};
+    for (const [id, market] of Object.entries(MSFT_MARKETS)) {
+      bridged[Number(id) + 500] = { ...market, bridge: "eth_truf" };
+    }
+    const both = { ...MSFT_MARKETS, ...bridged };
     await expect(
       fakeAction({ markets: both }).getMarketForecast(
         Object.keys(both).map(Number)
