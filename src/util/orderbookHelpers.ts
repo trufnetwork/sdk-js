@@ -25,13 +25,18 @@ export interface MarketData {
   /**
    * The point in the stream the query observes, in unix seconds. Every bucket
    * of one market shares it; null only when the arguments could not be read.
+   *
+   * Optional so that code building a MarketData by hand — fixtures, mocks,
+   * anything predating the forecast API — still compiles. `decodeMarketData`
+   * always sets it, so a value read from the chain is never undefined.
    */
-  timestamp: number | null;
+  timestamp?: number | null;
   /**
    * The block height the data is pinned to. Encoded as NULL to mean "latest",
-   * so null is a real value rather than a decode failure.
+   * so null is a real value rather than a decode failure. Optional for the
+   * same reason as `timestamp`.
    */
-  frozenAt: number | null;
+  frozenAt?: number | null;
 }
 
 /**

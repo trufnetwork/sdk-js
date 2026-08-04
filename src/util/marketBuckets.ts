@@ -34,7 +34,10 @@ export function requireQueryTime(
   queryId: number,
   marketData: Pick<MarketData, "type" | "timestamp">
 ): void {
-  if (marketData.type !== "unknown" && marketData.timestamp === null) {
+  // `== null` on purpose: it catches undefined as well as null. `timestamp` is
+  // optional on MarketData so hand-built objects still compile, and one that
+  // omits it is exactly as unpinnable as one that decoded to null.
+  if (marketData.type !== "unknown" && marketData.timestamp == null) {
     throw new Error(
       `market ${queryId} carries no readable query timestamp, so it cannot ` +
         `be matched against the other buckets of its market`
