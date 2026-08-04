@@ -32,7 +32,16 @@ const BOUNDS: [number | null, number | null][] = [
 
 const round4 = (x: number) => Math.round(x * 1e4) / 1e4;
 
-/** Symmetric YES ladders plus the exact NO mirror our MM would post. */
+/**
+ * Symmetric YES ladders plus the exact NO mirror our MM would post.
+ *
+ * The mirror is deliberate and load-bearing: after consolidation every price
+ * appears TWICE (once from the YES side, once from the inverted NO side), so a
+ * bucket's side notional is double what the YES ladder alone would hold. Walk
+ * prices are unaffected — the duplicate sits at the same price — but the
+ * doubling is what lets the thin bucket in the confidence test clear
+ * DEPTH_MIN_SIDE_NOTIONAL_USD while still being a fraction of its siblings.
+ */
 function ladder(mid: number, size = 100, levels = 3, spread = 2, step = 1) {
   const yesBids: BookLevel[] = [];
   const yesAsks: BookLevel[] = [];
@@ -229,11 +238,17 @@ describe("the walk mid", () => {
       [1.0, 2.0],
       [2.0, null],
     ];
+    // Size 40 puts the thin bucket's consolidated sides at ~$10, comfortably
+    // clear of the $5 side floor. At 20 it landed on $5.10: still quoted, but
+    // close enough that a small change elsewhere would drop the side entirely
+    // and leave this test passing for the wrong reason (an unquoted bucket has
+    // confidence 0, which trivially satisfies the ratio check below).
     const f = forecastFromDepth(
-      build([62.5, 31.25, 6.25], [500, 500, 20], threeBounds)
+      build([62.5, 31.25, 6.25], [500, 500, 40], threeBounds)
     )!;
     const confs = f.buckets.map((b) => b.confidence);
     expect(confs[0]).toBeCloseTo(confs[1], 10);
+    expect(confs[2]).toBeGreaterThan(0);
     expect(confs[2]).toBeLessThan(confs[1] * 0.2);
 
     const whale = forecastFromDepth(

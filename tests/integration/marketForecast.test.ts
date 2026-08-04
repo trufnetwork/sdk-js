@@ -92,11 +92,14 @@ async function discoverGroups(
 
     for (const market of page) {
       scanned += 1;
+      // Outside the try on purpose: a transport or node failure is a real
+      // problem and must fail the run, not quietly shrink the candidate set.
+      const info = await orderbook.getMarketInfo(market.id);
+      if (!info.queryComponents || info.queryComponents.length === 0) continue;
+
       let candidate: Candidate;
       let key: string;
       try {
-        const info = await orderbook.getMarketInfo(market.id);
-        if (!info.queryComponents || info.queryComponents.length === 0) continue;
         const marketData = decodeMarketData(info.queryComponents);
         const bounds = bucketBoundsFromMarketData(marketData);
         candidate = {

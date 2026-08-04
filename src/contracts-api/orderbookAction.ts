@@ -704,21 +704,54 @@ export class OrderbookAction {
         `a market forecast needs at least 2 bucket query_ids, got ${queryIds.length}`
       );
     }
+    if (new Set(queryIds).size !== queryIds.length) {
+      const repeated = [
+        ...new Set(queryIds.filter((id, i) => queryIds.indexOf(id) !== i)),
+      ].sort((a, b) => a - b);
+      throw new Error(
+        `duplicate bucket query_ids ${repeated.join(", ")}; a repeated bucket ` +
+          `would have its probability counted twice`
+      );
+    }
 
     const books: BucketDepth[] = [];
+    let identity: string | null = null;
     for (const queryId of queryIds) {
-      const info = await this.getMarketInfo(queryId);
+      // The three reads are independent, so overlap them. Buckets stay
+      // sequential: fanning every bucket out at once would put 3N simultaneous
+      // calls on the gateway for no benefit the caller asked for.
+      const [info, yes, no] = await Promise.all([
+        this.getMarketInfo(queryId),
+        this.orderBookLadders(queryId, true),
+        this.orderBookLadders(queryId, false),
+      ]);
+
       if (!info.queryComponents || info.queryComponents.length === 0) {
         throw new Error(
           `market ${queryId} has no query_components, so its bucket bounds ` +
             `cannot be derived`
         );
       }
-      const { lower, upper } = bucketBoundsFromMarketData(
-        decodeMarketData(info.queryComponents)
-      );
-      const yes = await this.orderBookLadders(queryId, true);
-      const no = await this.orderBookLadders(queryId, false);
+      const marketData = decodeMarketData(info.queryComponents);
+
+      // Buckets of one market differ only in their strike: they share a data
+      // provider, a stream and a settlement time. Forecasting across two events
+      // would normalise unrelated probabilities into one distribution and
+      // return a confident number about nothing, so it is rejected rather than
+      // warned about.
+      const thisIdentity =
+        `${marketData.dataProvider}|${marketData.streamId}|${info.settleTime}`;
+      if (identity === null) {
+        identity = thisIdentity;
+      } else if (thisIdentity !== identity) {
+        throw new Error(
+          `market ${queryId} belongs to a different event than the first ` +
+            `bucket: (dataProvider, streamId, settleTime) is ${thisIdentity} ` +
+            `against ${identity}. One forecast covers the buckets of ONE market.`
+        );
+      }
+
+      const { lower, upper } = bucketBoundsFromMarketData(marketData);
       books.push({
         lower,
         upper,

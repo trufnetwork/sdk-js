@@ -577,9 +577,13 @@ function discreteFallback(
  * Publishing `sigma` here would be wrong: sigma is how uncertain the OUTCOME is,
  * not how well the book pins our estimate. The fallback also represents each
  * open tail by an invented point, so its centre is genuinely less trustworthy
- * than a rank read. Scale sigma down by the number of buckets we could actually
- * read, and floor it so a fallback can never claim to be tighter than a real
- * read.
+ * than a rank read, so sigma is scaled down by the number of buckets we could
+ * actually read.
+ *
+ * Upstream's docstring also claims a floor "so a fallback can never claim to be
+ * tighter than a real fit". No floor is implemented there, and adding one here
+ * would silently diverge from sdk-py, so the claim is dropped rather than the
+ * behaviour changed. Worth raising upstream.
  */
 function discreteMargin(
   sigma: number,

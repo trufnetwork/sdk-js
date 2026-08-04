@@ -47,7 +47,16 @@ export function bucketBoundsFromMarketData(
           `got ${thresholds.length}`
       );
     }
-    return Number(thresholds[index]);
+    const value = Number(thresholds[index]);
+    if (!Number.isFinite(value)) {
+      // Number("abc") is NaN, which would flow all the way into the forecast
+      // and surface as a NaN value rather than as this market being unreadable.
+      throw new Error(
+        `threshold ${index} of a '${marketType}' market is not a number: ` +
+          `'${thresholds[index]}'`
+      );
+    }
+    return value;
   };
 
   switch (marketType) {

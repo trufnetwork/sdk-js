@@ -76,30 +76,34 @@ const TIMESTAMP = 1700000000;
 /** Big enough that even a 1c level clears DEPTH_MIN_SIDE_NOTIONAL_USD. */
 const SIZE = 1000;
 
-function belowComponents(threshold: string): Uint8Array {
+function belowComponents(threshold: string, streamId = STREAM_ID): Uint8Array {
   return encodeQueryComponents(
     DATA_PROVIDER,
-    STREAM_ID,
+    streamId,
     "price_below_threshold",
-    encodeActionArgs(DATA_PROVIDER, STREAM_ID, TIMESTAMP, threshold, 0)
+    encodeActionArgs(DATA_PROVIDER, streamId, TIMESTAMP, threshold, 0)
   );
 }
 
-function aboveComponents(threshold: string): Uint8Array {
+function aboveComponents(threshold: string, streamId = STREAM_ID): Uint8Array {
   return encodeQueryComponents(
     DATA_PROVIDER,
-    STREAM_ID,
+    streamId,
     "price_above_threshold",
-    encodeActionArgs(DATA_PROVIDER, STREAM_ID, TIMESTAMP, threshold, 0)
+    encodeActionArgs(DATA_PROVIDER, streamId, TIMESTAMP, threshold, 0)
   );
 }
 
-function betweenComponents(min: string, max: string): Uint8Array {
+function betweenComponents(
+  min: string,
+  max: string,
+  streamId = STREAM_ID
+): Uint8Array {
   return encodeQueryComponents(
     DATA_PROVIDER,
-    STREAM_ID,
+    streamId,
     "value_in_range",
-    encodeRangeActionArgs(DATA_PROVIDER, STREAM_ID, TIMESTAMP, min, max, 0)
+    encodeRangeActionArgs(DATA_PROVIDER, streamId, TIMESTAMP, min, max, 0)
   );
 }
 
@@ -150,6 +154,32 @@ const MSFT_MARKETS: Record<number, FakeMarket> = {
 
 const ALL_QUERY_IDS = Object.keys(MSFT_MARKETS).map(Number);
 
+/**
+ * A second, independently valid bucket set, on a different stream. Each set
+ * forecasts fine alone; the two together describe unrelated events.
+ */
+const OTHER_STREAM_ID = "stother0000000000000000000000000";
+const OTHER_MARKETS: Record<number, FakeMarket> = {
+  201: {
+    components: belowComponents("4.04", OTHER_STREAM_ID),
+    bounds: { lower: null, upper: 4.04 },
+    yesBid: 1,
+    yesAsk: null,
+  },
+  202: {
+    components: betweenComponents("4.04", "4.33", OTHER_STREAM_ID),
+    bounds: { lower: 4.04, upper: 4.33 },
+    yesBid: 16,
+    yesAsk: 28,
+  },
+  203: {
+    components: aboveComponents("4.33", OTHER_STREAM_ID),
+    bounds: { lower: 4.33, upper: null },
+    yesBid: 44,
+    yesAsk: 56,
+  },
+};
+
 function row(price: number): OrderBookEntry {
   return {
     walletAddress: new Uint8Array(20),
@@ -181,6 +211,7 @@ function fakeAction(options?: {
       queryComponents: withComponents
         ? markets[queryId].components
         : new Uint8Array(0),
+      settleTime: TIMESTAMP,
     }) as MarketInfo;
 
   action.getOrderBook = async (queryId: number, outcome: boolean) => {
@@ -198,7 +229,9 @@ function fakeAction(options?: {
 
 /** The same books, built directly, to compare the assembled path against. */
 function depths(): BucketDepth[] {
-  return ALL_QUERY_IDS.sort((a, b) => a - b).map((queryId) => {
+  // Copy before sorting: ALL_QUERY_IDS is shared, and other tests assert on its
+  // order.
+  return [...ALL_QUERY_IDS].sort((a, b) => a - b).map((queryId) => {
     const { bounds, yesBid, yesAsk } = MSFT_MARKETS[queryId];
     const yesBids: BookLevel[] =
       yesBid !== null ? [{ price: yesBid, size: SIZE }] : [];
@@ -285,6 +318,36 @@ describe("getMarketForecast", () => {
     await expect(fakeAction().getMarketForecast([103])).rejects.toThrow(
       /at least 2/
     );
+  });
+
+  it("rejects duplicate query ids", async () => {
+    // A repeated bucket would have its probability counted twice, quietly
+    // reshaping the distribution rather than failing.
+    await expect(
+      fakeAction().getMarketForecast([101, 102, 103, 103])
+    ).rejects.toThrow(/duplicate/);
+  });
+
+  it("rejects buckets belonging to two different markets", async () => {
+    // Normalising across two events would divide one market's probabilities by
+    // the other's total and return a confident number about nothing. Both sets
+    // are individually valid, so nothing but the identity check catches this.
+    const both = { ...MSFT_MARKETS, ...OTHER_MARKETS };
+    await expect(
+      fakeAction({ markets: both }).getMarketForecast(
+        Object.keys(both).map(Number)
+      )
+    ).rejects.toThrow(/different event/);
+  });
+
+  it("still forecasts each of those sets on its own", async () => {
+    // The identity check must reject the mixture without rejecting either half.
+    expect(await fakeAction().getMarketForecast(ALL_QUERY_IDS)).not.toBeNull();
+    expect(
+      await fakeAction({ markets: OTHER_MARKETS }).getMarketForecast(
+        Object.keys(OTHER_MARKETS).map(Number)
+      )
+    ).not.toBeNull();
   });
 
   it("rejects a market without query components", async () => {
