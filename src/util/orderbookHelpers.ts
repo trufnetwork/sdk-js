@@ -25,12 +25,29 @@ export interface MarketData {
   /**
    * The point in the stream the query observes, in unix seconds. Every bucket
    * of one market shares it; null only when the arguments could not be read.
+   *
+   * Optional here so that code building a MarketData by hand — fixtures, mocks,
+   * anything predating the forecast API — still compiles. Anything that came
+   * out of {@link decodeMarketData} is a {@link DecodedMarketData}, where it is
+   * required and needs no undefined check.
    */
-  timestamp: number | null;
+  timestamp?: number | null;
   /**
    * The block height the data is pinned to. Encoded as NULL to mean "latest",
-   * so null is a real value rather than a decode failure.
+   * so null is a real value rather than a decode failure. Optional for the
+   * same reason as `timestamp`.
    */
+  frozenAt?: number | null;
+}
+
+/**
+ * A {@link MarketData} that came off the chain rather than being built by hand.
+ *
+ * `decodeMarketData` always populates the time fields, so callers reading a
+ * decoded market get `number | null` and never have to rule out `undefined`.
+ */
+export interface DecodedMarketData extends MarketData {
+  timestamp: number | null;
   frozenAt: number | null;
 }
 
@@ -46,12 +63,12 @@ export interface MarketData {
  * console.log(`Market type: ${market.type}, Threshold: ${market.thresholds[0]}`);
  * ```
  */
-export function decodeMarketData(encoded: string | Uint8Array): MarketData {
+export function decodeMarketData(encoded: string | Uint8Array): DecodedMarketData {
   const bytes = dbBytesToUint8Array(encoded);
   const { dataProvider, streamId, actionId, args: argsBytes } = decodeQueryComponents(bytes);
   const args = decodeActionArgs(argsBytes);
 
-  const market: MarketData = {
+  const market: DecodedMarketData = {
     dataProvider,
     streamId,
     actionId,
@@ -138,7 +155,7 @@ export interface CreateMarketPayload {
    * be decoded — a committed-but-execution-failed create_market can carry empty/garbage
    * query_components, and an explorer should still see the top-level fields.
    */
-  market: MarketData | null;
+  market: DecodedMarketData | null;
   /** Unix timestamp at which the market settles. */
   settleTime: number;
   /** Maximum bid-ask spread allowed, in cents. */
@@ -195,7 +212,7 @@ export function decodeCreateMarketPayload(
     queryComponents as string | Uint8Array
   );
 
-  let market: MarketData | null;
+  let market: DecodedMarketData | null;
   try {
     market = decodeMarketData(queryComponentsBytes);
   } catch {
@@ -601,7 +618,7 @@ export function validateSettleTime(settleTime: number): void {
 /**
  * Converts settled filter boolean to the value for Kuneiform.
  *
- * @param filter - Boolean filter (null/undefined=all, true=unsettled, false=settled)
+ * @param filter - Boolean filter (null/undefined=all, true=settled, false=active)
  * @returns Boolean or null (null=all, true/false=filter by settled status)
  */
 export function settledFilterToBoolean(
@@ -610,5 +627,5 @@ export function settledFilterToBoolean(
   if (filter === null || filter === undefined) {
     return null; // All markets
   }
-  return filter; // true=unsettled, false=settled
+  return filter; // passed to `WHERE settled = $settled_filter`
 }

@@ -1384,9 +1384,9 @@ interface MarketData {
 Lists markets with optional filtering.
 
 ```typescript
-// Get all unsettled markets
+// Get all settled markets
 const markets = await orderbook.listMarkets({
-  settledFilter: true, // true=unsettled, false=settled, null=all
+  settledFilter: true, // true=settled, false=active, null=all
   limit: 100,
   offset: 0,
 });
