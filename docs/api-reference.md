@@ -1500,17 +1500,19 @@ Gets one outcome's book with the opposite outcome's quotes folded in, so you see
 every quote the chain will actually fill.
 
 The two books of a binary market are two views of one position. A resting SELL NO
-at 93c lets someone buy YES at 7c, and the matching engine executes it by burning
-the share pair. In the YES frame:
+at 93c is a standing **bid** for YES at 7c: a trader hits it by **selling** YES,
+both sides sell, and the matching engine burns the share pair. In the YES frame:
 
-```
+```text
 consolidated bids = YES bids + (100 - p for every NO ask)
 consolidated asks = YES asks + (100 - p for every NO bid)
 ```
 
 The sides swap: a NO ask arrives as a YES bid. `outcome` defaults to `true`, and
 the NO-framed book is the YES-framed book reflected. Costs two `getMarketDepth`
-reads, issued together.
+reads. They are issued together, but the node exposes no way to pin both to one
+block, so on a moving book the two sides can come from adjacent heights and
+`isCrossed` is best-effort.
 
 ```typescript
 const book = await orderbook.getConsolidatedOrderBook(queryId);

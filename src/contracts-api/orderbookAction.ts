@@ -682,9 +682,10 @@ export class OrderbookAction {
    *
    * `getMarketDepth` returns a single outcome's ladder, but a binary market's
    * two books are two views of one position and the matching engine fills
-   * across them. A resting SELL NO at 93c is a standing offer that lets someone
-   * buy YES at 7c, and the chain will execute it. Reading only the YES book
-   * makes that quote invisible and the market look thinner than it is.
+   * across them. A resting SELL NO at 93c is a standing BID for YES at 7c: a
+   * trader hits it by SELLING YES, both sides sell, and the chain burns the
+   * share pair. Reading only the YES book makes that quote invisible and the
+   * market look thinner than it is.
    *
    * So, in the YES frame:
    *
@@ -702,7 +703,10 @@ export class OrderbookAction {
    * regular ladder quotes fills the chain will not produce. Each level keeps
    * `native` and `inverse` separately so a caller can price that correctly.
    *
-   * Costs two `get_market_depth` reads, issued together.
+   * Costs two `get_market_depth` reads. They are issued together, but the node
+   * exposes no way to pin both to one block, so on a moving book the two sides
+   * can come from adjacent heights and `isCrossed` is best-effort. Do not treat
+   * a crossed result as a settled arbitrage without re-reading.
    *
    * @param queryId - Market identifier
    * @param outcome - The outcome to frame prices in: true=YES (default),
