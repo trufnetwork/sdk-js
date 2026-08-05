@@ -96,6 +96,9 @@
 // has no standard-library answer for. If it is ever wired back up upstream, it
 // has to be written here from scratch, not ported.
 
+import { consolidateSide } from "./consolidatedBook";
+import type { BookLevel } from "./consolidatedBook";
+
 /** A bracket at least this wide contributes essentially nothing. */
 const MIN_CONFIDENCE = 1e-3;
 
@@ -150,13 +153,7 @@ export type ForecastBasis = "interior" | "tail" | "unresolved";
 /** How the point estimate was produced. */
 export type ForecastMethod = "rank" | "discrete";
 
-/** One resting level: price in cents (positive, 1-99), size in shares. */
-export interface BookLevel {
-  /** Price in cents, positive, 1-99. */
-  price: number;
-  /** Size in shares. */
-  size: number;
-}
+export type { BookLevel };
 
 /**
  * One bucket's bounds and its best two-sided quote, in cents.
@@ -308,11 +305,6 @@ export function forecastToJSON(forecast: MarketForecast): MarketForecastJSON {
 // Quote helpers
 // ============================================
 
-/** Prices are cent-denominated; keep the inverted ones off float dust. */
-function round4(value: number): number {
-  return Math.round(value * 1e4) / 1e4;
-}
-
 /**
  * Resolve an exact `.5` tie to even, the way Python's format spec does.
  *
@@ -380,35 +372,27 @@ export function usableAsk(book: BucketBook): number | null {
 /**
  * The bucket's executable bid ladder: its YES bids plus every NO ask inverted
  * to the YES price it is hittable at. Best (highest) first.
+ *
+ * A native and an inverted level landing on the same price merge into one
+ * entry. Everything downstream here sums price x size or walks the ladder in
+ * price order, so merging leaves the forecast numbers unchanged. Callers that
+ * need the native/inverse split should use {@link consolidateSide} directly.
  */
 export function consolidatedBids(depth: BucketDepth): BookLevel[] {
-  const levels: BookLevel[] = [];
-  for (const level of depth.yesBids ?? []) {
-    if (level.size > 0) levels.push(level);
-  }
-  for (const level of depth.noAsks ?? []) {
-    if (level.size > 0) {
-      levels.push({ price: round4(100 - level.price), size: level.size });
-    }
-  }
-  return levels.sort((a, b) => b.price - a.price);
+  return consolidateSide(depth.yesBids ?? [], depth.noAsks ?? [], "bid").map(
+    (level) => ({ price: level.price, size: level.total })
+  );
 }
 
 /**
  * The bucket's executable ask ladder: its YES asks plus every NO bid inverted
- * to the YES price it is hittable at. Best (lowest) first.
+ * to the YES price it is hittable at. Best (lowest) first. Same-price levels
+ * merge, as in {@link consolidatedBids}.
  */
 export function consolidatedAsks(depth: BucketDepth): BookLevel[] {
-  const levels: BookLevel[] = [];
-  for (const level of depth.yesAsks ?? []) {
-    if (level.size > 0) levels.push(level);
-  }
-  for (const level of depth.noBids ?? []) {
-    if (level.size > 0) {
-      levels.push({ price: round4(100 - level.price), size: level.size });
-    }
-  }
-  return levels.sort((a, b) => a.price - b.price);
+  return consolidateSide(depth.yesAsks ?? [], depth.noBids ?? [], "ask").map(
+    (level) => ({ price: level.price, size: level.total })
+  );
 }
 
 /** The consolidated best quotes, for the spread and dutch-book helpers. */

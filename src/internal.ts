@@ -139,6 +139,8 @@ export type {
   WalletPosition,
   DepthLevel,
   BestPrices,
+  ConsolidatedLevel,
+  ConsolidatedOrderBook,
   UserCollateral,
   DistributionSummary,
   LPRewardDetail,
@@ -208,6 +210,15 @@ export type {
 
 export { bucketBoundsFromMarketData } from "./util/marketBuckets";
 export type { BucketBounds } from "./util/marketBuckets";
+
+// Consolidating a market's two outcome books into one executable ladder.
+export {
+  consolidateSide,
+  inversePrice,
+  depthBids,
+  depthAsks,
+} from "./util/consolidatedBook";
+export type { BookSide } from "./util/consolidatedBook";
 
 // Local actions types
 export type {

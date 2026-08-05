@@ -1,6 +1,7 @@
 import { KwilSigner, NodeKwil } from "@trufnetwork/kwil-js";
 import { describe, it, expect, vi } from "vitest";
 import { OrderbookAction } from "./orderbookAction";
+import type { ConsolidatedLevel } from "../types/orderbook";
 
 /**
  * Pure-unit tests for the address-parameterized portfolio getters (migration 051):
@@ -150,5 +151,168 @@ describe("OrderbookAction.getCollateralByWallet", () => {
     await expect(action.getCollateralByWallet(wallet, "hoodi_tt2")).rejects.toThrow(
       "Failed to get collateral by wallet: 503",
     );
+  });
+});
+
+/**
+ * getConsolidatedOrderBook: the two outcome books folded into the one ladder a
+ * trader can actually hit. The mapping is arithmetic on two get_market_depth
+ * reads, so it is fully testable against a mocked client. What matters is that
+ * the SIDES swap (a NO ask is a YES bid, not a YES ask) and that each level
+ * keeps its native/inverse split, since mint and burn only fire at the exact
+ * complement and a caller quoting a fill needs to know which is which.
+ */
+
+/** One depth row as get_market_depth returns it: price plus both volumes. */
+type DepthRow = { price: number; buy?: number; sell?: number };
+
+function makeDepthAction(books: { yes: DepthRow[]; no: DepthRow[] }) {
+  const call = vi.fn(async (body: { name: string; inputs: Record<string, unknown> }) => {
+    if (body.name !== "get_market_depth") {
+      throw new Error(`unexpected action ${body.name}`);
+    }
+    const rows = (body.inputs.$outcome ? books.yes : books.no).map((row) => ({
+      price: row.price,
+      buy_volume: row.buy ?? 0,
+      sell_volume: row.sell ?? 0,
+    }));
+    return ok(rows);
+  });
+  return { call, action: makeAction(call as unknown as ReturnType<typeof vi.fn>) };
+}
+
+describe("OrderbookAction.getConsolidatedOrderBook", () => {
+  it("reads both outcomes' depth for the market", async () => {
+    const { call, action } = makeDepthAction({ yes: [], no: [] });
+
+    const book = await action.getConsolidatedOrderBook(419);
+
+    expect(call).toHaveBeenCalledTimes(2);
+    expect(call.mock.calls.map((c) => c[0].inputs)).toEqual([
+      { $query_id: 419, $outcome: true },
+      { $query_id: 419, $outcome: false },
+    ]);
+    expect(book).toEqual({
+      queryId: 419,
+      outcome: true,
+      bids: [],
+      asks: [],
+      isCrossed: false,
+    });
+  });
+
+  it("shows a NO ask at 93 as a YES bid at 7 of the same size", async () => {
+    // The case from truflation/website#4385: an ask for 4 shares of NO at 93c
+    // is economically a bid for 4 shares of YES at 7c, and the chain burns the
+    // pair to fill it.
+    const { action } = makeDepthAction({
+      yes: [],
+      no: [{ price: 93, sell: 4 }],
+    });
+
+    const book = await action.getConsolidatedOrderBook(419, true);
+
+    expect(book.bids).toEqual([{ price: 7, total: 4, native: 0, inverse: 4 }]);
+    expect(book.asks).toEqual([]);
+  });
+
+  it("shows a NO bid at 41 as a YES ask at 59", async () => {
+    const { action } = makeDepthAction({
+      yes: [],
+      no: [{ price: 41, buy: 200 }],
+    });
+
+    const book = await action.getConsolidatedOrderBook(419, true);
+
+    expect(book.asks).toEqual([{ price: 59, total: 200, native: 0, inverse: 200 }]);
+    expect(book.bids).toEqual([]);
+  });
+
+  it("merges native and inverse volume at one price and keeps the split", async () => {
+    const { action } = makeDepthAction({
+      yes: [{ price: 59, sell: 100 }],
+      no: [{ price: 41, buy: 200 }],
+    });
+
+    const book = await action.getConsolidatedOrderBook(419, true);
+
+    expect(book.asks).toEqual([{ price: 59, total: 300, native: 100, inverse: 200 }]);
+  });
+
+  it("sorts bids best-highest and asks best-lowest", async () => {
+    const { action } = makeDepthAction({
+      yes: [
+        { price: 60, sell: 100 },
+        { price: 30, buy: 10 },
+      ],
+      no: [
+        { price: 41, buy: 200 },
+        { price: 45, buy: 50 },
+        { price: 55, sell: 25 },
+      ],
+    });
+
+    const book = await action.getConsolidatedOrderBook(419, true);
+
+    expect(book.asks.map((l) => l.price)).toEqual([55, 59, 60]);
+    expect(book.bids.map((l) => l.price)).toEqual([45, 30]);
+  });
+
+  it("returns the NO book as the YES book reflected", async () => {
+    const books = {
+      yes: [
+        { price: 60, sell: 100 },
+        { price: 30, buy: 10 },
+      ],
+      no: [
+        { price: 41, buy: 200 },
+        { price: 55, sell: 25 },
+      ],
+    };
+    const yesBook = await makeDepthAction(books).action.getConsolidatedOrderBook(419, true);
+    const noBook = await makeDepthAction(books).action.getConsolidatedOrderBook(419, false);
+
+    expect(noBook.outcome).toBe(false);
+    // Price q on one side is 100 - q on the other, bids become asks, and what
+    // was native in the YES frame is inverse in the NO frame.
+    const mirror = (l: ConsolidatedLevel): ConsolidatedLevel => ({
+      price: 100 - l.price,
+      total: l.total,
+      native: l.inverse,
+      inverse: l.native,
+    });
+    expect(noBook.asks).toEqual(yesBook.bids.map(mirror));
+    expect(noBook.bids).toEqual(yesBook.asks.map(mirror));
+  });
+
+  it("reports a crossed book rather than hiding it", async () => {
+    // A YES bid at 61 and a NO bid at 45 read as a bid at 61 over an ask at 55.
+    // 61 + 45 is 106, so no mint fires and the crossing rests indefinitely.
+    const { action } = makeDepthAction({
+      yes: [{ price: 61, buy: 30 }],
+      no: [{ price: 45, buy: 30 }],
+    });
+
+    const book = await action.getConsolidatedOrderBook(419, true);
+
+    expect(book.bids[0].price).toBe(61);
+    expect(book.asks[0].price).toBe(55);
+    expect(book.isCrossed).toBe(true);
+  });
+
+  it("drops empty price levels and never reports an uncrossed book as crossed", async () => {
+    const { action } = makeDepthAction({
+      yes: [
+        { price: 40, buy: 0, sell: 0 },
+        { price: 45, buy: 10 },
+      ],
+      no: [{ price: 44, buy: 20 }],
+    });
+
+    const book = await action.getConsolidatedOrderBook(419, true);
+
+    expect(book.bids).toEqual([{ price: 45, total: 10, native: 10, inverse: 0 }]);
+    expect(book.asks).toEqual([{ price: 56, total: 20, native: 0, inverse: 20 }]);
+    expect(book.isCrossed).toBe(false);
   });
 });
