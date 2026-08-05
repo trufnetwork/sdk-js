@@ -1494,6 +1494,45 @@ for (const level of depth) {
 }
 ```
 
+#### `orderbook.getConsolidatedOrderBook(queryId: number, outcome?: boolean): Promise<ConsolidatedOrderBook>`
+
+Gets one outcome's book with the opposite outcome's quotes folded in, so you see
+every quote the chain will actually fill.
+
+The two books of a binary market are two views of one position. A resting SELL NO
+at 93c is a standing **bid** for YES at 7c: a trader hits it by **selling** YES,
+both sides sell, and the matching engine burns the share pair. In the YES frame:
+
+```text
+consolidated bids = YES bids + (100 - p for every NO ask)
+consolidated asks = YES asks + (100 - p for every NO bid)
+```
+
+The sides swap: a NO ask arrives as a YES bid. `outcome` defaults to `true`, and
+the NO-framed book is the YES-framed book reflected. Costs two `getMarketDepth`
+reads. They are issued together, but the node exposes no way to pin both to one
+block, so on a moving book the two sides can come from adjacent heights and
+`isCrossed` is best-effort.
+
+```typescript
+const book = await orderbook.getConsolidatedOrderBook(queryId);
+for (const level of book.asks) {
+  console.log(`${level.price}c: ${level.total} shares (${level.native} direct, ${level.inverse} mint)`);
+}
+if (book.isCrossed) console.log("best bid is at or above best ask");
+```
+
+**This is not a sweepable ladder.** A direct same-outcome match crosses prices,
+but mint and burn fire only when the two prices sum to exactly 100. So one order
+fills every native level past its limit plus exactly **one** inverse level.
+Walking these levels the way you would walk `getMarketDepth` quotes fills the
+chain will not produce, which is why each level keeps `native` and `inverse`
+separate rather than only their sum.
+
+A consolidated book can also sit crossed indefinitely: a YES bid at 61 against a
+NO bid at 45 shows a bid at 61 over an ask at 55, and 61 + 45 is not 100 so
+nothing matches. Render it rather than treating it as bad data.
+
 #### `orderbook.getUserPositions(): Promise<UserPosition[]>`
 
 Gets the caller's positions across all markets.

@@ -15,6 +15,7 @@ import {
   WalletPosition,
   DepthLevel,
   BestPrices,
+  ConsolidatedOrderBook,
   UserCollateral,
   DistributionSummary,
   LPRewardDetail,
@@ -68,6 +69,11 @@ import type {
   BucketDepth,
   MarketForecast,
 } from "../util/forecast";
+import {
+  consolidateSide,
+  depthAsks,
+  depthBids,
+} from "../util/consolidatedBook";
 
 /**
  * OrderbookAction provides methods for interacting with binary prediction markets.
@@ -668,6 +674,81 @@ export class OrderbookAction {
       bestBid: row.best_bid,
       bestAsk: row.best_ask,
       spread: row.spread,
+    };
+  }
+
+  /**
+   * Gets one outcome's order book with the opposite outcome's quotes folded in.
+   *
+   * `getMarketDepth` returns a single outcome's ladder, but a binary market's
+   * two books are two views of one position and the matching engine fills
+   * across them. A resting SELL NO at 93c is a standing BID for YES at 7c: a
+   * trader hits it by SELLING YES, both sides sell, and the chain burns the
+   * share pair. Reading only the YES book makes that quote invisible and the
+   * market look thinner than it is.
+   *
+   * So, in the YES frame:
+   *
+   *     consolidated bids = YES bids + (100 - p for every NO ask)
+   *     consolidated asks = YES asks + (100 - p for every NO bid)
+   *
+   * The sides swap: a NO ask arrives as a YES bid. Hitting it means both
+   * parties sell and the share pair burns; hitting a consolidated ask means
+   * both buy and a pair mints.
+   *
+   * **The result is not a sweepable ladder.** Mint and burn matches fire only
+   * when the two prices sum to exactly 100, while a direct same-outcome match
+   * crosses. So one order fills every native level past its limit plus exactly
+   * ONE inverse level, and walking these levels the way you would walk a
+   * regular ladder quotes fills the chain will not produce. Each level keeps
+   * `native` and `inverse` separately so a caller can price that correctly.
+   *
+   * Costs two `get_market_depth` reads. They are issued together, but the node
+   * exposes no way to pin both to one block, so on a moving book the two sides
+   * can come from adjacent heights and `isCrossed` is best-effort. Do not treat
+   * a crossed result as a settled arbitrage without re-reading.
+   *
+   * @param queryId - Market identifier
+   * @param outcome - The outcome to frame prices in: true=YES (default),
+   *   false=NO. The NO-framed book is the YES-framed book reflected, so one
+   *   call answers either tab.
+   * @returns Both consolidated ladders, best first, and whether they cross
+   *
+   * @example
+   * ```typescript
+   * const book = await orderbook.getConsolidatedOrderBook(419);
+   * for (const level of book.asks) {
+   *   console.log(level.price, level.total, level.native, level.inverse);
+   * }
+   * ```
+   */
+  async getConsolidatedOrderBook(
+    queryId: number,
+    outcome: boolean = true
+  ): Promise<ConsolidatedOrderBook> {
+    const [native, opposite] = await Promise.all([
+      this.getMarketDepth(queryId, outcome),
+      this.getMarketDepth(queryId, !outcome),
+    ]);
+
+    const bids = consolidateSide(
+      depthBids(native),
+      depthAsks(opposite),
+      "bid"
+    );
+    const asks = consolidateSide(
+      depthAsks(native),
+      depthBids(opposite),
+      "ask"
+    );
+
+    return {
+      queryId,
+      outcome,
+      bids,
+      asks,
+      isCrossed:
+        bids.length > 0 && asks.length > 0 && bids[0].price >= asks[0].price,
     };
   }
 

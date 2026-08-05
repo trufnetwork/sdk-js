@@ -420,6 +420,13 @@ await client.waitForTx(result.data!.tx_hash);
 // Get best prices
 const prices = await orderbook.getBestPrices(market.id, true);
 console.log(`YES: Bid=${prices.bestBid}c, Ask=${prices.bestAsk}c`);
+
+// Get every quote the chain will fill, including the NO book inverted into
+// the YES frame (a resting SELL NO at 93c is a hittable YES bid at 7c)
+const book = await orderbook.getConsolidatedOrderBook(market.id, true);
+for (const level of book.asks) {
+  console.log(`${level.price}c: ${level.total} (${level.native} direct, ${level.inverse} mint)`);
+}
 ```
 
 #### Market Making with Split Limit Orders
@@ -532,6 +539,7 @@ For other bundlers or serverless platforms, consult their documentation on modul
 | Place buy order | `orderbook.placeBuyOrder({queryId, outcome, price, amount})` |
 | Place split limit order | `orderbook.placeSplitLimitOrder({queryId, truePrice, amount})` |
 | Get order book | `orderbook.getOrderBook(queryId, outcome)` |
+| Get consolidated order book | `orderbook.getConsolidatedOrderBook(queryId, outcome)` |
 | Get best prices | `orderbook.getBestPrices(queryId, outcome)` |
 | Destroy stream | `client.destroyStream(streamLocator)` |
 

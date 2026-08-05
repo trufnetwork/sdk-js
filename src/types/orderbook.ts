@@ -178,6 +178,46 @@ export interface BestPrices {
   spread: number | null;
 }
 
+/**
+ * One price level of a consolidated order book, in the requested outcome's
+ * frame.
+ *
+ * `native` rests in this outcome's own book and fills as a direct match.
+ * `inverse` rests in the opposite outcome's book at `100 - price`, and fills by
+ * minting a share pair on the ask side or burning one on the bid side.
+ */
+export interface ConsolidatedLevel {
+  /** Price level in cents, 1-99 */
+  price: number;
+  /** Shares available here, native + inverse */
+  total: number;
+  /** Shares resting in this outcome's own book */
+  native: number;
+  /** Shares resting in the opposite outcome's book at 100 - price */
+  inverse: number;
+}
+
+/** One outcome's order book with the opposite outcome's quotes folded in */
+export interface ConsolidatedOrderBook {
+  /** Market identifier */
+  queryId: number;
+  /** The outcome the prices are framed in: true=YES, false=NO */
+  outcome: boolean;
+  /** Executable bids, best (highest) first */
+  bids: ConsolidatedLevel[];
+  /** Executable asks, best (lowest) first */
+  asks: ConsolidatedLevel[];
+  /**
+   * Whether the best bid sits at or above the best ask.
+   *
+   * A consolidated book can be crossed and stay that way. A YES bid at 61 and a
+   * NO bid at 45 read as a bid at 61 over an ask at 55, and the engine will
+   * never match them because 61 + 45 is not 100. Render it rather than treating
+   * it as bad data.
+   */
+  isCrossed: boolean;
+}
+
 /** User's locked collateral across all markets */
 export interface UserCollateral {
   /** Total locked collateral in wei (NUMERIC(78,0) as string) */
