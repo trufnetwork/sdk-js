@@ -168,6 +168,24 @@ export interface DepthLevel {
   sellVolume: number;
 }
 
+/**
+ * Aggregated depth at one outcome's price level, as `get_full_market_depth`
+ * returns it.
+ *
+ * The outcome tag is what a `DepthLevel` leaves implicit, because the call it
+ * comes from asked for one outcome.
+ */
+export interface FullDepthLevel {
+  /** The outcome this level rests on: true=YES, false=NO */
+  outcome: boolean;
+  /** Price level in cents */
+  price: number;
+  /** Total shares in buy orders at this outcome and price */
+  buyVolume: number;
+  /** Total shares in sell orders at this outcome and price */
+  sellVolume: number;
+}
+
 /** Best bid/ask prices for a market outcome */
 export interface BestPrices {
   /** Best bid price (null if no bids) */
@@ -470,6 +488,14 @@ export interface RawWalletPosition {
 
 /** @internal Raw depth level from database */
 export interface RawDepthLevel {
+  price: number | string;
+  buy_volume: number | string;
+  sell_volume: number | string;
+}
+
+/** @internal Raw full depth level from database */
+export interface RawFullDepthLevel {
+  outcome: boolean;
   price: number | string;
   buy_volume: number | string;
   sell_volume: number | string;

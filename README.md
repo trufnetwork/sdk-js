@@ -540,6 +540,7 @@ For other bundlers or serverless platforms, consult their documentation on modul
 | Place split limit order | `orderbook.placeSplitLimitOrder({queryId, truePrice, amount})` |
 | Get order book | `orderbook.getOrderBook(queryId, outcome)` |
 | Get consolidated order book | `orderbook.getConsolidatedOrderBook(queryId, outcome)` |
+| Get both outcomes' depth | `orderbook.getFullMarketDepth(queryId)` |
 | Get best prices | `orderbook.getBestPrices(queryId, outcome)` |
 | Destroy stream | `client.destroyStream(streamLocator)` |
 

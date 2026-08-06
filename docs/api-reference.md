@@ -1494,6 +1494,28 @@ for (const level of depth) {
 }
 ```
 
+#### `orderbook.getFullMarketDepth(queryId: number): Promise<FullDepthLevel[]>`
+
+Gets aggregated volume at each price level for **both** outcomes, from one read.
+
+Same aggregation as `getMarketDepth`, for the whole market instead of one
+outcome, with each level tagged by the outcome it rests on. Rows arrive YES first
+then NO, price ascending within each.
+
+One statement means one snapshot. Anything comparing the two outcomes to each
+other wants this rather than two `getMarketDepth` calls, because between two
+calls an order can land on one side and not the other. `getMarketDepth` is
+unchanged and stays the right call when you want one outcome — a depth chart, a
+market-making bot quoting one side.
+
+```typescript
+const depth = await orderbook.getFullMarketDepth(queryId);
+for (const level of depth) {
+  const side = level.outcome ? "YES" : "NO";
+  console.log(`${side} ${level.price}c: ${level.buyVolume} buy, ${level.sellVolume} sell`);
+}
+```
+
 #### `orderbook.getConsolidatedOrderBook(queryId: number, outcome?: boolean): Promise<ConsolidatedOrderBook>`
 
 Gets one outcome's book with the opposite outcome's quotes folded in, so you see
@@ -1509,10 +1531,12 @@ consolidated asks = YES asks + (100 - p for every NO bid)
 ```
 
 The sides swap: a NO ask arrives as a YES bid. `outcome` defaults to `true`, and
-the NO-framed book is the YES-framed book reflected. Costs two `getMarketDepth`
-reads. They are issued together, but the node exposes no way to pin both to one
-block, so on a moving book the two sides can come from adjacent heights and
-`isCrossed` is best-effort.
+the NO-framed book is the YES-framed book reflected. Costs one
+`getFullMarketDepth` read, so both sides are one snapshot of the chain and
+`isCrossed` describes a state the book was really in. This used to take two
+`getMarketDepth` calls, where an order landing between them could make the
+stitched ladder read as crossed when neither height was. Requires a node carrying
+`get_full_market_depth`.
 
 ```typescript
 const book = await orderbook.getConsolidatedOrderBook(queryId);

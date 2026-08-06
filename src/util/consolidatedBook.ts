@@ -21,7 +21,11 @@
  * so anything quoting a fill needs the split to get the answer right.
  */
 
-import type { ConsolidatedLevel, DepthLevel } from "../types/orderbook";
+import type {
+  ConsolidatedLevel,
+  DepthLevel,
+  FullDepthLevel,
+} from "../types/orderbook";
 
 /** One resting level: price in cents (positive, 1-99), size in shares. */
 export interface BookLevel {
@@ -83,6 +87,33 @@ export function consolidateSide(
   const levels = [...byPrice.values()];
   levels.sort((a, b) => (side === "bid" ? b.price - a.price : a.price - b.price));
   return levels;
+}
+
+/**
+ * Separates a whole-market depth read into the ladder for the requested outcome
+ * and the ladder for the other one.
+ *
+ * The outcome tag is the only thing that distinguishes the two here: prices stay
+ * in each outcome's own frame, and inverting the opposite side into this frame is
+ * `consolidateSide`'s job.
+ */
+export function splitFullDepth(
+  depth: readonly FullDepthLevel[],
+  outcome: boolean
+): { native: DepthLevel[]; opposite: DepthLevel[] } {
+  const native: DepthLevel[] = [];
+  const opposite: DepthLevel[] = [];
+
+  for (const level of depth) {
+    const target = level.outcome === outcome ? native : opposite;
+    target.push({
+      price: level.price,
+      buyVolume: level.buyVolume,
+      sellVolume: level.sellVolume,
+    });
+  }
+
+  return { native, opposite };
 }
 
 /** The buy orders in a depth ladder, as levels. */
