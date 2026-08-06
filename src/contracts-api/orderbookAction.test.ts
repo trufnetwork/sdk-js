@@ -156,22 +156,31 @@ describe("OrderbookAction.getCollateralByWallet", () => {
 
 /**
  * getConsolidatedOrderBook: the two outcome books folded into the one ladder a
- * trader can actually hit. The mapping is arithmetic on two get_market_depth
- * reads, so it is fully testable against a mocked client. What matters is that
- * the SIDES swap (a NO ask is a YES bid, not a YES ask) and that each level
- * keeps its native/inverse split, since mint and burn only fire at the exact
- * complement and a caller quoting a fill needs to know which is which.
+ * trader can actually hit. The mapping is arithmetic on one get_full_market_depth
+ * read, so it is fully testable against a mocked client. What matters is that the
+ * SIDES swap (a NO ask is a YES bid, not a YES ask) and that each level keeps its
+ * native/inverse split, since mint and burn only fire at the exact complement and
+ * a caller quoting a fill needs to know which is which.
+ *
+ * The read is one call because both sides have to describe the same moment. Two
+ * calls let an order land between them, and the stitched ladder can then read as
+ * crossed when neither height was.
  */
 
-/** One depth row as get_market_depth returns it: price plus both volumes. */
+/** One depth row as get_full_market_depth returns it, before its outcome tag. */
 type DepthRow = { price: number; buy?: number; sell?: number };
 
 function makeDepthAction(books: { yes: DepthRow[]; no: DepthRow[] }) {
   const call = vi.fn(async (body: { name: string; inputs: Record<string, unknown> }) => {
-    if (body.name !== "get_market_depth") {
+    if (body.name !== "get_full_market_depth") {
       throw new Error(`unexpected action ${body.name}`);
     }
-    const rows = (body.inputs.$outcome ? books.yes : books.no).map((row) => ({
+    // YES levels first then NO, as the action orders them.
+    const rows = [
+      ...books.yes.map((row) => ({ ...row, outcome: true })),
+      ...books.no.map((row) => ({ ...row, outcome: false })),
+    ].map((row) => ({
+      outcome: row.outcome,
       price: row.price,
       buy_volume: row.buy ?? 0,
       sell_volume: row.sell ?? 0,
@@ -181,17 +190,44 @@ function makeDepthAction(books: { yes: DepthRow[]; no: DepthRow[] }) {
   return { call, action: makeAction(call as unknown as ReturnType<typeof vi.fn>) };
 }
 
+describe("OrderbookAction.getFullMarketDepth", () => {
+  it("reads the whole market in one call and keeps each level's outcome", async () => {
+    const { call, action } = makeDepthAction({
+      yes: [{ price: 55, buy: 150 }],
+      no: [{ price: 40, sell: 100 }],
+    });
+
+    const depth = await action.getFullMarketDepth(419);
+
+    expect(call).toHaveBeenCalledTimes(1);
+    expect(call.mock.calls[0][0].inputs).toEqual({ $query_id: 419 });
+    expect(depth).toEqual([
+      { outcome: true, price: 55, buyVolume: 150, sellVolume: 0 },
+      { outcome: false, price: 40, buyVolume: 0, sellVolume: 100 },
+    ]);
+  });
+
+  it("throws on a non-200 status", async () => {
+    const call = vi.fn(async () => ({ status: 503, data: undefined }));
+    const action = makeAction(call as unknown as ReturnType<typeof vi.fn>);
+
+    await expect(action.getFullMarketDepth(419)).rejects.toThrow(
+      "Failed to get full market depth: 503",
+    );
+  });
+});
+
 describe("OrderbookAction.getConsolidatedOrderBook", () => {
-  it("reads both outcomes' depth for the market", async () => {
+  it("reads the whole book in one call rather than one call per outcome", async () => {
     const { call, action } = makeDepthAction({ yes: [], no: [] });
 
     const book = await action.getConsolidatedOrderBook(419);
 
-    expect(call).toHaveBeenCalledTimes(2);
-    expect(call.mock.calls.map((c) => c[0].inputs)).toEqual([
-      { $query_id: 419, $outcome: true },
-      { $query_id: 419, $outcome: false },
-    ]);
+    expect(call).toHaveBeenCalledTimes(1);
+    expect(call.mock.calls[0][0]).toMatchObject({
+      name: "get_full_market_depth",
+      inputs: { $query_id: 419 },
+    });
     expect(book).toEqual({
       queryId: 419,
       outcome: true,
@@ -226,6 +262,20 @@ describe("OrderbookAction.getConsolidatedOrderBook", () => {
 
     expect(book.asks).toEqual([{ price: 59, total: 200, native: 0, inverse: 200 }]);
     expect(book.bids).toEqual([]);
+  });
+
+  it("routes a level by its outcome tag, not by its price", async () => {
+    // Both sells sit at 60 in their own book. The YES one is an ask at 60; the
+    // NO one is a bid at 40. Read the tag wrong and they land on the same side.
+    const { action } = makeDepthAction({
+      yes: [{ price: 60, sell: 10 }],
+      no: [{ price: 60, sell: 20 }],
+    });
+
+    const book = await action.getConsolidatedOrderBook(419, true);
+
+    expect(book.asks).toEqual([{ price: 60, total: 10, native: 10, inverse: 0 }]);
+    expect(book.bids).toEqual([{ price: 40, total: 20, native: 0, inverse: 20 }]);
   });
 
   it("merges native and inverse volume at one price and keeps the split", async () => {

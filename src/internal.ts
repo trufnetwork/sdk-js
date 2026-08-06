@@ -138,6 +138,7 @@ export type {
   UserPosition,
   WalletPosition,
   DepthLevel,
+  FullDepthLevel,
   BestPrices,
   ConsolidatedLevel,
   ConsolidatedOrderBook,
@@ -217,6 +218,7 @@ export {
   inversePrice,
   depthBids,
   depthAsks,
+  splitFullDepth,
 } from "./util/consolidatedBook";
 export type { BookSide } from "./util/consolidatedBook";
 

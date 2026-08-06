@@ -14,6 +14,7 @@ import {
   UserPosition,
   WalletPosition,
   DepthLevel,
+  FullDepthLevel,
   BestPrices,
   ConsolidatedOrderBook,
   UserCollateral,
@@ -37,6 +38,7 @@ import {
   RawUserPosition,
   RawWalletPosition,
   RawDepthLevel,
+  RawFullDepthLevel,
   RawBestPrices,
   RawUserCollateral,
   RawMarketValidation,
@@ -73,6 +75,7 @@ import {
   consolidateSide,
   depthAsks,
   depthBids,
+  splitFullDepth,
 } from "../util/consolidatedBook";
 
 /**
@@ -641,6 +644,45 @@ export class OrderbookAction {
   }
 
   /**
+   * Gets aggregated market depth for BOTH outcomes, from one read.
+   *
+   * Same aggregation as `getMarketDepth`, for the whole market instead of one
+   * outcome, with each level tagged by the outcome it rests on. Rows arrive YES
+   * first then NO, price ascending within each.
+   *
+   * One statement means one snapshot. Anything that compares the two outcomes to
+   * each other wants this rather than two `getMarketDepth` calls, because between
+   * two calls an order can land on one side and not the other.
+   *
+   * @param queryId - Market identifier
+   * @returns Every price level in the market, tagged with its outcome
+   */
+  async getFullMarketDepth(queryId: number): Promise<FullDepthLevel[]> {
+    const result = await this.kwilClient.call(
+      {
+        namespace: "main",
+        name: "get_full_market_depth",
+        inputs: {
+          $query_id: queryId,
+        },
+      },
+      this.kwilSigner
+    );
+
+    if (result.status !== 200) {
+      throw new Error(`Failed to get full market depth: ${result.status}`);
+    }
+
+    const rows = (result.data?.result as RawFullDepthLevel[]) || [];
+    return rows.map((row) => ({
+      outcome: row.outcome,
+      price: Number(row.price),
+      buyVolume: Number(row.buy_volume),
+      sellVolume: Number(row.sell_volume),
+    }));
+  }
+
+  /**
    * Gets the best bid and ask prices for an outcome.
    *
    * @param queryId - Market identifier
@@ -703,10 +745,12 @@ export class OrderbookAction {
    * regular ladder quotes fills the chain will not produce. Each level keeps
    * `native` and `inverse` separately so a caller can price that correctly.
    *
-   * Costs two `get_market_depth` reads. They are issued together, but the node
-   * exposes no way to pin both to one block, so on a moving book the two sides
-   * can come from adjacent heights and `isCrossed` is best-effort. Do not treat
-   * a crossed result as a settled arbitrage without re-reading.
+   * Costs one `get_full_market_depth` read, so both sides are one snapshot of
+   * the chain and `isCrossed` describes a state the book was really in. This
+   * used to take two `get_market_depth` calls, where an order landing between
+   * them could make the stitched ladder read as crossed when neither height was.
+   *
+   * Requires a node carrying `get_full_market_depth`.
    *
    * @param queryId - Market identifier
    * @param outcome - The outcome to frame prices in: true=YES (default),
@@ -726,10 +770,8 @@ export class OrderbookAction {
     queryId: number,
     outcome: boolean = true
   ): Promise<ConsolidatedOrderBook> {
-    const [native, opposite] = await Promise.all([
-      this.getMarketDepth(queryId, outcome),
-      this.getMarketDepth(queryId, !outcome),
-    ]);
+    const depth = await this.getFullMarketDepth(queryId);
+    const { native, opposite } = splitFullDepth(depth, outcome);
 
     const bids = consolidateSide(
       depthBids(native),
