@@ -222,6 +222,21 @@ export {
 } from "./util/consolidatedBook";
 export type { BookSide } from "./util/consolidatedBook";
 
+// Quoting a fill against a consolidated ladder.
+export {
+  quoteConsolidatedBuy,
+  quoteConsolidatedBuyAtPrice,
+  quoteConsolidatedSell,
+  quoteConsolidatedSellAtPrice,
+  isSubmittablePrice,
+} from "./util/consolidatedQuote";
+export type {
+  ConsolidatedBuyQuote,
+  ConsolidatedFill,
+  ConsolidatedFillPath,
+  ConsolidatedSellQuote,
+} from "./util/consolidatedQuote";
+
 // Local actions types
 export type {
   ILocalActions,
