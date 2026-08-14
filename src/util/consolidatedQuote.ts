@@ -27,8 +27,17 @@ export type ConsolidatedFillPath = "direct" | "mint" | "burn";
 
 /** One leg of a quoted fill. */
 export interface ConsolidatedFill {
-  /** The leg's price in cents */
+  /** What each share on this leg pays or receives, in cents */
   price: number;
+  /**
+   * The ladder level the liquidity rested at, in cents.
+   *
+   * It differs from `price` only on a sell: a direct match pays the seller the
+   * submitted limit rather than the resting bid's own price, so one order can
+   * take several bids and receive the same price on all of them. Anything
+   * showing which levels an order consumed wants this rather than `price`.
+   */
+  levelPrice: number;
   /** How much fills on this leg */
   shares: number;
   /** How the leg reaches the chain */
@@ -123,7 +132,12 @@ function simulateBuy(
     filled += take;
     costCents += take * level.price;
     remaining -= take;
-    fills.push({ price: level.price, shares: take, path: "direct" });
+    fills.push({
+      price: level.price,
+      levelPrice: level.price,
+      shares: take,
+      path: "direct",
+    });
   }
 
   if (remaining > 0) {
@@ -134,7 +148,7 @@ function simulateBuy(
         filled += take;
         costCents += take * limit;
         remaining -= take;
-        fills.push({ price: limit, shares: take, path: "mint" });
+        fills.push({ price: limit, levelPrice: limit, shares: take, path: "mint" });
       }
     }
   }
@@ -166,7 +180,12 @@ function simulateSell(
 
     filled += take;
     remaining -= take;
-    fills.push({ price: limit, shares: take, path: "direct" });
+    fills.push({
+      price: limit,
+      levelPrice: level.price,
+      shares: take,
+      path: "direct",
+    });
   }
 
   if (remaining > 0) {
@@ -176,7 +195,7 @@ function simulateSell(
       if (take > 0) {
         filled += take;
         remaining -= take;
-        fills.push({ price: limit, shares: take, path: "burn" });
+        fills.push({ price: limit, levelPrice: limit, shares: take, path: "burn" });
       }
     }
   }

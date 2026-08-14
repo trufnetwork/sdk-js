@@ -63,8 +63,8 @@ describe("quoteConsolidatedBuy", () => {
     expect(quote.limitPrice).toBe(30);
     expect(quote.estimatedTotalCost).toBe(26);
     expect(quote.fills).toEqual([
-      { price: 20, shares: 40, path: "direct" },
-      { price: 30, shares: 60, path: "mint" },
+      { price: 20, levelPrice: 20, shares: 40, path: "direct" },
+      { price: 30, levelPrice: 30, shares: 60, path: "mint" },
     ]);
   });
 
@@ -95,8 +95,8 @@ describe("quoteConsolidatedSell", () => {
     expect(quote.filledShares).toBe(70);
     expect(quote.estimatedProceeds).toBe(49);
     expect(quote.fills).toEqual([
-      { price: 70, shares: 30, path: "direct" },
-      { price: 70, shares: 40, path: "burn" },
+      { price: 70, levelPrice: 70, shares: 30, path: "direct" },
+      { price: 70, levelPrice: 70, shares: 40, path: "burn" },
     ]);
   });
 
@@ -105,7 +105,9 @@ describe("quoteConsolidatedSell", () => {
 
     expect(quote.limitPrice).toBe(65);
     expect(quote.estimatedProceeds).toBe(52);
-    expect(quote.fills).toEqual([{ price: 65, shares: 80, path: "burn" }]);
+    expect(quote.fills).toEqual([
+      { price: 65, levelPrice: 65, shares: 80, path: "burn" },
+    ]);
   });
 });
 
@@ -248,5 +250,31 @@ describe("mainnet market 419", () => {
     // every share then pays 3c. Walking the ladder would have quoted 70.49.
     expect(quote.limitPrice).toBe(3);
     expect(quote.estimatedProceeds).toBeCloseTo(60.0, 6);
+  });
+});
+
+describe("fills carry the resting level", () => {
+  test("a sell records the bid it took, not just the price it was paid", () => {
+    // A sell is paid its limit on every share, so price alone cannot say which
+    // bids the order consumed. Anything rendering "x of y taken at this level"
+    // reads levelPrice instead.
+    const quote = quoteConsolidatedSell([level(80, 50, 0), level(70, 50, 40)], 140);
+
+    expect(quote.limitPrice).toBe(70);
+    expect(quote.fills).toEqual([
+      { price: 70, levelPrice: 80, shares: 50, path: "direct" },
+      { price: 70, levelPrice: 70, shares: 50, path: "direct" },
+      { price: 70, levelPrice: 70, shares: 40, path: "burn" },
+    ]);
+    // Every share is paid the limit, so the 80c bid earns 70c here.
+    expect(quote.estimatedProceeds).toBe(98);
+  });
+
+  test("a buy pays each level its own price, so both agree", () => {
+    const quote = quoteConsolidatedBuy([level(20, 40, 0), level(30, 0, 60)], 100);
+
+    for (const fill of quote.fills) {
+      expect(fill.levelPrice).toBe(fill.price);
+    }
   });
 });

@@ -1557,6 +1557,27 @@ A consolidated book can also sit crossed indefinitely: a YES bid at 61 against a
 NO bid at 45 shows a bid at 61 over an ask at 55, and 61 + 45 is not 100 so
 nothing matches. Render it rather than treating it as bad data.
 
+#### `reflectConsolidatedBook(book: ConsolidatedOrderBook): ConsolidatedOrderBook`
+
+Returns the same market in the opposite outcome's frame, with no second chain
+read.
+
+Both outcome views come from one `getFullMarketDepth` response, so the opposite
+view is an exact reflection rather than new information: prices complement to
+100, bids and asks swap, and native and inverse volume swap with them, because a
+resting order belongs to the other outcome once the frame flips.
+
+```typescript
+import { reflectConsolidatedBook } from "@trufnetwork/sdk-js";
+
+const yes = await orderbook.getConsolidatedOrderBook(queryId, true);
+const no = reflectConsolidatedBook(yes);
+```
+
+Anything rendering both outcomes wants this rather than a second
+`getConsolidatedOrderBook` call. It halves the round trips, and it removes the
+chance of stitching two different moments of the chain into one view.
+
 #### `quoteConsolidatedBuy(levels, shares)` / `quoteConsolidatedSell(levels, shares)`
 
 Answers what an order of a given size will actually do against a consolidated
@@ -1589,6 +1610,14 @@ makes explicit, each of which a hand-rolled ladder walk gets wrong:
 
 `fills` carries each leg's `path` — `"direct"`, `"mint"` or `"burn"` — for
 callers that want to show how the order settles.
+
+Each leg also carries two prices, and they are not the same thing. `price` is
+what a share on that leg pays or receives; `levelPrice` is the ladder level the
+liquidity rested at. They agree on every buy leg. They diverge on a sell, where
+a direct match pays the seller the submitted limit rather than each resting
+bid's own price, so one order can take three bids and be paid the same on all
+three. Anything rendering which levels an order consumed wants `levelPrice`;
+anything totalling money wants `price`.
 
 **Choosing the limit is the caller's policy, not the SDK's.** These two apply one
 reasonable default: the limit that fills the most, cheapest for a buy and highest

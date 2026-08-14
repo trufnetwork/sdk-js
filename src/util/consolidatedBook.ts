@@ -23,6 +23,7 @@
 
 import type {
   ConsolidatedLevel,
+  ConsolidatedOrderBook,
   DepthLevel,
   FullDepthLevel,
 } from "../types/orderbook";
@@ -136,4 +137,45 @@ export function depthAsks(depth: readonly DepthLevel[]): BookLevel[] {
     }
   }
   return levels;
+}
+
+/** Moves one level into the opposite outcome's frame. */
+function reflectLevel(level: ConsolidatedLevel): ConsolidatedLevel {
+  return {
+    price: inversePrice(level.price),
+    total: level.total,
+    // Native and inverse swap: the resting order belongs to the other outcome
+    // once the frame flips, so this outcome's own book is the opposite
+    // outcome's inverse and the other way round.
+    native: level.inverse,
+    inverse: level.native,
+  };
+}
+
+/**
+ * Returns the same market in the opposite outcome's frame, with no second chain
+ * read.
+ *
+ * Both outcome views come from one `getFullMarketDepth` response, so the
+ * opposite view is an exact reflection rather than new information: prices
+ * complement to 100, bids and asks swap, and native and inverse volume swap
+ * with them.
+ *
+ * Anything rendering both outcomes wants this rather than a second
+ * `getConsolidatedOrderBook` call. It halves the round trips, and it removes the
+ * chance of stitching two different moments of the chain into one view.
+ */
+export function reflectConsolidatedBook(
+  book: ConsolidatedOrderBook
+): ConsolidatedOrderBook {
+  const bids = book.asks.map(reflectLevel).sort((a, b) => b.price - a.price);
+  const asks = book.bids.map(reflectLevel).sort((a, b) => a.price - b.price);
+
+  return {
+    queryId: book.queryId,
+    outcome: !book.outcome,
+    bids,
+    asks,
+    isCrossed: bids.length > 0 && asks.length > 0 && bids[0].price >= asks[0].price,
+  };
 }
