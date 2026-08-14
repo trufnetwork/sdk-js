@@ -228,6 +228,7 @@ export {
   quoteConsolidatedBuyAtPrice,
   quoteConsolidatedSell,
   quoteConsolidatedSellAtPrice,
+  isSubmittablePrice,
 } from "./util/consolidatedQuote";
 export type {
   ConsolidatedBuyQuote,

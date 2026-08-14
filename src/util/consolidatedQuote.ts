@@ -75,17 +75,27 @@ export interface ConsolidatedSellQuote {
 }
 
 /**
- * Drops the levels the engine cannot trade at, and sorts what is left.
+ * Whether a price is one an order can actually carry: a whole cent from 1
+ * through 99.
  *
- * `place_buy_order` and `place_sell_order` both reject a price outside 1-99, so
- * a level there can never be the limit and must not be picked as one.
+ * The node declares `$price` as INT and errors outside that range, so anything
+ * else is a limit `place_buy_order` and `place_sell_order` will reject. A quote
+ * at such a price would describe an order that never reaches the book.
+ */
+export function isSubmittablePrice(price: number): boolean {
+  return Number.isInteger(price) && price >= 1 && price <= 99;
+}
+
+/**
+ * Drops the levels the engine cannot trade at, and sorts what is left, so no
+ * level that could never be submitted gets picked as the limit.
  */
 function tradableLevels(
   levels: readonly ConsolidatedLevel[],
   side: "bid" | "ask"
 ): ConsolidatedLevel[] {
   return levels
-    .filter((level) => level.price >= 1 && level.price <= 99)
+    .filter((level) => isSubmittablePrice(level.price))
     .sort((a, b) => (side === "bid" ? b.price - a.price : a.price - b.price));
 }
 
@@ -198,6 +208,10 @@ function sellableShares(bids: readonly ConsolidatedLevel[]): number {
  * Pass the consolidated asks. Use this when the routing policy is the caller's:
  * `quoteConsolidatedBuy` picks the cheapest limit that fills the most, and a
  * caller wanting a price ceiling or the least market impact wants this instead.
+ *
+ * A limit that fails `isSubmittablePrice` quotes nothing, since no order can
+ * carry it. `availableShares` still describes the ladder, so a zero fill beside
+ * a non-zero `availableShares` says the limit was the problem, not the book.
  */
 export function quoteConsolidatedBuyAtPrice(
   levels: readonly ConsolidatedLevel[],
@@ -205,6 +219,19 @@ export function quoteConsolidatedBuyAtPrice(
   limit: number
 ): ConsolidatedBuyQuote {
   const asks = tradableLevels(levels, "ask");
+
+  if (!isSubmittablePrice(limit)) {
+    return {
+      limitPrice: null,
+      filledShares: 0,
+      availableShares: buyableShares(asks),
+      estimatedTotalCost: 0,
+      averagePrice: null,
+      isFullyFilled: false,
+      fills: [],
+    };
+  }
+
   const { filled, costCents, fills } = simulateBuy(asks, shares, limit);
 
   return {
@@ -281,6 +308,9 @@ export function quoteConsolidatedBuy(
  * moves the price, such as a self-trade guard raising it clear of the seller's
  * own resting buy order, and whenever the routing policy is the caller's rather
  * than the one `quoteConsolidatedSell` applies.
+ *
+ * A limit that fails `isSubmittablePrice` quotes nothing, since no order can
+ * carry it.
  */
 export function quoteConsolidatedSellAtPrice(
   levels: readonly ConsolidatedLevel[],
@@ -288,6 +318,19 @@ export function quoteConsolidatedSellAtPrice(
   limit: number
 ): ConsolidatedSellQuote {
   const bids = tradableLevels(levels, "bid");
+
+  if (!isSubmittablePrice(limit)) {
+    return {
+      limitPrice: null,
+      filledShares: 0,
+      availableShares: sellableShares(bids),
+      estimatedProceeds: 0,
+      averagePrice: null,
+      isFullyFilled: false,
+      fills: [],
+    };
+  }
+
   const { filled, proceedsCents, fills } = simulateSell(bids, shares, limit);
 
   return {

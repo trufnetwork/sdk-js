@@ -151,6 +151,43 @@ describe("caller-supplied limits", () => {
   });
 });
 
+describe("limits no order can carry", () => {
+  // The node declares $price as INT and errors outside 1-99, so none of these
+  // reach the book. Quoting a fill for one would promise an order that cannot
+  // be placed: a buy at 100 otherwise takes every level, and a sell at 0
+  // otherwise fills the whole ladder for nothing.
+  const asks = [level(16, 320, 29), level(19, 289, 53)];
+  const bids = [level(80, 50, 0), level(70, 50, 0)];
+
+  test.each([0, 100, 19.5, -5])("rejects a limit of %s", (limit) => {
+    const buy = quoteConsolidatedBuyAtPrice(asks, 500, limit);
+    expect(buy.filledShares).toBe(0);
+    expect(buy.limitPrice).toBeNull();
+    expect(buy.estimatedTotalCost).toBe(0);
+    expect(buy.isFullyFilled).toBe(false);
+    expect(buy.fills).toEqual([]);
+
+    // The ladder is still described, so a caller can tell the limit was the
+    // problem rather than the book.
+    expect(buy.availableShares).toBe(662);
+
+    const sell = quoteConsolidatedSellAtPrice(bids, 100, limit);
+    expect(sell.filledShares).toBe(0);
+    expect(sell.estimatedProceeds).toBe(0);
+    expect(sell.fills).toEqual([]);
+    expect(sell.availableShares).toBe(100);
+  });
+
+  test("never chooses a fractional limit off a hand-built ladder", () => {
+    // A caller can build a ladder carrying a price the chain never produces.
+    // The model must not select one, since the resulting order is rejected.
+    const quote = quoteConsolidatedBuy([level(19.5, 500, 0), level(40, 60, 0)], 60);
+
+    expect(quote.limitPrice).toBe(40);
+    expect(quote.availableShares).toBe(60);
+  });
+});
+
 describe("degenerate ladders", () => {
   test("an empty book quotes nothing", () => {
     const buy = quoteConsolidatedBuy([], 100);
