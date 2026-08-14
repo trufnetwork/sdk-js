@@ -541,6 +541,7 @@ For other bundlers or serverless platforms, consult their documentation on modul
 | Get order book | `orderbook.getOrderBook(queryId, outcome)` |
 | Get consolidated order book | `orderbook.getConsolidatedOrderBook(queryId, outcome)` |
 | Get both outcomes' depth | `orderbook.getFullMarketDepth(queryId)` |
+| Quote a buy or sell fill | `quoteConsolidatedBuy(book.asks, shares)` / `quoteConsolidatedSell(book.bids, shares)` |
 | Get best prices | `orderbook.getBestPrices(queryId, outcome)` |
 | Destroy stream | `client.destroyStream(streamLocator)` |
 

@@ -1557,6 +1557,49 @@ A consolidated book can also sit crossed indefinitely: a YES bid at 61 against a
 NO bid at 45 shows a bid at 61 over an ask at 55, and 61 + 45 is not 100 so
 nothing matches. Render it rather than treating it as bad data.
 
+#### `quoteConsolidatedBuy(levels, shares)` / `quoteConsolidatedSell(levels, shares)`
+
+Answers what an order of a given size will actually do against a consolidated
+ladder, so no caller has to re-derive the matching rules.
+
+```typescript
+import { quoteConsolidatedBuy } from "@trufnetwork/sdk-js";
+
+const book = await orderbook.getConsolidatedOrderBook(queryId);
+const quote = quoteConsolidatedBuy(book.asks, 700);
+
+console.log(`submit ${quote.limitPrice}c for ${quote.filledShares} shares, $${quote.estimatedTotalCost}`);
+for (const fill of quote.fills) {
+  console.log(`  ${fill.shares} @ ${fill.price}c by ${fill.path}`);
+}
+```
+
+Pass `book.asks` to buy and `book.bids` to sell. Three things the returned quote
+makes explicit, each of which a hand-rolled ladder walk gets wrong:
+
+- **`availableShares` is not the ladder's total.** It is the most any single
+  order can take, which is smaller whenever inverse volume rests at more than one
+  price. A ladder summing to 350 can cap one order at 200.
+- **Fillable size is not monotonic in the limit price.** Raising the limit can
+  lose the inverse level the fill was counting on, so the model evaluates every
+  candidate price instead of walking down the ladder.
+- **A sell pays its limit on every share.** A direct match pays the seller the
+  ask price and refunds the buyer the difference, so crediting each resting bid
+  its own price overstates any sell reaching past one level.
+
+`fills` carries each leg's `path` — `"direct"`, `"mint"` or `"burn"` — for
+callers that want to show how the order settles.
+
+**Choosing the limit is the caller's policy, not the SDK's.** These two apply one
+reasonable default: the limit that fills the most, cheapest for a buy and highest
+for a sell. A caller wanting a price ceiling, the least market impact, or a price
+something downstream already settled on uses `quoteConsolidatedBuyAtPrice(levels,
+shares, limit)` or `quoteConsolidatedSellAtPrice(levels, shares, limit)` instead.
+
+The quote assumes the order reaches the front of the queue at its price. Matching
+is FIFO within a level, so an older order resting at the same price takes the
+counterparty first and the real fill comes up short.
+
 #### `orderbook.getUserPositions(): Promise<UserPosition[]>`
 
 Gets the caller's positions across all markets.
