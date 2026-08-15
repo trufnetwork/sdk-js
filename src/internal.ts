@@ -219,6 +219,7 @@ export {
   depthBids,
   depthAsks,
   splitFullDepth,
+  reflectConsolidatedBook,
 } from "./util/consolidatedBook";
 export type { BookSide } from "./util/consolidatedBook";
 
