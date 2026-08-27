@@ -31,6 +31,7 @@ import {
   CreatePriceThresholdMarketInput,
   CreateValueInRangeMarketInput,
   CreateValueEqualsMarketInput,
+  CreateIndexChangeInRangeMarketInput,
   BridgeIdentifier,
   RawMarketInfo,
   RawMarketSummary,
@@ -51,6 +52,7 @@ import {
   encodeQueryComponents,
   encodeRangeActionArgs,
   encodeEqualsActionArgs,
+  encodeIndexChangeActionArgs,
   dbBytesToUint8Array,
   decodeMarketData,
   validatePrice,
@@ -1379,6 +1381,66 @@ export class OrderbookAction {
     });
   }
 
+  /**
+   * Creates an "index change in range" market.
+   *
+   * YES wins if the stream's percentage change over `timeInterval` lands in
+   * [minChange, maxChange) at the settlement time. The bounds are in percent —
+   * a stream publishing an index level of 335 is struck at 2.4, not at 343.
+   *
+   * Leave `minChange` or `maxChange` unset to strike an open tail, which is how
+   * the outer two buckets of a set are struck. Leaving both unset is rejected.
+   *
+   * @param input - Market parameters
+   * @returns Transaction receipt
+   *
+   * @example
+   * ```typescript
+   * // "Will year-over-year inflation land between 2% and 3%?"
+   * await orderbook.createIndexChangeInRangeMarket({
+   *   dataProvider, streamId,
+   *   timestamp: 1767225600,
+   *   timeInterval: 31536000,
+   *   minChange: "2",
+   *   maxChange: "3",
+   *   frozenAt: 0,
+   *   bridge: "eth_usdc",
+   *   settleTime: 1767312000,
+   *   maxSpread: 10,
+   *   minOrderSize: 1000000,
+   * });
+   * ```
+   */
+  async createIndexChangeInRangeMarket(
+    input: CreateIndexChangeInRangeMarketInput
+  ): Promise<Types.GenericResponse<Types.TxReceipt>> {
+    const args = encodeIndexChangeActionArgs(
+      input.dataProvider,
+      input.streamId,
+      input.timestamp,
+      input.baseTime,
+      input.timeInterval,
+      input.minChange,
+      input.maxChange,
+      input.frozenAt
+    );
+
+    const queryComponents = encodeQueryComponents(
+      input.dataProvider,
+      input.streamId,
+      "index_change_in_range",
+      args
+    );
+
+    return this.createMarket({
+      bridge: input.bridge,
+      queryComponents,
+      settleTime: input.settleTime,
+      maxSpread: input.maxSpread,
+      minOrderSize: input.minOrderSize,
+    });
+  }
+
   // ==========================================
   // Static Helper Methods
   // ==========================================
@@ -1406,6 +1468,12 @@ export class OrderbookAction {
    * @see encodeEqualsActionArgs
    */
   static encodeEqualsActionArgs = encodeEqualsActionArgs;
+
+  /**
+   * Encodes action arguments for index-change markets.
+   * @see encodeIndexChangeActionArgs
+   */
+  static encodeIndexChangeActionArgs = encodeIndexChangeActionArgs;
 
   // ==========================================
   // Private Helper Methods

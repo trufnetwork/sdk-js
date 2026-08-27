@@ -579,18 +579,27 @@ export function decodeABIDatapoints(data: Uint8Array): DecodedRow[] {
 }
 
 /**
+ * The attestation action IDs whose result is a boolean.
+ *
+ * Membership, not a range. 6-9 are the value actions of migration 040
+ * (price_above_threshold, price_below_threshold, value_in_range, value_equals)
+ * and 12 is index_change_in_range from migration 055, but 10 and 11
+ * (get_high_value, get_low_value) sit between them and return datapoints — so a
+ * `>= 6 && <= 12` test would decode two actions' results as booleans.
+ */
+const BINARY_ACTION_IDS = new Set([6, 7, 8, 9, 12]);
+
+/**
  * Reports whether an attestation action returns a binary (boolean) result.
  *
- * Binary actions (price_above_threshold, price_below_threshold, value_in_range,
- * value_equals) occupy action IDs 6-9 and encode their result as abi.encode(bool)
- * rather than abi.encode(uint256[], int256[]). Mirrors the node's
- * tn_utils.IsBinaryAction.
+ * Binary actions encode their result as abi.encode(bool) rather than
+ * abi.encode(uint256[], int256[]). Mirrors the node's tn_utils.IsBinaryAction.
  *
  * @param actionId - Attestation action ID
- * @returns true for binary actions (IDs 6-9)
+ * @returns true for binary actions
  */
 export function isBinaryAction(actionId: number): boolean {
-  return actionId >= 6 && actionId <= 9;
+  return BINARY_ACTION_IDS.has(actionId);
 }
 
 /**
@@ -802,8 +811,8 @@ export function parseAttestationPayload(payload: Uint8Array): ParsedAttestationP
   }
   const resultBytes = payload.slice(offset, offset + resultLen);
 
-  // Decode result based on action ID. Binary actions (6-9) return
-  // abi.encode(bool); every other action returns abi.encode(uint256[], int256[]).
+  // Decode result based on action ID. Binary actions return abi.encode(bool);
+  // every other action returns abi.encode(uint256[], int256[]).
   // Mirrors the node encoder (tn_utils.EncodeDataPointsABI) and decoder
   // (parseAttestationBooleanHandler / IsBinaryAction).
   const result = isBinaryAction(actionId)
@@ -1072,6 +1081,32 @@ if (import.meta.vitest) {
       const badWord = new Uint8Array(32);
       badWord[31] = 0x02; // neither 0 nor 1 — go-ethereum's readBool rejects this
       expect(() => parseAttestationPayload(buildPayload(6, badWord))).toThrow(/canonical/i);
+    });
+
+    it('decodes an index-change action (id 12) result as a single boolean row', () => {
+      // 12 sits outside the 6-9 block, so a range test would route this payload
+      // to the datapoints decoder and fail on a 32-byte result.
+      const parsed = parseAttestationPayload(buildPayload(12, boolAbi(true)));
+      expect(parsed.actionId).toBe(12);
+      expect(parsed.result).toEqual([{ values: [true] }]);
+    });
+  });
+
+  describe('isBinaryAction', () => {
+    it('accepts the value actions and index_change_in_range', () => {
+      // 6-9 are migration 040's value actions; 12 is index_change_in_range.
+      for (const id of [6, 7, 8, 9, 12]) {
+        expect(isBinaryAction(id)).toBe(true);
+      }
+    });
+
+    it('rejects the numeric actions, including the two inside the gap', () => {
+      // 10 and 11 (get_high_value, get_low_value) sit between the two binary
+      // blocks and return datapoints: this is why the test is membership rather
+      // than a 6-12 range.
+      for (const id of [0, 1, 2, 3, 4, 5, 10, 11, 13]) {
+        expect(isBinaryAction(id)).toBe(false);
+      }
     });
   });
 

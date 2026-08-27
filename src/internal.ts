@@ -157,6 +157,7 @@ export type {
   CreatePriceThresholdMarketInput,
   CreateValueInRangeMarketInput,
   CreateValueEqualsMarketInput,
+  CreateIndexChangeInRangeMarketInput,
 } from "./types/orderbook";
 
 // Orderbook helper utilities
@@ -165,6 +166,7 @@ export {
   encodeQueryComponents,
   encodeRangeActionArgs,
   encodeEqualsActionArgs,
+  encodeIndexChangeActionArgs,
   hexToBytes,
   bytesToHex,
   decodeMarketData,

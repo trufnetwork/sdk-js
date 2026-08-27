@@ -19,6 +19,7 @@ import { bucketBoundsFromMarketData, requireQueryTime } from "./marketBuckets";
 import {
   decodeMarketData,
   encodeActionArgs,
+  encodeIndexChangeActionArgs,
   encodeQueryComponents,
   encodeRangeActionArgs,
 } from "./orderbookHelpers";
@@ -55,6 +56,87 @@ describe("bucketBoundsFromMarketData", () => {
     expect(lower).toBeCloseTo(5.15, 10);
     expect(upper).toBeCloseTo(5.35, 10);
     expect(lower!).toBeLessThan(upper!);
+  });
+
+  it("reads a change_between market as an interior bucket", () => {
+    expect(
+      bucketBoundsFromMarketData({
+        type: "change_between",
+        thresholds: ["2.000000000000000000", "3.000000000000000000"],
+      })
+    ).toEqual({ lower: 2, upper: 3 });
+  });
+
+  it("reads an open change_between tail from the empty slot", () => {
+    // The empty string is the slot an open tail leaves behind. Filtering it out
+    // instead would slide the surviving bound into the wrong position, turning
+    // "below 1%" into "1% or more".
+    expect(
+      bucketBoundsFromMarketData({ type: "change_between", thresholds: ["", "1"] })
+    ).toEqual({ lower: null, upper: 1 });
+    expect(
+      bucketBoundsFromMarketData({ type: "change_between", thresholds: ["4", ""] })
+    ).toEqual({ lower: 4, upper: null });
+  });
+
+  it("reads a negative change_between bucket", () => {
+    // Rates of change go below zero, unlike every other bucket type here.
+    expect(
+      bucketBoundsFromMarketData({
+        type: "change_between",
+        thresholds: ["-2", "-0.5"],
+      })
+    ).toEqual({ lower: -2, upper: -0.5 });
+  });
+
+  it("rejects a change_between market with both tails open", () => {
+    // The whole number line. The node action cannot be created that way, so a
+    // market that reaches here like this is malformed rather than unbounded.
+    expect(() =>
+      bucketBoundsFromMarketData({ type: "change_between", thresholds: ["", ""] })
+    ).toThrow(/at least one bound/);
+  });
+
+  it("rejects an inverted or empty change_between bucket", () => {
+    for (const thresholds of [
+      ["3", "2"],
+      ["2", "2"],
+    ]) {
+      expect(() =>
+        bucketBoundsFromMarketData({ type: "change_between", thresholds })
+      ).toThrow(/lower < upper/);
+    }
+  });
+
+  it("rejects a change_between market missing a threshold slot", () => {
+    // One slot is not an open tail — an open tail still occupies its slot.
+    expect(() =>
+      bucketBoundsFromMarketData({ type: "change_between", thresholds: ["2"] })
+    ).toThrow(/needs 2 threshold slot\(s\)/);
+  });
+
+  it("derives change_between bounds from real query components", () => {
+    // The whole path, as it runs against a market read off the chain: encode
+    // the arguments, decode them back, then read the bounds out.
+    const DP = "0x4710a8d8f0d845da110086812a32de6d90d7ff5c";
+    const SID = "stcpiyoy0000000000000000000000000".slice(0, 32);
+    const components = (min: string | null, max: string | null) =>
+      encodeQueryComponents(
+        DP,
+        SID,
+        "index_change_in_range",
+        encodeIndexChangeActionArgs(DP, SID, 1700000000, null, 31536000, min, max, 0)
+      );
+
+    expect(
+      bucketBoundsFromMarketData(decodeMarketData(components("2", "3")))
+    ).toEqual({ lower: 2, upper: 3 });
+    expect(
+      bucketBoundsFromMarketData(decodeMarketData(components(null, "2")))
+    ).toEqual({ lower: null, upper: 2 });
+    expect(
+      bucketBoundsFromMarketData(decodeMarketData(components("3", null)))
+    ).toEqual({ lower: 3, upper: null });
   });
 
   it("rejects a market type that cannot describe a bucket", () => {

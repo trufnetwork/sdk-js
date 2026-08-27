@@ -52,6 +52,12 @@ export function requireQueryTime(
  * always struck. Bounds are half-open upstream, so a value landing exactly on a
  * boundary resolves the upper bucket only.
  *
+ * `"above"`, `"below"`, `"between"` and `"equals"` markets are struck in the
+ * stream's own units; `"change_between"` markets are struck in percent, against
+ * the stream's value one time_interval earlier. This function does not
+ * distinguish them — a caller comparing bounds across markets has to know it is
+ * comparing like with like.
+ *
  * @param marketData - The result of {@link decodeMarketData}.
  * @returns The bucket's bounds, either of which may be `null`.
  * @throws If the market type cannot describe a bucket, or the thresholds needed
@@ -89,6 +95,23 @@ export function bucketBoundsFromMarketData(
     return value;
   };
 
+  /**
+   * A threshold slot that may be struck open, which a decoded market holds as an
+   * empty string in place rather than as a shorter array. Only
+   * `"change_between"` markets have one; every other type's bounds are all
+   * present, so they read through {@link threshold} and an empty slot is an
+   * error there rather than a tail.
+   */
+  const optionalThreshold = (index: number): number | null => {
+    if (thresholds.length <= index) {
+      throw new Error(
+        `a '${marketType}' market needs ${index + 1} threshold slot(s), ` +
+          `got ${thresholds.length}`
+      );
+    }
+    return thresholds[index] === "" ? null : threshold(index);
+  };
+
   switch (marketType) {
     case "below":
       return { lower: null, upper: threshold(0) };
@@ -101,6 +124,29 @@ export function bucketBoundsFromMarketData(
       // bucket and lower > upper is an inverted one. Neither can hold an
       // outcome, and both would quietly distort the tiling.
       if (lower >= upper) {
+        throw new Error(
+          `a '${marketType}' market needs lower < upper, got [${lower}, ${upper})`
+        );
+      }
+      return { lower, upper };
+    }
+    case "change_between": {
+      // Percentage-change buckets, already half-open upstream and already in
+      // the open-ended shape this function returns, so the bounds pass through
+      // rather than being derived. Note the units differ from every other case:
+      // these are percent, against the stream's value one time_interval
+      // earlier, where "above"/"below"/"between" are in the stream's own units.
+      const lower = optionalThreshold(0);
+      const upper = optionalThreshold(1);
+      // Both tails open would describe the whole number line. The node action
+      // refuses to be created that way, so a market reaching here like that is
+      // malformed rather than unbounded.
+      if (lower === null && upper === null) {
+        throw new Error(
+          `a '${marketType}' market needs at least one bound, got neither`
+        );
+      }
+      if (lower !== null && upper !== null && lower >= upper) {
         throw new Error(
           `a '${marketType}' market needs lower < upper, got [${lower}, ${upper})`
         );

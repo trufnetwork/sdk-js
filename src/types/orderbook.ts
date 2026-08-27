@@ -428,6 +428,41 @@ export interface CreateValueEqualsMarketInput extends BaseBinaryMarketInput {
   tolerance: string;
 }
 
+/**
+ * Input for index-change markets: "will this index's rate of change land in
+ * [min, max)?"
+ *
+ * The bounds are in percent, measured against the stream's own value one
+ * `timeInterval` earlier, and are half-open — a change landing exactly on a
+ * boundary belongs to the bucket above it, so a set of buckets tiles the number
+ * line without two of them settling TRUE.
+ *
+ * Either bound may be omitted, which strikes an open tail; the outer two buckets
+ * of a set are always struck that way. Omitting both is rejected.
+ *
+ * `timestamp`, `timeInterval` and `baseTime` all go into the market hash and
+ * cannot be changed once the market exists.
+ */
+export interface CreateIndexChangeInRangeMarketInput extends BaseBinaryMarketInput {
+  /**
+   * Seconds to look back for the comparison value, e.g. 31536000 for
+   * year-over-year. Must be positive.
+   */
+  timeInterval: number;
+  /**
+   * Index base date, passed through to `get_index`. Omit (or pass null) for the
+   * stream's own default.
+   *
+   * Note this differs from the inherited `frozenAt`, where 0 is the sentinel for
+   * "latest": 0 here is the epoch, not an absent base date.
+   */
+  baseTime?: number | null;
+  /** Lower bound in percent, inclusive (as decimal string); omit for an open tail */
+  minChange?: string | null;
+  /** Upper bound in percent, exclusive (as decimal string); omit for an open tail */
+  maxChange?: string | null;
+}
+
 // ============================================
 // Raw Database Response Types (Internal)
 // ============================================
