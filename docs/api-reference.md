@@ -1390,7 +1390,7 @@ once it exists. `baseTime` is optional and, unlike `frozenAt`, has no `0` sentin
 the stream's own default base date.
 
 Bounds are rendered as the chain stores a `NUMERIC(36,18)`, so `"2"` and `"2.0"` produce the same
-market. A bound with more than 18 decimal places, 18 or more integer digits, or a non-zero
+market. A bound with more than 18 decimal places, more than 18 integer digits, or a non-zero
 magnitude below `1e-6` is rejected rather than silently rounded or reformatted.
 
 > Requires node migration 055. On a network without it, the market is created but can never be
@@ -1428,6 +1428,10 @@ interface MarketData {
   actionId: string;
   type: "above" | "below" | "between" | "equals" | "change_between" | "unknown";
   thresholds: string[]; // Formatted numeric values as strings
+  timestamp: number | null;    // The point in the stream the query observes
+  frozenAt: number | null;     // Block height the data is pinned to; null = latest
+  baseTime: number | null;     // "change_between" only; null = the stream's default base
+  timeInterval: number | null; // "change_between" only, in seconds, e.g. 31536000 for YoY
 }
 ```
 

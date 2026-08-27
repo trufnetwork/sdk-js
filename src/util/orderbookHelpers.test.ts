@@ -590,7 +590,9 @@ describe("orderbookHelpers", () => {
       minChange: string | null,
       maxChange: string | null,
       timestamp = 1700000000,
-      frozenAt = 0
+      frozenAt = 0,
+      baseTime: number | null = null,
+      timeInterval = 31536000
     ): Uint8Array =>
       encodeQueryComponents(
         TEST_DATA_PROVIDER,
@@ -600,8 +602,8 @@ describe("orderbookHelpers", () => {
           TEST_DATA_PROVIDER,
           TEST_STREAM_ID,
           timestamp,
-          null,
-          31536000,
+          baseTime,
+          timeInterval,
           minChange,
           maxChange,
           frozenAt
@@ -649,6 +651,44 @@ describe("orderbookHelpers", () => {
       // frozen_at, so reading position 5 would report a threshold as a height.
       expect(decoded.frozenAt).toBe(1234567);
       expect(decoded.timestamp).toBe(1700000000);
+    });
+
+    it("should read the interval and base the change is measured over", async () => {
+      const { decodeMarketData } = await importHelper();
+      // Not strikes, so they are not in `thresholds` — but they change the
+      // question, so two markets that differ only here are different events.
+      const yearly = decodeMarketData(indexChangeComponents("2", "3"));
+      expect(yearly.timeInterval).toBe(31536000);
+      expect(yearly.baseTime).toBeNull();
+
+      const based = decodeMarketData(
+        indexChangeComponents("2", "3", 1700000000, 0, 1600000000, 2592000)
+      );
+      expect(based.timeInterval).toBe(2592000);
+      expect(based.baseTime).toBe(1600000000);
+    });
+
+    it("should leave the interval and base null for a market that has none", async () => {
+      const { decodeMarketData } = await importHelper();
+      // Only index_change_in_range carries them. A value market having no
+      // interval is what keeps it from joining a percent-change bucket set.
+      const decoded = decodeMarketData(
+        encodeQueryComponents(
+          TEST_DATA_PROVIDER,
+          TEST_STREAM_ID,
+          "value_in_range",
+          encodeRangeActionArgs(
+            TEST_DATA_PROVIDER,
+            TEST_STREAM_ID,
+            1700000000,
+            "1",
+            "2",
+            0
+          )
+        )
+      );
+      expect(decoded.timeInterval).toBeNull();
+      expect(decoded.baseTime).toBeNull();
     });
 
     it("should leave a truncated index-change market unpinned", async () => {

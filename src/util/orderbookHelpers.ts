@@ -44,6 +44,25 @@ export interface MarketData {
    * same reason as `timestamp`.
    */
   frozenAt?: number | null;
+  /**
+   * The index base date the query measures against, in unix seconds, or null
+   * for the stream's own default.
+   *
+   * Only a `"change_between"` market carries one; it is null for every other
+   * type, which has no such argument. Optional for the same reason as
+   * `timestamp`.
+   */
+  baseTime?: number | null;
+  /**
+   * How far back the query looks for its comparison value, in seconds — e.g.
+   * 31536000 for year-over-year.
+   *
+   * Only a `"change_between"` market carries one. Two markets over the same
+   * stream and the same observation time but different intervals are asking
+   * different questions, so this is part of a market's identity rather than
+   * presentation.
+   */
+  timeInterval?: number | null;
 }
 
 /**
@@ -55,6 +74,8 @@ export interface MarketData {
 export interface DecodedMarketData extends MarketData {
   timestamp: number | null;
   frozenAt: number | null;
+  baseTime: number | null;
+  timeInterval: number | null;
 }
 
 /**
@@ -82,6 +103,8 @@ export function decodeMarketData(encoded: string | Uint8Array): DecodedMarketDat
     thresholds: [],
     timestamp: null,
     frozenAt: null,
+    baseTime: null,
+    timeInterval: null,
   };
 
   /** INT8 arguments arrive as bigint, and NULL is a value rather than an error. */
@@ -163,6 +186,11 @@ export function decodeMarketData(encoded: string | Uint8Array): DecodedMarketDat
       if (args.length >= 7) {
         // 5 and 6, not 3 and 4: $base_time and $time_interval come first.
         market.thresholds.push(argThreshold(5), argThreshold(6));
+        // The two arguments the bounds displaced. They are not strikes, so they
+        // do not belong in `thresholds`, but they do change the question the
+        // market asks and so cannot be dropped either.
+        market.baseTime = argInt(3);
+        market.timeInterval = argInt(4);
       }
       readQueryTime(7);
       break;

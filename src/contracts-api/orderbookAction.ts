@@ -876,17 +876,30 @@ export class OrderbookAction {
       // the query components: it is a createMarket argument, so two markets can
       // ask an identical question while collateralising it differently. Those
       // are separate markets with separate books.
+      //
+      // baseTime and timeInterval are null for every market type except
+      // "change_between", where they say what the change is measured over. A
+      // year-over-year bucket and a month-over-month one can share every other
+      // field on this line and still be two unrelated events; carrying them
+      // also keeps a percent-change bucket from joining a set struck in the
+      // stream's own units, since only a change market has an interval at all.
+      //
+      // The action id is deliberately NOT here: a complete set tiles the line
+      // with one price_below_threshold bucket, one price_above_threshold, and
+      // value_in_range between, so three different actions is the normal shape
+      // of ONE market.
       requireQueryTime(queryId, marketData);
       const thisIdentity =
         `${marketData.dataProvider}|${marketData.streamId}|${info.bridge}` +
-        `|${info.settleTime}|${marketData.timestamp}|${marketData.frozenAt}`;
+        `|${info.settleTime}|${marketData.timestamp}|${marketData.frozenAt}` +
+        `|${marketData.baseTime}|${marketData.timeInterval}`;
       if (identity === null) {
         identity = thisIdentity;
       } else if (thisIdentity !== identity) {
         throw new Error(
           `market ${queryId} belongs to a different event than the first ` +
             `bucket: (dataProvider, streamId, bridge, settleTime, timestamp, ` +
-            `frozenAt) ` +
+            `frozenAt, baseTime, timeInterval) ` +
             `is ${thisIdentity} against ${identity}. One forecast covers the ` +
             `buckets of ONE market.`
         );

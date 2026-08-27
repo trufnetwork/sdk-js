@@ -443,6 +443,62 @@ const LATER_MARKETS: Record<number, FakeMarket> = {
   },
 };
 
+const YEAR = 31536000;
+const MONTH = 2592000;
+
+function changeComponents(
+  min: string | null,
+  max: string | null,
+  timeInterval = YEAR,
+  baseTime: number | null = null
+): Uint8Array {
+  return encodeQueryComponents(
+    DATA_PROVIDER,
+    STREAM_ID,
+    "index_change_in_range",
+    encodeIndexChangeActionArgs(
+      DATA_PROVIDER,
+      STREAM_ID,
+      TIMESTAMP,
+      baseTime,
+      timeInterval,
+      min,
+      max,
+      LATEST
+    )
+  );
+}
+
+/**
+ * A percentage-change set: same provider, stream, settlement and observation
+ * time as MSFT_MARKETS, struck in percent rather than in the stream's units.
+ */
+function changeMarkets(
+  timeInterval = YEAR,
+  baseTime: number | null = null
+): Record<number, FakeMarket> {
+  return {
+    601: {
+      components: changeComponents(null, "2", timeInterval, baseTime),
+      bounds: { lower: null, upper: 2 },
+      yesBid: 1,
+      yesAsk: null,
+    },
+    602: {
+      components: changeComponents("2", "3", timeInterval, baseTime),
+      bounds: { lower: 2, upper: 3 },
+      yesBid: 16,
+      yesAsk: 28,
+    },
+    603: {
+      components: changeComponents("3", null, timeInterval, baseTime),
+      bounds: { lower: 3, upper: null },
+      yesBid: 44,
+      yesAsk: 56,
+    },
+  };
+}
+
 /**
  * A fourth set identical to MSFT_MARKETS in every field but `frozenAt`: the
  * same question asked of data pinned to a block rather than of latest data.
@@ -675,6 +731,61 @@ describe("getMarketForecast", () => {
         Object.keys(both).map(Number)
       )
     ).rejects.toThrow(/different event/);
+  });
+
+  it("rejects two change markets that differ only in the interval they measure", async () => {
+    // Year-over-year and month-over-month over the same stream, observed at the
+    // same moment, settling at the same moment. Every other identity field
+    // matches, so only timeInterval can tell these two events apart.
+    const yearly = changeMarkets(YEAR);
+    const monthly: Record<number, FakeMarket> = {};
+    for (const [id, market] of Object.entries(changeMarkets(MONTH))) {
+      monthly[Number(id) + 30] = market;
+    }
+    const both = { ...yearly, ...monthly };
+    await expect(
+      fakeAction({ markets: both }).getMarketForecast(
+        Object.keys(both).map(Number)
+      )
+    ).rejects.toThrow(/different event/);
+  });
+
+  it("rejects two change markets that differ only in their index base", async () => {
+    const bare = changeMarkets(YEAR, null);
+    const based: Record<number, FakeMarket> = {};
+    for (const [id, market] of Object.entries(changeMarkets(YEAR, 1600000000))) {
+      based[Number(id) + 60] = market;
+    }
+    const both = { ...bare, ...based };
+    await expect(
+      fakeAction({ markets: both }).getMarketForecast(
+        Object.keys(both).map(Number)
+      )
+    ).rejects.toThrow(/different event/);
+  });
+
+  it("rejects a percent-change bucket joining a set struck in stream units", async () => {
+    // MSFT's buckets are around 4.04 in the stream's own units; the change
+    // buckets are around 2-3 percent. Merging them would forecast one
+    // distribution over two incomparable scales. Only a change market carries a
+    // timeInterval at all, which is what separates them.
+    const both = { ...MSFT_MARKETS, ...changeMarkets() };
+    await expect(
+      fakeAction({ markets: both }).getMarketForecast(
+        Object.keys(both).map(Number)
+      )
+    ).rejects.toThrow(/different event/);
+  });
+
+  it("forecasts a change-market set of its own", async () => {
+    // The identity check must separate the scales without refusing a set that
+    // is entirely percent-change.
+    const change = changeMarkets();
+    expect(
+      await fakeAction({ markets: change }).getMarketForecast(
+        Object.keys(change).map(Number)
+      )
+    ).not.toBeNull();
   });
 
   it("still forecasts each of those sets on its own", async () => {
