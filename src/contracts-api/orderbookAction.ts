@@ -31,6 +31,7 @@ import {
   CreatePriceThresholdMarketInput,
   CreateValueInRangeMarketInput,
   CreateValueEqualsMarketInput,
+  CreateIndexChangeInRangeMarketInput,
   BridgeIdentifier,
   RawMarketInfo,
   RawMarketSummary,
@@ -51,6 +52,7 @@ import {
   encodeQueryComponents,
   encodeRangeActionArgs,
   encodeEqualsActionArgs,
+  encodeIndexChangeActionArgs,
   dbBytesToUint8Array,
   decodeMarketData,
   validatePrice,
@@ -874,17 +876,30 @@ export class OrderbookAction {
       // the query components: it is a createMarket argument, so two markets can
       // ask an identical question while collateralising it differently. Those
       // are separate markets with separate books.
+      //
+      // baseTime and timeInterval are null for every market type except
+      // "change_between", where they say what the change is measured over. A
+      // year-over-year bucket and a month-over-month one can share every other
+      // field on this line and still be two unrelated events; carrying them
+      // also keeps a percent-change bucket from joining a set struck in the
+      // stream's own units, since only a change market has an interval at all.
+      //
+      // The action id is deliberately NOT here: a complete set tiles the line
+      // with one price_below_threshold bucket, one price_above_threshold, and
+      // value_in_range between, so three different actions is the normal shape
+      // of ONE market.
       requireQueryTime(queryId, marketData);
       const thisIdentity =
         `${marketData.dataProvider}|${marketData.streamId}|${info.bridge}` +
-        `|${info.settleTime}|${marketData.timestamp}|${marketData.frozenAt}`;
+        `|${info.settleTime}|${marketData.timestamp}|${marketData.frozenAt}` +
+        `|${marketData.baseTime}|${marketData.timeInterval}`;
       if (identity === null) {
         identity = thisIdentity;
       } else if (thisIdentity !== identity) {
         throw new Error(
           `market ${queryId} belongs to a different event than the first ` +
             `bucket: (dataProvider, streamId, bridge, settleTime, timestamp, ` +
-            `frozenAt) ` +
+            `frozenAt, baseTime, timeInterval) ` +
             `is ${thisIdentity} against ${identity}. One forecast covers the ` +
             `buckets of ONE market.`
         );
@@ -1379,6 +1394,66 @@ export class OrderbookAction {
     });
   }
 
+  /**
+   * Creates an "index change in range" market.
+   *
+   * YES wins if the stream's percentage change over `timeInterval` lands in
+   * [minChange, maxChange) at the settlement time. The bounds are in percent —
+   * a stream publishing an index level of 335 is struck at 2.4, not at 343.
+   *
+   * Leave `minChange` or `maxChange` unset to strike an open tail, which is how
+   * the outer two buckets of a set are struck. Leaving both unset is rejected.
+   *
+   * @param input - Market parameters
+   * @returns Transaction receipt
+   *
+   * @example
+   * ```typescript
+   * // "Will year-over-year inflation land between 2% and 3%?"
+   * await orderbook.createIndexChangeInRangeMarket({
+   *   dataProvider, streamId,
+   *   timestamp: 1767225600,
+   *   timeInterval: 31536000,
+   *   minChange: "2",
+   *   maxChange: "3",
+   *   frozenAt: 0,
+   *   bridge: "eth_usdc",
+   *   settleTime: 1767312000,
+   *   maxSpread: 10,
+   *   minOrderSize: 1000000,
+   * });
+   * ```
+   */
+  async createIndexChangeInRangeMarket(
+    input: CreateIndexChangeInRangeMarketInput
+  ): Promise<Types.GenericResponse<Types.TxReceipt>> {
+    const args = encodeIndexChangeActionArgs(
+      input.dataProvider,
+      input.streamId,
+      input.timestamp,
+      input.baseTime,
+      input.timeInterval,
+      input.minChange,
+      input.maxChange,
+      input.frozenAt
+    );
+
+    const queryComponents = encodeQueryComponents(
+      input.dataProvider,
+      input.streamId,
+      "index_change_in_range",
+      args
+    );
+
+    return this.createMarket({
+      bridge: input.bridge,
+      queryComponents,
+      settleTime: input.settleTime,
+      maxSpread: input.maxSpread,
+      minOrderSize: input.minOrderSize,
+    });
+  }
+
   // ==========================================
   // Static Helper Methods
   // ==========================================
@@ -1406,6 +1481,12 @@ export class OrderbookAction {
    * @see encodeEqualsActionArgs
    */
   static encodeEqualsActionArgs = encodeEqualsActionArgs;
+
+  /**
+   * Encodes action arguments for index-change markets.
+   * @see encodeIndexChangeActionArgs
+   */
+  static encodeIndexChangeActionArgs = encodeIndexChangeActionArgs;
 
   // ==========================================
   // Private Helper Methods

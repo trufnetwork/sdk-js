@@ -19,6 +19,7 @@ import { bucketBoundsFromMarketData, requireQueryTime } from "./marketBuckets";
 import {
   decodeMarketData,
   encodeActionArgs,
+  encodeIndexChangeActionArgs,
   encodeQueryComponents,
   encodeRangeActionArgs,
 } from "./orderbookHelpers";
@@ -55,6 +56,87 @@ describe("bucketBoundsFromMarketData", () => {
     expect(lower).toBeCloseTo(5.15, 10);
     expect(upper).toBeCloseTo(5.35, 10);
     expect(lower!).toBeLessThan(upper!);
+  });
+
+  it("reads a change_between market as an interior bucket", () => {
+    expect(
+      bucketBoundsFromMarketData({
+        type: "change_between",
+        thresholds: ["2.000000000000000000", "3.000000000000000000"],
+      })
+    ).toEqual({ lower: 2, upper: 3 });
+  });
+
+  it("reads an open change_between tail from the empty slot", () => {
+    // The empty string is the slot an open tail leaves behind. Filtering it out
+    // instead would slide the surviving bound into the wrong position, turning
+    // "below 1%" into "1% or more".
+    expect(
+      bucketBoundsFromMarketData({ type: "change_between", thresholds: ["", "1"] })
+    ).toEqual({ lower: null, upper: 1 });
+    expect(
+      bucketBoundsFromMarketData({ type: "change_between", thresholds: ["4", ""] })
+    ).toEqual({ lower: 4, upper: null });
+  });
+
+  it("reads a negative change_between bucket", () => {
+    // Rates of change go below zero, unlike every other bucket type here.
+    expect(
+      bucketBoundsFromMarketData({
+        type: "change_between",
+        thresholds: ["-2", "-0.5"],
+      })
+    ).toEqual({ lower: -2, upper: -0.5 });
+  });
+
+  it("rejects a change_between market with both tails open", () => {
+    // The whole number line. The node action cannot be created that way, so a
+    // market that reaches here like this is malformed rather than unbounded.
+    expect(() =>
+      bucketBoundsFromMarketData({ type: "change_between", thresholds: ["", ""] })
+    ).toThrow(/at least one bound/);
+  });
+
+  it("rejects an inverted or empty change_between bucket", () => {
+    for (const thresholds of [
+      ["3", "2"],
+      ["2", "2"],
+    ]) {
+      expect(() =>
+        bucketBoundsFromMarketData({ type: "change_between", thresholds })
+      ).toThrow(/lower < upper/);
+    }
+  });
+
+  it("rejects a change_between market missing a threshold slot", () => {
+    // One slot is not an open tail — an open tail still occupies its slot.
+    expect(() =>
+      bucketBoundsFromMarketData({ type: "change_between", thresholds: ["2"] })
+    ).toThrow(/needs 2 threshold slot\(s\)/);
+  });
+
+  it("derives change_between bounds from real query components", () => {
+    // The whole path, as it runs against a market read off the chain: encode
+    // the arguments, decode them back, then read the bounds out.
+    const DP = "0x4710a8d8f0d845da110086812a32de6d90d7ff5c";
+    const SID = "stcpiyoy0000000000000000000000000".slice(0, 32);
+    const components = (min: string | null, max: string | null) =>
+      encodeQueryComponents(
+        DP,
+        SID,
+        "index_change_in_range",
+        encodeIndexChangeActionArgs(DP, SID, 1700000000, null, 31536000, min, max, 0)
+      );
+
+    expect(
+      bucketBoundsFromMarketData(decodeMarketData(components("2", "3")))
+    ).toEqual({ lower: 2, upper: 3 });
+    expect(
+      bucketBoundsFromMarketData(decodeMarketData(components(null, "2")))
+    ).toEqual({ lower: null, upper: 2 });
+    expect(
+      bucketBoundsFromMarketData(decodeMarketData(components("3", null)))
+    ).toEqual({ lower: 3, upper: null });
   });
 
   it("rejects a market type that cannot describe a bucket", () => {
@@ -361,6 +443,62 @@ const LATER_MARKETS: Record<number, FakeMarket> = {
   },
 };
 
+const YEAR = 31536000;
+const MONTH = 2592000;
+
+function changeComponents(
+  min: string | null,
+  max: string | null,
+  timeInterval = YEAR,
+  baseTime: number | null = null
+): Uint8Array {
+  return encodeQueryComponents(
+    DATA_PROVIDER,
+    STREAM_ID,
+    "index_change_in_range",
+    encodeIndexChangeActionArgs(
+      DATA_PROVIDER,
+      STREAM_ID,
+      TIMESTAMP,
+      baseTime,
+      timeInterval,
+      min,
+      max,
+      LATEST
+    )
+  );
+}
+
+/**
+ * A percentage-change set: same provider, stream, settlement and observation
+ * time as MSFT_MARKETS, struck in percent rather than in the stream's units.
+ */
+function changeMarkets(
+  timeInterval = YEAR,
+  baseTime: number | null = null
+): Record<number, FakeMarket> {
+  return {
+    601: {
+      components: changeComponents(null, "2", timeInterval, baseTime),
+      bounds: { lower: null, upper: 2 },
+      yesBid: 1,
+      yesAsk: null,
+    },
+    602: {
+      components: changeComponents("2", "3", timeInterval, baseTime),
+      bounds: { lower: 2, upper: 3 },
+      yesBid: 16,
+      yesAsk: 28,
+    },
+    603: {
+      components: changeComponents("3", null, timeInterval, baseTime),
+      bounds: { lower: 3, upper: null },
+      yesBid: 44,
+      yesAsk: 56,
+    },
+  };
+}
+
 /**
  * A fourth set identical to MSFT_MARKETS in every field but `frozenAt`: the
  * same question asked of data pinned to a block rather than of latest data.
@@ -593,6 +731,61 @@ describe("getMarketForecast", () => {
         Object.keys(both).map(Number)
       )
     ).rejects.toThrow(/different event/);
+  });
+
+  it("rejects two change markets that differ only in the interval they measure", async () => {
+    // Year-over-year and month-over-month over the same stream, observed at the
+    // same moment, settling at the same moment. Every other identity field
+    // matches, so only timeInterval can tell these two events apart.
+    const yearly = changeMarkets(YEAR);
+    const monthly: Record<number, FakeMarket> = {};
+    for (const [id, market] of Object.entries(changeMarkets(MONTH))) {
+      monthly[Number(id) + 30] = market;
+    }
+    const both = { ...yearly, ...monthly };
+    await expect(
+      fakeAction({ markets: both }).getMarketForecast(
+        Object.keys(both).map(Number)
+      )
+    ).rejects.toThrow(/different event/);
+  });
+
+  it("rejects two change markets that differ only in their index base", async () => {
+    const bare = changeMarkets(YEAR, null);
+    const based: Record<number, FakeMarket> = {};
+    for (const [id, market] of Object.entries(changeMarkets(YEAR, 1600000000))) {
+      based[Number(id) + 60] = market;
+    }
+    const both = { ...bare, ...based };
+    await expect(
+      fakeAction({ markets: both }).getMarketForecast(
+        Object.keys(both).map(Number)
+      )
+    ).rejects.toThrow(/different event/);
+  });
+
+  it("rejects a percent-change bucket joining a set struck in stream units", async () => {
+    // MSFT's buckets are around 4.04 in the stream's own units; the change
+    // buckets are around 2-3 percent. Merging them would forecast one
+    // distribution over two incomparable scales. Only a change market carries a
+    // timeInterval at all, which is what separates them.
+    const both = { ...MSFT_MARKETS, ...changeMarkets() };
+    await expect(
+      fakeAction({ markets: both }).getMarketForecast(
+        Object.keys(both).map(Number)
+      )
+    ).rejects.toThrow(/different event/);
+  });
+
+  it("forecasts a change-market set of its own", async () => {
+    // The identity check must separate the scales without refusing a set that
+    // is entirely percent-change.
+    const change = changeMarkets();
+    expect(
+      await fakeAction({ markets: change }).getMarketForecast(
+        Object.keys(change).map(Number)
+      )
+    ).not.toBeNull();
   });
 
   it("still forecasts each of those sets on its own", async () => {

@@ -20,7 +20,13 @@ export interface MarketData {
   dataProvider: string;
   streamId: string;
   actionId: string;
-  type: "above" | "below" | "between" | "equals" | "unknown";
+  type: "above" | "below" | "between" | "equals" | "change_between" | "unknown";
+  /**
+   * The market's strike values in the order the action declares them, one entry
+   * per slot. A `"change_between"` market may strike an open tail, which reads
+   * back as an empty string in place rather than a shorter array — dropping it
+   * would slide the remaining bound into the wrong position.
+   */
   thresholds: string[];
   /**
    * The point in the stream the query observes, in unix seconds. Every bucket
@@ -38,6 +44,25 @@ export interface MarketData {
    * same reason as `timestamp`.
    */
   frozenAt?: number | null;
+  /**
+   * The index base date the query measures against, in unix seconds, or null
+   * for the stream's own default.
+   *
+   * Only a `"change_between"` market carries one; it is null for every other
+   * type, which has no such argument. Optional for the same reason as
+   * `timestamp`.
+   */
+  baseTime?: number | null;
+  /**
+   * How far back the query looks for its comparison value, in seconds — e.g.
+   * 31536000 for year-over-year.
+   *
+   * Only a `"change_between"` market carries one. Two markets over the same
+   * stream and the same observation time but different intervals are asking
+   * different questions, so this is part of a market's identity rather than
+   * presentation.
+   */
+  timeInterval?: number | null;
 }
 
 /**
@@ -49,6 +74,8 @@ export interface MarketData {
 export interface DecodedMarketData extends MarketData {
   timestamp: number | null;
   frozenAt: number | null;
+  baseTime: number | null;
+  timeInterval: number | null;
 }
 
 /**
@@ -76,6 +103,8 @@ export function decodeMarketData(encoded: string | Uint8Array): DecodedMarketDat
     thresholds: [],
     timestamp: null,
     frozenAt: null,
+    baseTime: null,
+    timeInterval: null,
   };
 
   /** INT8 arguments arrive as bigint, and NULL is a value rather than an error. */
@@ -88,9 +117,22 @@ export function decodeMarketData(encoded: string | Uint8Array): DecodedMarketDat
   };
 
   /**
+   * A NUMERIC argument as a threshold slot. An open tail is SQL NULL on the
+   * wire and is held here as an empty string, keeping the slot so the surviving
+   * bound stays in position. The other cases call `.toString()` directly, which
+   * throws on null — they can, because their bounds are never nullable.
+   */
+  const argThreshold = (index: number): string => {
+    const value = args[index];
+    return value === null || value === undefined ? "" : value.toString();
+  };
+
+  /**
    * Every binary action takes ($data_provider, $stream_id, $timestamp, ...,
    * $frozen_at), so the timestamp is always argument 2 and frozen_at is always
-   * last. Only the thresholds in between change shape.
+   * last. Only the arguments in between change shape, and they are not all
+   * thresholds: index_change_in_range carries $base_time and $time_interval
+   * ahead of its two bounds.
    */
   const readQueryTime = (frozenAtIndex: number): void => {
     // Both slots have to exist for either to mean anything. A truncated
@@ -105,7 +147,8 @@ export function decodeMarketData(encoded: string | Uint8Array): DecodedMarketDat
   };
 
   // Map action_id to market type and thresholds
-  // Based on 040-binary-attestation-actions.sql
+  // Based on 040-binary-attestation-actions.sql and
+  // 055-index-change-attestation-action.sql
   switch (actionId) {
     case "price_above_threshold":
       market.type = "above";
@@ -134,6 +177,22 @@ export function decodeMarketData(encoded: string | Uint8Array): DecodedMarketDat
         market.thresholds.push(args[3].toString(), args[4].toString());
       }
       readQueryTime(5);
+      break;
+    case "index_change_in_range":
+      // Its own type rather than "between": these bounds are half-open and
+      // either may be NULL for an open tail, which "between" consumers parse as
+      // a number and would reject.
+      market.type = "change_between";
+      if (args.length >= 7) {
+        // 5 and 6, not 3 and 4: $base_time and $time_interval come first.
+        market.thresholds.push(argThreshold(5), argThreshold(6));
+        // The two arguments the bounds displaced. They are not strikes, so they
+        // do not belong in `thresholds`, but they do change the question the
+        // market asks and so cannot be dropped either.
+        market.baseTime = argInt(3);
+        market.timeInterval = argInt(4);
+      }
+      readQueryTime(7);
       break;
   }
 
@@ -346,6 +405,200 @@ export function encodeEqualsActionArgs(
       // Arguments 3, 4 (targetValue, tolerance) must be NUMERIC(36, 18)
       3: Utils.DataType.Numeric(36, 18),
       4: Utils.DataType.Numeric(36, 18),
+    }
+  );
+}
+
+/**
+ * The scale of every NUMERIC the binary attestation actions declare.
+ */
+const NUMERIC_SCALE = 18;
+
+/**
+ * The greatest number of integer digits a NUMERIC(36,18) holds: 36 total digits
+ * less the 18 the scale reserves.
+ */
+const NUMERIC_INTEGER_DIGITS = 36 - NUMERIC_SCALE;
+
+/**
+ * Renders a decimal string the way the chain stores a NUMERIC(36,18).
+ *
+ * The market's identity is the hash of its encoded arguments, and a bound is
+ * encoded as text — so `"2"` and `"2.000000000000000000"` are two different
+ * markets asking the same question. sdk-go and sdk-py both parse a bound into a
+ * decimal before encoding, which renders it at full scale; passing the caller's
+ * string through unchanged, as the older encoders here do, leaves a bucket
+ * struck from JavaScript carrying different bytes from the same bucket struck
+ * from Python.
+ *
+ * This closes the divergence in the bound itself. It does not, on its own, make
+ * the whole argument list byte-identical across SDKs: kwil-js and kwil-db's Go
+ * encoder also disagree on the metadata they attach to an INT8 and on how they
+ * lay out a NULL, for every argument of every action. Those live below this
+ * package.
+ *
+ * Accepts an optionally signed integer with an optional fractional part, and
+ * nothing else. The three rejections are the cases where this rendering and the
+ * Go one part company:
+ *
+ *  - more than 18 decimal places, which a NUMERIC(36,18) silently rounds;
+ *  - more than 18 integer digits, which overflows the precision;
+ *  - a non-zero magnitude below 1e-6, which Go renders in exponent form
+ *    (`1E-18`) rather than as a decimal run.
+ *
+ * A bound too small to write as `0.000001` is not a percentage anyone strikes a
+ * market on, so refusing it locally is better than encoding bytes that silently
+ * fail to match.
+ *
+ * @param value - The bound as written by the caller, e.g. `"2"` or `"-0.5"`.
+ * @param field - Argument name, used only to make the error message point somewhere.
+ * @returns The same number at exactly 18 decimal places.
+ * @throws If `value` is not a plain decimal, or cannot be rendered the way Go renders it.
+ *
+ * @internal Not part of the package's public surface.
+ */
+export function toCanonicalNumeric(value: string, field: string): string {
+  const match = /^(-?)(\d+)(?:\.(\d*))?$/.exec(value);
+  if (!match) {
+    throw new Error(
+      `${field} must be a decimal number, optionally signed, with no exponent ` +
+        `(e.g. "2", "-0.5"), got '${value}'`
+    );
+  }
+
+  const [, sign, rawInteger, rawFraction = ""] = match;
+  if (rawFraction.length > NUMERIC_SCALE) {
+    throw new Error(
+      `${field} carries ${rawFraction.length} decimal places; a NUMERIC(36,${NUMERIC_SCALE}) ` +
+        `holds ${NUMERIC_SCALE} and would round the rest away: '${value}'`
+    );
+  }
+
+  // Leading zeros are dropped before the digit count, so "007" is three digits
+  // wide rather than one, and so the rendering matches Go's for the same value.
+  const integer = rawInteger.replace(/^0+(?=\d)/, "");
+  if (integer.length > NUMERIC_INTEGER_DIGITS) {
+    throw new Error(
+      `${field} needs ${integer.length} integer digits; a NUMERIC(36,${NUMERIC_SCALE}) ` +
+        `holds ${NUMERIC_INTEGER_DIGITS}: '${value}'`
+    );
+  }
+
+  const fraction = rawFraction.padEnd(NUMERIC_SCALE, "0");
+
+  // Below 1e-6 Go switches to exponent form. The test is on the digits rather
+  // than on Number(value), which would have already lost them.
+  const isZero = integer === "0" && !/[1-9]/.test(fraction);
+  if (!isZero && integer === "0" && !/[1-9]/.test(fraction.slice(0, 6))) {
+    throw new Error(
+      `${field} is smaller than 1e-6, which encodes in exponent form and would ` +
+        `not match the same bound written from another SDK: '${value}'`
+    );
+  }
+
+  // The sign survives a zero magnitude on purpose: Go renders "-0" as
+  // "-0.000000000000000000", and dropping the minus here would change the bytes.
+  return `${sign}${integer}.${fraction}`;
+}
+
+/**
+ * Compares two canonical NUMERIC(36,18) strings as the node compares them.
+ *
+ * Removing the decimal point leaves the value scaled by 1e18, which is exact in
+ * a BigInt and orders the way the node's NUMERIC comparison does. `Number` would
+ * not: it runs out of mantissa well before 36 digits.
+ */
+function compareCanonicalNumeric(left: string, right: string): number {
+  const scaled = (value: string): bigint => BigInt(value.replace(".", ""));
+  const a = scaled(left);
+  const b = scaled(right);
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/**
+ * Encodes action arguments for index-change markets using Kwil's native encoding.
+ *
+ * The order below IS the contract with the node action, which reads its
+ * arguments positionally: an argument in the wrong slot produces a market that
+ * attests against the wrong numbers and can never be corrected.
+ *
+ * @param dataProvider - Data provider's Ethereum address
+ * @param streamId - Stream ID
+ * @param timestamp - Unix timestamp to measure the change at
+ * @param baseTime - Index base date, or null/undefined for the stream's default.
+ *   Unlike `frozenAt`, 0 is not a sentinel here — it is the epoch.
+ * @param timeInterval - Seconds to look back for the comparison value (e.g. 31536000 for YoY)
+ * @param minChange - Lower bound in percent, inclusive; null/undefined for an open tail
+ * @param maxChange - Upper bound in percent, exclusive; null/undefined for an open tail
+ * @param frozenAt - Block height (0 for latest)
+ * @returns Kwil-encoded bytes compatible with call_dispatch
+ * @throws If both bounds are open, `timeInterval` is not a positive integer, or a
+ *   bound cannot be rendered as a NUMERIC(36,18) — see {@link toCanonicalNumeric}.
+ */
+export function encodeIndexChangeActionArgs(
+  dataProvider: string,
+  streamId: string,
+  timestamp: number,
+  baseTime: number | null | undefined,
+  timeInterval: number,
+  minChange: string | null | undefined,
+  maxChange: string | null | undefined,
+  frozenAt: number
+): Uint8Array {
+  if (!Number.isInteger(timeInterval) || timeInterval <= 0) {
+    throw new Error(
+      `time_interval must be a positive whole number of seconds, got ${timeInterval}`
+    );
+  }
+
+  // An empty string is how a decoded market holds an open tail; as an input it
+  // is far more likely to be an unset variable than a deliberate one, and
+  // toCanonicalNumeric would reject it with a less useful message.
+  for (const [field, bound] of [
+    ["min_change", minChange],
+    ["max_change", maxChange],
+  ] as const) {
+    if (bound === "") {
+      throw new Error(`${field} is empty; pass null to strike an open tail`);
+    }
+  }
+
+  const min = minChange == null ? null : toCanonicalNumeric(minChange, "min_change");
+  const max = maxChange == null ? null : toCanonicalNumeric(maxChange, "max_change");
+
+  // Both tails open would describe the whole number line, which the node action
+  // refuses; raising it here turns a spent transaction into a local error.
+  if (min === null && max === null) {
+    throw new Error("at least one of min_change or max_change is required");
+  }
+  // The node refuses min >= max, comparing at NUMERIC(36,18). Comparing the
+  // canonical renderings rather than the caller's strings is what lets this
+  // happen at the same precision: as written, "10" sorts below "9".
+  if (min !== null && max !== null && compareCanonicalNumeric(min, max) >= 0) {
+    throw new Error(
+      `min_change must be less than max_change, got [${minChange}, ${maxChange})`
+    );
+  }
+
+  // index_change_in_range expects: ($data_provider TEXT, $stream_id TEXT, $timestamp INT8,
+  // $base_time INT8, $time_interval INT, $min_change NUMERIC(36,18), $max_change NUMERIC(36,18),
+  // $frozen_at INT8)
+  return encodeActionArgsKwil(
+    [
+      dataProvider.toLowerCase(),
+      streamId,
+      timestamp,
+      baseTime ?? null,
+      timeInterval,
+      min,
+      max,
+      frozenAt === 0 ? null : frozenAt,
+    ],
+    {
+      // Arguments 5, 6 (minChange, maxChange) must be NUMERIC(36, 18). A null
+      // carrying the hint still encodes as SQL NULL, which is the open tail.
+      5: Utils.DataType.Numeric(36, 18),
+      6: Utils.DataType.Numeric(36, 18),
     }
   );
 }

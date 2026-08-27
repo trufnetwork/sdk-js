@@ -4,6 +4,8 @@ import {
   encodeQueryComponents,
   encodeRangeActionArgs,
   encodeEqualsActionArgs,
+  encodeIndexChangeActionArgs,
+  toCanonicalNumeric,
   stringToBytes32,
   hexToBytes,
   bytesToHex,
@@ -16,6 +18,12 @@ import {
   decodeCreateMarketPayload,
 } from "./orderbookHelpers";
 import type { DecodedTransactionPayload } from "./TransactionPayload";
+import {
+  decodeEncodedValue,
+  encodeActionArgs as encodeKwilArgs,
+  readUint32LE,
+} from "./AttestationEncoding";
+import { Utils } from "@trufnetwork/kwil-js";
 
 // Valid 32-character stream ID for testing
 const TEST_STREAM_ID = "stbtc000000000000000000000000000"; // exactly 32 chars
@@ -270,6 +278,210 @@ describe("orderbookHelpers", () => {
     });
   });
 
+  describe("toCanonicalNumeric", () => {
+    // Expected values produced by kwil-db's NUMERIC(36,18) renderer
+    // (types.ParseDecimalExplicit(v, 36, 18).String()), which is what sdk-go and
+    // sdk-py encode. The market hash is over these bytes, so a divergence here
+    // means the same bucket struck from two SDKs is two different markets.
+    const asGoRendersIt: [string, string][] = [
+      ["0", "0.000000000000000000"],
+      ["2", "2.000000000000000000"],
+      ["2.5", "2.500000000000000000"],
+      ["-0.5", "-0.500000000000000000"],
+      ["10", "10.000000000000000000"],
+      ["9", "9.000000000000000000"],
+      ["1.335", "1.335000000000000000"],
+      ["-33.659022158930734676", "-33.659022158930734676"],
+      ["0.000001", "0.000001000000000000"],
+      ["-0.000001", "-0.000001000000000000"],
+      ["12.3456789012345678", "12.345678901234567800"],
+      ["999999999999999999.999999999999999999", "999999999999999999.999999999999999999"],
+      // Rendered from the value, not copied from the input: leading zeros go,
+      // a bare trailing point is fine, and a negative zero keeps its sign.
+      ["007", "7.000000000000000000"],
+      ["2.", "2.000000000000000000"],
+      ["-0", "-0.000000000000000000"],
+    ];
+
+    it.each(asGoRendersIt)("renders %s as the chain stores it", (input, expected) => {
+      expect(toCanonicalNumeric(input, "bound")).toBe(expected);
+    });
+
+    it("rejects more decimal places than a NUMERIC(36,18) holds", () => {
+      // Go rounds this away silently; refusing it locally means the bound that
+      // gets encoded is always the bound that was written.
+      expect(() => toCanonicalNumeric("0.0000000000000000001", "min_change")).toThrow(
+        /min_change carries 19 decimal places/
+      );
+    });
+
+    it("rejects a magnitude past the precision", () => {
+      expect(() => toCanonicalNumeric("1000000000000000000", "max_change")).toThrow(
+        /max_change needs 19 integer digits/
+      );
+    });
+
+    it("rejects a value below 1e-6, which Go renders in exponent form", () => {
+      // Go gives "1.00000000000E-7" here, so padding to 18 places would encode
+      // different bytes for the same number.
+      expect(() => toCanonicalNumeric("0.0000001", "min_change")).toThrow(/exponent form/);
+      // ...but a zero is not "below 1e-6": Go renders it as a decimal run.
+      expect(() => toCanonicalNumeric("0.000000000000000000", "min_change")).not.toThrow();
+    });
+
+    it("rejects notations the chain renderer would not echo back", () => {
+      for (const bad of ["1e3", "+2", "", "abc", "2,5", " 2"]) {
+        expect(() => toCanonicalNumeric(bad, "min_change")).toThrow(
+          /min_change must be a decimal number/
+        );
+      }
+    });
+  });
+
+  describe("encodeIndexChangeActionArgs", () => {
+    const encode = (
+      overrides: Partial<{
+        baseTime: number | null;
+        timeInterval: number;
+        minChange: string | null;
+        maxChange: string | null;
+        frozenAt: number;
+      }> = {}
+    ) =>
+      encodeIndexChangeActionArgs(
+        TEST_DATA_PROVIDER,
+        TEST_STREAM_ID,
+        1700000000,
+        overrides.baseTime ?? null,
+        overrides.timeInterval ?? 31536000,
+        overrides.minChange === undefined ? "2" : overrides.minChange,
+        overrides.maxChange === undefined ? "3" : overrides.maxChange,
+        overrides.frozenAt ?? 0
+      );
+
+    it("encodes a two-sided bucket", () => {
+      const result = encode();
+      expect(result).toBeInstanceOf(Uint8Array);
+      expect(result.length).toBeGreaterThan(0);
+    });
+
+    it("encodes either open tail", () => {
+      expect(() => encode({ minChange: null })).not.toThrow();
+      expect(() => encode({ maxChange: null })).not.toThrow();
+    });
+
+    it("rejects a bucket with both tails open", () => {
+      // The whole number line. The node action refuses it, so refusing here
+      // turns a spent transaction into a local error.
+      expect(() => encode({ minChange: null, maxChange: null })).toThrow(
+        /at least one of min_change or max_change/
+      );
+    });
+
+    it("rejects an empty-string bound", () => {
+      // "" is how a DECODED market holds an open tail. As an input it is far
+      // more likely to be an unset variable.
+      expect(() => encode({ minChange: "" })).toThrow(
+        /min_change is empty; pass null/
+      );
+      expect(() => encode({ maxChange: "" })).toThrow(
+        /max_change is empty; pass null/
+      );
+    });
+
+    it("rejects a non-positive or fractional time interval", () => {
+      expect(() => encode({ timeInterval: 0 })).toThrow(/time_interval must be a positive/);
+      expect(() => encode({ timeInterval: -31536000 })).toThrow(/time_interval must be a positive/);
+      expect(() => encode({ timeInterval: 1.5 })).toThrow(/time_interval must be a positive/);
+    });
+
+    it("rejects an inverted or empty bucket", () => {
+      expect(() => encode({ minChange: "3", maxChange: "2" })).toThrow(
+        /min_change must be less than max_change/
+      );
+      // Equal bounds are half-open [2, 2): empty, and no outcome can land in it.
+      expect(() => encode({ minChange: "2", maxChange: "2" })).toThrow(
+        /min_change must be less than max_change/
+      );
+      // ...including when the two strings differ but the numbers do not.
+      expect(() => encode({ minChange: "2", maxChange: "2.0" })).toThrow(
+        /min_change must be less than max_change/
+      );
+    });
+
+    it("declares each argument's type in the slot the action expects", () => {
+      // The values alone cannot show this: a bound sent as TEXT decodes to the
+      // same string as one sent as NUMERIC, but it is different bytes on the
+      // wire — a different market hash, and an argument the action would refuse.
+      const declaredTypes = (args: Uint8Array): string[] => {
+        const types: string[] = [];
+        let offset = 0;
+        const count = readUint32LE(args, offset);
+        offset += 4;
+        for (let i = 0; i < count; i++) {
+          const length = readUint32LE(args, offset);
+          offset += 4;
+          const { value } = decodeEncodedValue(args.slice(offset, offset + length), 0);
+          offset += length;
+          types.push(
+            value.type.name === "numeric"
+              ? `numeric(${value.type.metadata.join(",")})`
+              : value.type.name
+          );
+        }
+        return types;
+      };
+
+      // ($data_provider TEXT, $stream_id TEXT, $timestamp INT8, $base_time INT8,
+      //  $time_interval INT, $min_change NUMERIC(36,18), $max_change NUMERIC(36,18),
+      //  $frozen_at INT8), with NULL standing in for the two absent INT8s.
+      expect(declaredTypes(encode())).toEqual([
+        "text",
+        "text",
+        "int8",
+        "null",
+        "int8",
+        "numeric(36,18)",
+        "numeric(36,18)",
+        "null",
+      ]);
+
+      // An open tail is a NULL in the bound's own slot, not a missing argument:
+      // the slot keeps its declared NUMERIC type and carries a null flag.
+      expect(declaredTypes(encode({ minChange: null }))).toEqual([
+        "text",
+        "text",
+        "int8",
+        "null",
+        "int8",
+        "numeric(36,18)",
+        "numeric(36,18)",
+        "null",
+      ]);
+
+      // base_time and frozen_at are carried when they are given.
+      expect(
+        declaredTypes(encode({ baseTime: 1600000000, frozenAt: 1234567 }))
+      ).toEqual([
+        "text",
+        "text",
+        "int8",
+        "int8",
+        "int8",
+        "numeric(36,18)",
+        "numeric(36,18)",
+        "int8",
+      ]);
+    });
+
+    it("orders the bounds as numbers, not as strings", () => {
+      // "10" sorts below "9" as text. A string comparison would reject this
+      // perfectly ordinary bucket.
+      expect(() => encode({ minChange: "9", maxChange: "10" })).not.toThrow();
+      expect(() => encode({ minChange: "-33.7", maxChange: "-2" })).not.toThrow();
+    });
+  });
+
   describe("decodeMarketData", () => {
     const importHelper = async () => {
         const { decodeMarketData } = await import("./orderbookHelpers");
@@ -372,6 +584,133 @@ describe("orderbookHelpers", () => {
         const decoded = decodeMarketData(encoded);
         expect(decoded.type).toBe("equals");
         expect(decoded.thresholds).toEqual([target, tolerance]);
+    });
+
+    const indexChangeComponents = (
+      minChange: string | null,
+      maxChange: string | null,
+      timestamp = 1700000000,
+      frozenAt = 0,
+      baseTime: number | null = null,
+      timeInterval = 31536000
+    ): Uint8Array =>
+      encodeQueryComponents(
+        TEST_DATA_PROVIDER,
+        TEST_STREAM_ID,
+        "index_change_in_range",
+        encodeIndexChangeActionArgs(
+          TEST_DATA_PROVIDER,
+          TEST_STREAM_ID,
+          timestamp,
+          baseTime,
+          timeInterval,
+          minChange,
+          maxChange,
+          frozenAt
+        )
+      );
+
+    it("should round-trip index_change_in_range", async () => {
+      const { decodeMarketData } = await importHelper();
+      const decoded = decodeMarketData(indexChangeComponents("2", "3"));
+
+      // Its own type: "between" consumers parse both bounds as numbers, which
+      // an open tail would break.
+      expect(decoded.type).toBe("change_between");
+      // Read from arguments 5 and 6. Reading 3 and 4 the way value_in_range
+      // does would yield base_time and time_interval, which are also numbers
+      // and so would be silently wrong rather than loud.
+      expect(decoded.thresholds).toEqual([
+        "2.000000000000000000",
+        "3.000000000000000000",
+      ]);
+      expect(decoded.timestamp).toBe(1700000000);
+      expect(decoded.frozenAt).toBeNull();
+    });
+
+    it("should hold an open bottom tail in place", async () => {
+      const { decodeMarketData } = await importHelper();
+      const decoded = decodeMarketData(indexChangeComponents(null, "1"));
+      // Two slots, not one. Dropping the empty slot would slide "1" into the
+      // lower bound and turn "below 1%" into "1% or more".
+      expect(decoded.thresholds).toEqual(["", "1.000000000000000000"]);
+    });
+
+    it("should hold an open top tail in place", async () => {
+      const { decodeMarketData } = await importHelper();
+      const decoded = decodeMarketData(indexChangeComponents("4", null));
+      expect(decoded.thresholds).toEqual(["4.000000000000000000", ""]);
+    });
+
+    it("should read frozen_at from the eighth argument", async () => {
+      const { decodeMarketData } = await importHelper();
+      const decoded = decodeMarketData(
+        indexChangeComponents("2", "3", 1700000000, 1234567)
+      );
+      // Index 7, not 5: the two bounds sit where the older actions keep
+      // frozen_at, so reading position 5 would report a threshold as a height.
+      expect(decoded.frozenAt).toBe(1234567);
+      expect(decoded.timestamp).toBe(1700000000);
+    });
+
+    it("should read the interval and base the change is measured over", async () => {
+      const { decodeMarketData } = await importHelper();
+      // Not strikes, so they are not in `thresholds` — but they change the
+      // question, so two markets that differ only here are different events.
+      const yearly = decodeMarketData(indexChangeComponents("2", "3"));
+      expect(yearly.timeInterval).toBe(31536000);
+      expect(yearly.baseTime).toBeNull();
+
+      const based = decodeMarketData(
+        indexChangeComponents("2", "3", 1700000000, 0, 1600000000, 2592000)
+      );
+      expect(based.timeInterval).toBe(2592000);
+      expect(based.baseTime).toBe(1600000000);
+    });
+
+    it("should leave the interval and base null for a market that has none", async () => {
+      const { decodeMarketData } = await importHelper();
+      // Only index_change_in_range carries them. A value market having no
+      // interval is what keeps it from joining a percent-change bucket set.
+      const decoded = decodeMarketData(
+        encodeQueryComponents(
+          TEST_DATA_PROVIDER,
+          TEST_STREAM_ID,
+          "value_in_range",
+          encodeRangeActionArgs(
+            TEST_DATA_PROVIDER,
+            TEST_STREAM_ID,
+            1700000000,
+            "1",
+            "2",
+            0
+          )
+        )
+      );
+      expect(decoded.timeInterval).toBeNull();
+      expect(decoded.baseTime).toBeNull();
+    });
+
+    it("should leave a truncated index-change market unpinned", async () => {
+      const { decodeMarketData } = await importHelper();
+      // Seven arguments: enough for both bounds, one short of frozen_at.
+      const truncated = encodeKwilArgs(
+        [TEST_DATA_PROVIDER, TEST_STREAM_ID, 1700000000, null, 31536000, "2", "3"],
+        {
+          5: Utils.DataType.Numeric(36, 18),
+          6: Utils.DataType.Numeric(36, 18),
+        }
+      );
+      const decoded = decodeMarketData(
+        encodeQueryComponents(
+          TEST_DATA_PROVIDER,
+          TEST_STREAM_ID,
+          "index_change_in_range",
+          truncated
+        )
+      );
+      expect(decoded.timestamp).toBeNull();
+      expect(decoded.frozenAt).toBeNull();
     });
   });
 

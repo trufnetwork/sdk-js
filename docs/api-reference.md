@@ -1344,6 +1344,58 @@ const result = await orderbook.createPriceAboveThresholdMarket({
 });
 ```
 
+#### `orderbook.createIndexChangeInRangeMarket(input): Promise<TxReceipt>`
+
+Creates a market on how far a stream's index moved, rather than on the value it publishes:
+*"will year-over-year inflation land between 2% and 3%?"*. A stream publishing an index level
+of 335 is struck at `2`, not at `343`.
+
+The bounds are in percent, measured against the stream's own value one `timeInterval` earlier,
+and they are **half-open** — `[minChange, maxChange)`. A change landing exactly on a boundary
+belongs to the bucket above it, so a set of buckets tiles the number line without two of them
+settling YES.
+
+```typescript
+const observedAt = Math.floor(Date.now() / 1000) + 3600;
+
+const result = await orderbook.createIndexChangeInRangeMarket({
+  dataProvider: "0x4710a8d8f0d845da110086812a32de6d90d7ff5c",
+  streamId: "stcpiyoy000000000000000000000000",
+  timestamp: observedAt,
+  timeInterval: 31536000, // look back one year
+  minChange: "2",
+  maxChange: "3",
+  frozenAt: 0,
+  bridge: "eth_usdc",
+  settleTime: observedAt,
+  maxSpread: 10,
+  minOrderSize: 1,
+});
+```
+
+Omit either bound (or pass `null`) to strike an **open tail**, which is how the outer two buckets
+of a set are struck. Omitting both is rejected — that would be every outcome at once.
+
+```typescript
+// The three buckets of one set: below 2%, [2%, 3%), and 3% or more.
+const buckets = [
+  { minChange: null, maxChange: "2" },
+  { minChange: "2", maxChange: "3" },
+  { minChange: "3", maxChange: null },
+];
+```
+
+`timestamp`, `timeInterval` and `baseTime` all go into the market's hash and cannot be changed
+once it exists. `baseTime` is optional and, unlike `frozenAt`, has no `0` sentinel: omit it for
+the stream's own default base date.
+
+Bounds are rendered as the chain stores a `NUMERIC(36,18)`, so `"2"` and `"2.0"` produce the same
+market. A bound with more than 18 decimal places, more than 18 integer digits, or a non-zero
+magnitude below `1e-6` is rejected rather than silently rounded or reformatted.
+
+> Requires node migration 055. On a network without it, the market is created but can never be
+> attested.
+
 #### `orderbook.getMarketInfo(queryId: number): Promise<MarketInfo>`
 
 Gets detailed information about a market. Returns `MarketInfo` object containing `queryComponents` bytes.
@@ -1374,10 +1426,19 @@ interface MarketData {
   dataProvider: string;
   streamId: string;
   actionId: string;
-  type: "above" | "below" | "between" | "equals" | "unknown";
+  type: "above" | "below" | "between" | "equals" | "change_between" | "unknown";
   thresholds: string[]; // Formatted numeric values as strings
+  timestamp: number | null;    // The point in the stream the query observes
+  frozenAt: number | null;     // Block height the data is pinned to; null = latest
+  baseTime: number | null;     // "change_between" only; null = the stream's default base
+  timeInterval: number | null; // "change_between" only, in seconds, e.g. 31536000 for YoY
 }
 ```
+
+`thresholds` holds one entry per strike slot the action declares, in order. A `"change_between"`
+market may strike an open tail, which reads back as an **empty string in place** rather than as a
+shorter array — so `["", "2.000000000000000000"]` is "below 2%", and dropping the empty entry
+would slide the surviving bound into the wrong slot and turn it into "2% or more".
 
 #### `orderbook.listMarkets(input?: ListMarketsInput): Promise<MarketSummary[]>`
 
@@ -1834,7 +1895,13 @@ accordingly.
 
 `bucketBoundsFromMarketData(marketData)` converts the output of
 `decodeMarketData` into a `{ lower, upper }` pair, handling the `below`,
-`between`, `above` and `equals` market types.
+`between`, `above`, `equals` and `change_between` market types. Either side is
+`null` when that tail is open.
+
+Note the units differ: `change_between` bounds are in percent, against the
+stream's value one `timeInterval` earlier, where the other types are in the
+stream's own units. Comparing bounds across market types is the caller's
+responsibility.
 
 ### Settlement Operations
 
