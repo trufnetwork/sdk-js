@@ -17,6 +17,7 @@ import {
   FullDepthLevel,
   BestPrices,
   ConsolidatedOrderBook,
+  MarketActivity,
   UserCollateral,
   DistributionSummary,
   LPRewardDetail,
@@ -41,6 +42,7 @@ import {
   RawDepthLevel,
   RawFullDepthLevel,
   RawBestPrices,
+  RawMarketActivity,
   RawUserCollateral,
   RawMarketValidation,
   RawDistributionSummary,
@@ -797,6 +799,107 @@ export class OrderbookAction {
   }
 
   /**
+   * Gets one market's filled volume and unique traders over a time window.
+   *
+   * `getMarketDepth` and the other book reads answer what is resting right
+   * now; this one answers how much traded. It calls the node action
+   * `get_market_activity`, which holds the one definition of volume, so every
+   * SDK reads the same figures. Requires a node carrying that action.
+   *
+   * Volume counts each trade once, in cents of the market's own collateral. A
+   * direct match counts its buy side at `price * amount`, and a mint or burn
+   * counts its YES side at `100 * amount`. Splits, placements, cancels, amends
+   * and settlement are not volume. `volumeCents` always equals `directCents +
+   * mintBurnCents`, and `directFillCount` never exceeds `fillCount`.
+   *
+   * **Volume is per bridge.** Base units differ between collateral tokens by
+   * orders of magnitude, so never add volumes from markets on different
+   * bridges. Unique traders do compare across bridges.
+   *
+   * **A zero can be truncation.** The node trims order events once they are
+   * indexed and keeps a rolling window. When `coverageComplete` is false, the
+   * market was created before the earliest block the node still holds, so
+   * fills may be missing and a zero says nothing about activity.
+   *
+   * @param queryId - Market identifier
+   * @param fromTs - Window start, unix seconds, inclusive
+   * @param toTs - Window end, unix seconds, inclusive. A window that ends
+   *   before it starts is rejected rather than read as empty.
+   * @returns The market's activity over the window
+   * @throws If an argument is not a valid integer, the window is inverted, or
+   *   the market does not exist.
+   *
+   * @example
+   * ```typescript
+   * const now = Math.floor(Date.now() / 1000);
+   * const weekAgo = now - 7 * 86400;
+   * const activity = await orderbook.getMarketActivity(782, weekAgo, now);
+   * if (activity.fillCount === 0 && !activity.coverageComplete) {
+   *   console.log("no fills retained; the node may have trimmed them");
+   * }
+   * console.log(`${activity.volumeCents} cents of ${activity.bridge}`);
+   * ```
+   */
+  async getMarketActivity(
+    queryId: number,
+    fromTs: number,
+    toTs: number
+  ): Promise<MarketActivity> {
+    if (!Number.isInteger(queryId) || queryId < 1) {
+      throw new Error(
+        `getMarketActivity: queryId must be a positive integer, got ${queryId}`
+      );
+    }
+    if (!Number.isInteger(fromTs) || fromTs < 0) {
+      throw new Error(
+        `getMarketActivity: fromTs must be a non-negative integer, got ${fromTs}`
+      );
+    }
+    if (!Number.isInteger(toTs) || toTs < 0) {
+      throw new Error(
+        `getMarketActivity: toTs must be a non-negative integer, got ${toTs}`
+      );
+    }
+    // An inverted window is a caller bug, not an empty result.
+    if (toTs < fromTs) {
+      throw new Error(
+        `getMarketActivity: toTs (${toTs}) must not be before fromTs (${fromTs})`
+      );
+    }
+
+    const result = await this.kwilClient.call(
+      {
+        namespace: "main",
+        name: "get_market_activity",
+        inputs: {
+          $query_id: queryId,
+          $from_ts: fromTs,
+          $to_ts: toTs,
+        },
+      },
+      this.kwilSigner
+    );
+
+    if (result.status !== 200) {
+      throw new Error(`Failed to get market activity: ${result.status}`);
+    }
+
+    // A market that exists returns one row even when nothing traded in the
+    // window; a market that does not exist returns none.
+    const rows = (result.data?.result as RawMarketActivity[]) || [];
+    if (rows.length === 0) {
+      throw new Error(`Market not found: ${queryId}`);
+    }
+    if (rows.length > 1) {
+      throw new Error(
+        `Expected one row for market ${queryId}, got ${rows.length}`
+      );
+    }
+
+    return this.parseMarketActivity(rows[0]);
+  }
+
+  /**
    * Collapses a market's bucket books into the single value they imply.
    *
    * A prediction market prices ranges: each bucket is its own query_id with its
@@ -1520,6 +1623,27 @@ export class OrderbookAction {
       maxSpread: Number(row.max_spread),
       minOrderSize: String(row.min_order_size),
       createdAt: Number(row.created_at),
+    };
+  }
+
+  // The client returns integer columns as strings; the three cents columns stay
+  // strings because NUMERIC(78,0) can exceed Number.MAX_SAFE_INTEGER.
+  private parseMarketActivity(row: RawMarketActivity): MarketActivity {
+    return {
+      bridge: row.bridge,
+      volumeCents: row.volume_cents,
+      directCents: row.direct_cents,
+      mintBurnCents: row.mint_burn_cents,
+      uniqueTraders: Number(row.unique_traders),
+      fillCount: Number(row.fill_count),
+      directFillCount: Number(row.direct_fill_count),
+      sharesTraded: Number(row.shares_traded),
+      firstEventTs:
+        row.first_event_ts !== null ? Number(row.first_event_ts) : null,
+      lastEventTs:
+        row.last_event_ts !== null ? Number(row.last_event_ts) : null,
+      coverageFromBlock: Number(row.coverage_from_block),
+      coverageComplete: row.coverage_complete,
     };
   }
 }

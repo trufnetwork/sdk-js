@@ -1719,6 +1719,77 @@ console.log(`Buy Orders: ${collateral.buyOrdersLocked} wei`);
 console.log(`Shares Value: ${collateral.sharesValue} wei`);
 ```
 
+### Market Activity
+
+`getMarketDepth` and the other book reads answer what is resting right now.
+`getMarketActivity` answers how much traded: filled volume and unique traders
+for one order book over a time window.
+
+#### `orderbook.getMarketActivity(queryId: number, fromTs: number, toTs: number): Promise<MarketActivity>`
+
+**Parameters:**
+- `queryId`: the market to read.
+- `fromTs`: window start, unix seconds, inclusive.
+- `toTs`: window end, unix seconds, inclusive. A window that ends before it
+  starts is rejected rather than read as empty.
+
+Calls the node action `get_market_activity($query_id, $from_ts, $to_ts)` (node
+migration `058-order-book-market-activity.sql`), which holds the one definition
+of volume, so every SDK reads the same figures. Requires a node carrying that
+action. A market that does not exist is an error: `Market not found: <queryId>`.
+
+**Returns** `MarketActivity`:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `bridge` | `string` | The collateral token the figures are in |
+| `volumeCents` | `string` | Filled volume in cents, `NUMERIC(78,0)` as a decimal string |
+| `directCents` | `string` | The part of `volumeCents` from counterparty matches |
+| `mintBurnCents` | `string` | The part of `volumeCents` from mint and burn matches |
+| `uniqueTraders` | `number` | Distinct participants on either side of a fill |
+| `fillCount` | `number` | Fills, one per trade |
+| `directFillCount` | `number` | The part of `fillCount` that were counterparty matches |
+| `sharesTraded` | `number` | Shares across those fills |
+| `firstEventTs` | `number \| null` | First fill inside the window, `null` when nothing traded |
+| `lastEventTs` | `number \| null` | Last fill inside the window, `null` when nothing traded |
+| `coverageFromBlock` | `number` | Earliest block whose order events the node still holds |
+| `coverageComplete` | `boolean` | False when the market is older than `coverageFromBlock` |
+
+The three cents fields are strings because `NUMERIC(78,0)` can exceed
+`Number.MAX_SAFE_INTEGER`. Use `BigInt` to do arithmetic on them.
+
+Volume counts each trade once. A direct match counts its buy side at
+`price * amount`, and a mint or burn counts its YES side at `100 * amount`.
+Splits, placements, cancels, amends and settlement are not volume.
+`volumeCents` always equals `directCents + mintBurnCents`, and `directFillCount`
+never exceeds `fillCount`.
+
+```typescript
+const now = Math.floor(Date.now() / 1000);
+const activity = await orderbook.getMarketActivity(782, now - 7 * 86400, now);
+if (activity.fillCount === 0 && !activity.coverageComplete) {
+  console.log("no fills retained; the node may have trimmed them");
+}
+console.log(
+  `${activity.volumeCents} cents of ${activity.bridge} across ` +
+    `${activity.fillCount} fills by ${activity.uniqueTraders} traders`
+);
+```
+
+**Volume is per bridge.** It is in cents of the market's own collateral. Base
+units differ between collateral tokens by orders of magnitude, so never add
+volumes from markets on different bridges. Unique traders do compare across
+bridges.
+
+**A zero can be truncation.** The node trims order events once they are indexed
+and keeps a rolling window. When `coverageComplete` is false, the market was
+created before the earliest block the node still holds, so fills may be missing
+and a zero says nothing about activity. It is also false on a node that holds no
+order events at all.
+
+**A call costs what its window holds.** The node indexes order events by market
+and time, so a short window reads only the events inside it.
+
 ### Market Forecasting
 
 Prediction markets price **ranges**, not values. A five-bucket EPS market says

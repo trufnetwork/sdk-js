@@ -544,6 +544,7 @@ For other bundlers or serverless platforms, consult their documentation on modul
 | Flip a book to the other outcome | `reflectConsolidatedBook(book)` |
 | Quote a buy or sell fill | `quoteConsolidatedBuy(book.asks, shares)` / `quoteConsolidatedSell(book.bids, shares)` |
 | Get best prices | `orderbook.getBestPrices(queryId, outcome)` |
+| Get a market's volume and traders | `orderbook.getMarketActivity(queryId, fromTs, toTs)` |
 | Destroy stream | `client.destroyStream(streamLocator)` |
 
 **Safe Operation Pattern:**

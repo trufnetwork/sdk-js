@@ -366,3 +366,244 @@ describe("OrderbookAction.getConsolidatedOrderBook", () => {
     expect(book.isCrossed).toBe(false);
   });
 });
+
+/**
+ * getMarketActivity: one market's filled volume and traders over a time window,
+ * read from the node action get_market_activity (node migration 058). The client
+ * is mocked; this layer checks the arguments before calling, forwards them as
+ * named params, and maps the one row. The definition of volume is the node's and
+ * is tested there (tests/streams/order_book/market_activity_test.go).
+ */
+
+/** The row get_market_activity returned for market 1835 on mainnet. */
+const activityRow = {
+  bridge: "eth_usdc",
+  volume_cents: "1145",
+  direct_cents: "545",
+  mint_burn_cents: "600",
+  unique_traders: "2",
+  fill_count: "6",
+  direct_fill_count: "4",
+  shares_traded: "20",
+  first_event_ts: "1791407913",
+  last_event_ts: "1791476117",
+  coverage_from_block: "2692744",
+  coverage_complete: true,
+};
+
+describe("OrderbookAction.getMarketActivity", () => {
+  it("calls get_market_activity once with the window as named params", async () => {
+    const call = vi.fn().mockResolvedValue(ok([activityRow]));
+    const action = makeAction(call);
+
+    await action.getMarketActivity(1835, 1788891555, 1791483555);
+
+    expect(call).toHaveBeenCalledTimes(1);
+    expect(call).toHaveBeenCalledWith(
+      {
+        namespace: "main",
+        name: "get_market_activity",
+        inputs: { $query_id: 1835, $from_ts: 1788891555, $to_ts: 1791483555 },
+      },
+      mockSigner,
+    );
+  });
+
+  it("maps the row, with integer columns arriving as strings as the client returns them", async () => {
+    const call = vi.fn().mockResolvedValue(ok([activityRow]));
+    const action = makeAction(call);
+
+    const activity = await action.getMarketActivity(
+      1835,
+      1788891555,
+      1791483555,
+    );
+
+    expect(activity).toEqual({
+      bridge: "eth_usdc",
+      volumeCents: "1145",
+      directCents: "545",
+      mintBurnCents: "600",
+      uniqueTraders: 2,
+      fillCount: 6,
+      directFillCount: 4,
+      sharesTraded: 20,
+      firstEventTs: 1791407913,
+      lastEventTs: 1791476117,
+      coverageFromBlock: 2692744,
+      coverageComplete: true,
+    });
+  });
+
+  it("maps integer columns that arrive as numbers", async () => {
+    const call = vi.fn().mockResolvedValue(
+      ok([
+        {
+          ...activityRow,
+          unique_traders: 3,
+          fill_count: 7,
+          direct_fill_count: 5,
+          shares_traded: 21,
+          first_event_ts: 1791407914,
+          last_event_ts: 1791476118,
+          coverage_from_block: 2692745,
+        },
+      ]),
+    );
+    const action = makeAction(call);
+
+    expect(await action.getMarketActivity(1835, 0, 1791483555)).toMatchObject({
+      uniqueTraders: 3,
+      fillCount: 7,
+      directFillCount: 5,
+      sharesTraded: 21,
+      firstEventTs: 1791407914,
+      lastEventTs: 1791476118,
+      coverageFromBlock: 2692745,
+    });
+  });
+
+  it("keeps the cents columns as exact strings past Number.MAX_SAFE_INTEGER", async () => {
+    // 2^53 + 1. Through a Number it would come back as ...992.
+    const call = vi.fn().mockResolvedValue(
+      ok([
+        {
+          ...activityRow,
+          volume_cents: "9007199254740993",
+          direct_cents: "9007199254740393",
+          mint_burn_cents: "600",
+        },
+      ]),
+    );
+    const action = makeAction(call);
+
+    const activity = await action.getMarketActivity(1835, 0, 1791483555);
+
+    expect(activity.volumeCents).toBe("9007199254740993");
+    expect(activity.directCents).toBe("9007199254740393");
+    expect(activity.mintBurnCents).toBe("600");
+  });
+
+  it("keeps null timestamps and a false coverage when nothing traded", async () => {
+    // What a node holding no order events returns for a market that exists.
+    const call = vi.fn().mockResolvedValue(
+      ok([
+        {
+          bridge: "hoodi_tt2",
+          volume_cents: "0",
+          direct_cents: "0",
+          mint_burn_cents: "0",
+          unique_traders: "0",
+          fill_count: "0",
+          direct_fill_count: "0",
+          shares_traded: "0",
+          first_event_ts: null,
+          last_event_ts: null,
+          coverage_from_block: "0",
+          coverage_complete: false,
+        },
+      ]),
+    );
+    const action = makeAction(call);
+
+    expect(await action.getMarketActivity(7, 0, 1791957600)).toEqual({
+      bridge: "hoodi_tt2",
+      volumeCents: "0",
+      directCents: "0",
+      mintBurnCents: "0",
+      uniqueTraders: 0,
+      fillCount: 0,
+      directFillCount: 0,
+      sharesTraded: 0,
+      firstEventTs: null,
+      lastEventTs: null,
+      coverageFromBlock: 0,
+      coverageComplete: false,
+    });
+  });
+
+  it("reads a one-second window, since both ends are inclusive", async () => {
+    const call = vi.fn().mockResolvedValue(ok([activityRow]));
+    const action = makeAction(call);
+
+    await action.getMarketActivity(1835, 1791407913, 1791407913);
+
+    expect(call.mock.calls[0][0].inputs).toEqual({
+      $query_id: 1835,
+      $from_ts: 1791407913,
+      $to_ts: 1791407913,
+    });
+  });
+
+  it("throws naming the market when it does not exist", async () => {
+    const call = vi.fn().mockResolvedValue(ok([]));
+    const action = makeAction(call);
+
+    await expect(action.getMarketActivity(99, 0, 1)).rejects.toThrow(
+      "Market not found: 99",
+    );
+  });
+
+  it("throws when the node returns more than one row", async () => {
+    const call = vi.fn().mockResolvedValue(ok([activityRow, activityRow]));
+    const action = makeAction(call);
+
+    await expect(action.getMarketActivity(1835, 0, 1)).rejects.toThrow(
+      "Expected one row for market 1835, got 2",
+    );
+  });
+
+  it("throws on a non-200 status", async () => {
+    const call = vi.fn().mockResolvedValue({ status: 503, data: undefined });
+    const action = makeAction(call);
+
+    await expect(action.getMarketActivity(1835, 0, 1)).rejects.toThrow(
+      "Failed to get market activity: 503",
+    );
+  });
+
+  it("passes an error from the client through with its message", async () => {
+    // For example a node without migration 058.
+    const call = vi
+      .fn()
+      .mockRejectedValue(new Error("action get_market_activity not found"));
+    const action = makeAction(call);
+
+    await expect(action.getMarketActivity(1835, 0, 1)).rejects.toThrow(
+      "action get_market_activity not found",
+    );
+  });
+
+  it("rejects a window that ends before it starts, before calling", async () => {
+    const call = vi.fn();
+    const action = makeAction(call);
+
+    await expect(action.getMarketActivity(1835, 200, 100)).rejects.toThrow(
+      "getMarketActivity: toTs (100) must not be before fromTs (200)",
+    );
+    expect(call).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [0, 0, 1, "queryId must be a positive integer, got 0"],
+    [-3, 0, 1, "queryId must be a positive integer, got -3"],
+    [1.5, 0, 1, "queryId must be a positive integer, got 1.5"],
+    [Number.NaN, 0, 1, "queryId must be a positive integer, got NaN"],
+    [1, -1, 1, "fromTs must be a non-negative integer, got -1"],
+    [1, 0.5, 1, "fromTs must be a non-negative integer, got 0.5"],
+    [1, 0, -1, "toTs must be a non-negative integer, got -1"],
+    [1, 0, 1.5, "toTs must be a non-negative integer, got 1.5"],
+    [1, 0, Infinity, "toTs must be a non-negative integer, got Infinity"],
+  ])(
+    "rejects getMarketActivity(%s, %s, %s) before calling",
+    async (queryId, fromTs, toTs, message) => {
+      const call = vi.fn();
+      const action = makeAction(call);
+
+      await expect(
+        action.getMarketActivity(queryId, fromTs, toTs),
+      ).rejects.toThrow(`getMarketActivity: ${message}`);
+      expect(call).not.toHaveBeenCalled();
+    },
+  );
+});
