@@ -236,6 +236,43 @@ export interface ConsolidatedOrderBook {
   isCrossed: boolean;
 }
 
+/**
+ * One market's filled volume and participation over a time window, as
+ * `get_market_activity` returns it.
+ *
+ * Volume is in cents of `bridge`'s collateral and is never summable across
+ * bridges. A zero with `coverageComplete` false is truncation, not inactivity.
+ */
+export interface MarketActivity {
+  /** Collateral token the figures are in, e.g. "eth_usdc" */
+  bridge: string;
+  /** Filled volume in cents (NUMERIC(78,0) as string) */
+  volumeCents: string;
+  /** The part of volumeCents from counterparty matches (NUMERIC(78,0) as string) */
+  directCents: string;
+  /** The part of volumeCents from mint and burn matches (NUMERIC(78,0) as string) */
+  mintBurnCents: string;
+  /** Distinct participants on either side of a fill */
+  uniqueTraders: number;
+  /** Fills, one per trade */
+  fillCount: number;
+  /** The part of fillCount that were counterparty matches */
+  directFillCount: number;
+  /** Shares across those fills */
+  sharesTraded: number;
+  /** First fill inside the window, unix seconds; null when nothing traded */
+  firstEventTs: number | null;
+  /** Last fill inside the window, unix seconds; null when nothing traded */
+  lastEventTs: number | null;
+  /** Earliest block whose order events the node still holds; 0 when it holds none */
+  coverageFromBlock: number;
+  /**
+   * False when the market was created before coverageFromBlock, so fills may be
+   * missing. Also false on a node that holds no order events at all.
+   */
+  coverageComplete: boolean;
+}
+
 /** User's locked collateral across all markets */
 export interface UserCollateral {
   /** Total locked collateral in wei (NUMERIC(78,0) as string) */
@@ -541,6 +578,22 @@ export interface RawBestPrices {
   best_bid: number | null;
   best_ask: number | null;
   spread: number | null;
+}
+
+/** @internal Raw market activity row from get_market_activity */
+export interface RawMarketActivity {
+  bridge: string;
+  volume_cents: string;
+  direct_cents: string;
+  mint_burn_cents: string;
+  unique_traders: number | string;
+  fill_count: number | string;
+  direct_fill_count: number | string;
+  shares_traded: number | string;
+  first_event_ts: number | string | null;
+  last_event_ts: number | string | null;
+  coverage_from_block: number | string;
+  coverage_complete: boolean;
 }
 
 /** @internal Raw user collateral from database */

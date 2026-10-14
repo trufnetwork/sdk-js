@@ -142,6 +142,7 @@ export type {
   BestPrices,
   ConsolidatedLevel,
   ConsolidatedOrderBook,
+  MarketActivity,
   UserCollateral,
   DistributionSummary,
   LPRewardDetail,
