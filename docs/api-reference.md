@@ -42,6 +42,46 @@ const client = new NodeTNClient({
 });
 ```
 
+### Session tokens
+
+A gateway that can carry its session in a header returns a session token when a signer signs in, and the client sends it with that signer's reads as `Authorization: Bearer <token>`. This keeps the session where the gateway's cookie is dropped, as in a wallet's in-app browser.
+
+#### Options
+- `sessionTokens?: Record<string, string>` - Tokens saved from earlier sign-ins, keyed by the identifier `onSessionToken` reported
+- `onSessionToken?: (identifier: string, token: string | undefined) => void` - Called when a signer's token changes: the new token after a sign-in, `undefined` after a logout or when the gateway refuses it
+
+#### Methods
+- `client.getSessionToken(): string | undefined` - The token held for the client's signer
+- `client.setSessionToken(token: string | undefined): void` - Sets or clears it; does not call `onSessionToken`
+
+Page scripts can read the token, unlike the gateway's cookie, and anyone who copies it can use the session until it ends.
+
+#### Example
+```typescript
+let saved: Record<string, string> = {};
+try {
+  saved = JSON.parse(sessionStorage.getItem('tn-session-tokens') || '{}');
+} catch {
+  // storage blocked or the saved value unreadable: start without saved tokens
+}
+
+const client = new BrowserTNClient({
+  endpoint: 'https://gateway.mainnet.truf.network',
+  signerInfo: { address, signer },
+  chainId: 'tn-v2.1',
+  sessionTokens: saved,
+  onSessionToken: (identifier, token) => {
+    if (token) saved[identifier] = token;
+    else delete saved[identifier];
+    try {
+      sessionStorage.setItem('tn-session-tokens', JSON.stringify(saved));
+    } catch {
+      // storage blocked or full: the client keeps its token in memory
+    }
+  },
+});
+```
+
 ## Stream Identification
 
 ### `StreamId.generate(name: string): Promise<StreamId>`
