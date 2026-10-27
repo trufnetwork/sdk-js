@@ -47,17 +47,23 @@ const client = new NodeTNClient({
 A gateway that can carry its session in a header returns a session token when a signer signs in, and the client sends it with that signer's reads as `Authorization: Bearer <token>`. This keeps the session where the gateway's cookie is dropped, as in a wallet's in-app browser.
 
 #### Options
+
 - `sessionTokens?: Record<string, string>` - Tokens saved from earlier sign-ins, keyed by the identifier `onSessionToken` reported
 - `onSessionToken?: (identifier: string, token: string | undefined) => void` - Called when a signer's token changes: the new token after a sign-in, `undefined` after a logout or when the gateway refuses it
 
 #### Methods
+
 - `client.getSessionToken(): string | undefined` - The token held for the client's signer
-- `client.setSessionToken(token: string | undefined): void` - Sets or clears it; does not call `onSessionToken`
+- `client.setSessionToken(token: string | undefined): void` - Sets or clears it; does not call `onSessionToken`. Clearing only forgets the token here; the gateway session stays valid until it ends
 
 Page scripts can read the token, unlike the gateway's cookie, and anyone who copies it can use the session until it ends.
 
 #### Example
+
 ```typescript
+import { BrowserTNClient } from '@trufnetwork/sdk-js';
+
+// address and signer come from the connected wallet
 let saved: Record<string, string> = {};
 try {
   saved = JSON.parse(sessionStorage.getItem('tn-session-tokens') || '{}');

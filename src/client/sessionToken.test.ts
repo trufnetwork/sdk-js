@@ -1,7 +1,15 @@
 import http from "http";
 import type { AddressInfo } from "net";
 import { Wallet } from "ethers";
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { BrowserTNClient } from "./browserClient";
 import { NodeTNClient } from "./nodeClient";
 
@@ -23,13 +31,29 @@ interface Gateway {
 // in-app browser that drops them would leave it.
 async function startGateway(): Promise<Gateway> {
   let next = 0;
-  const gateway = { signIns: 0, requests: [], tokens: new Map() } as unknown as Gateway;
+  const gateway: Gateway = {
+    url: "",
+    signIns: 0,
+    requests: [],
+    tokens: new Map<string, string>(),
+    close: async () => {},
+  };
 
   const server = http.createServer((req, res) => {
     let raw = "";
-    req.on("data", (chunk) => (raw += chunk));
+    req.setEncoding("utf8");
+    req.on("data", (chunk) => {
+      raw += chunk;
+    });
     req.on("end", () => {
-      const body = JSON.parse(raw);
+      let body;
+      try {
+        body = JSON.parse(raw);
+      } catch {
+        res.writeHead(400);
+        res.end();
+        return;
+      }
       const params = body.params || {};
       const authorization = req.headers.authorization;
       gateway.requests.push({ method: body.method, authorization });
@@ -65,7 +89,12 @@ async function startGateway(): Promise<Gateway> {
         case "user.query":
           return reply({
             result: {
-              column_names: ["name", "namespace", "access_modifiers", "parameter_names"],
+              column_names: [
+                "name",
+                "namespace",
+                "access_modifiers",
+                "parameter_names",
+              ],
               column_types: [],
               values: [["get_user_positions", "main", ["PUBLIC", "VIEW"], []]],
             },
@@ -74,11 +103,20 @@ async function startGateway(): Promise<Gateway> {
           const token = authorization?.startsWith("Bearer ")
             ? authorization.slice("Bearer ".length)
             : undefined;
-          if (token && gateway.tokens.get(token) === String(params.sender).toLowerCase()) {
+          if (
+            token &&
+            gateway.tokens.get(token) === String(params.sender).toLowerCase()
+          ) {
             return reply({
               result: {
                 query_result: {
-                  column_names: ["query_id", "outcome", "price", "amount", "last_updated"],
+                  column_names: [
+                    "query_id",
+                    "outcome",
+                    "price",
+                    "amount",
+                    "last_updated",
+                  ],
                   column_types: [],
                   values: [],
                 },
@@ -87,19 +125,28 @@ async function startGateway(): Promise<Gateway> {
             });
           }
           return reply(
-            { error: { code: -901, message: token ? "invalid token" : "cookie not found" } },
+            {
+              error: {
+                code: -901,
+                message: token ? "invalid token" : "cookie not found",
+              },
+            },
             401,
           );
         }
         default:
-          return reply({ error: { code: -32601, message: `no method ${body.method}` } }, 404);
+          return reply(
+            { error: { code: -32601, message: `no method ${body.method}` } },
+            404,
+          );
       }
     });
   });
 
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   gateway.url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-  gateway.close = () => new Promise<void>((resolve) => server.close(() => resolve()));
+  gateway.close = () =>
+    new Promise<void>((resolve) => server.close(() => resolve()));
   return gateway;
 }
 
@@ -111,7 +158,9 @@ const options = (url: string) => ({
   chainId: CHAIN_ID,
 });
 const userCalls = (g: Gateway) =>
-  g.requests.filter((r) => r.method === "user.call").map((r) => r.authorization);
+  g.requests
+    .filter((r) => r.method === "user.call")
+    .map((r) => r.authorization);
 
 describe("gateway session tokens", () => {
   describe("in a wallet's in-app browser", () => {
@@ -125,26 +174,57 @@ describe("gateway session tokens", () => {
       vi.unstubAllGlobals();
     });
     afterEach(async () => {
-      await gateway.close();
+      await gateway?.close();
     });
 
     it("reads the signer's positions by holding the session in a header", async () => {
       gateway = await startGateway();
       const onSessionToken = vi.fn();
-      const client = new BrowserTNClient({ ...options(gateway.url), onSessionToken });
+      const client = new BrowserTNClient({
+        ...options(gateway.url),
+        onSessionToken,
+      });
 
       const positions = await client.loadOrderbookAction().getUserPositions();
 
       expect(positions).toEqual([]);
       expect(gateway.signIns).toBe(1);
       expect(userCalls(gateway)).toStrictEqual([undefined, "Bearer token-1"]);
-      expect(onSessionToken).toHaveBeenCalledWith(account, "token-1");
+      expect(onSessionToken.mock.calls).toStrictEqual([[account, "token-1"]]);
       expect(client.getSessionToken()).toBe("token-1");
 
       // later reads reuse the session without asking the wallet again
       await client.loadOrderbookAction().getUserPositions();
       expect(gateway.signIns).toBe(1);
-      expect(userCalls(gateway)[2]).toBe("Bearer token-1");
+      expect(userCalls(gateway)).toStrictEqual([
+        undefined,
+        "Bearer token-1",
+        "Bearer token-1",
+      ]);
+    });
+
+    it("signs in again when the gateway refuses a saved token", async () => {
+      gateway = await startGateway();
+      // a token the gateway issued to another account
+      gateway.tokens.set("other", "00".repeat(20));
+      const onSessionToken = vi.fn();
+      const client = new BrowserTNClient({
+        ...options(gateway.url),
+        sessionTokens: { [wallet.address]: "other" },
+        onSessionToken,
+      });
+
+      await client.loadOrderbookAction().getUserPositions();
+      expect(gateway.signIns).toBe(1);
+      expect(userCalls(gateway)).toStrictEqual([
+        "Bearer other",
+        "Bearer token-1",
+      ]);
+      expect(onSessionToken.mock.calls).toStrictEqual([
+        [account, undefined],
+        [account, "token-1"],
+      ]);
+      expect(client.getSessionToken()).toBe("token-1");
     });
 
     it("starts from a saved token without asking the wallet", async () => {
@@ -163,13 +243,33 @@ describe("gateway session tokens", () => {
     it("can be handed a token after it is built", async () => {
       gateway = await startGateway();
       gateway.tokens.set("restored", account);
-      const client = new BrowserTNClient(options(gateway.url));
+      const onSessionToken = vi.fn();
+      const client = new BrowserTNClient({
+        ...options(gateway.url),
+        onSessionToken,
+      });
       client.setSessionToken("restored");
 
       await client.loadOrderbookAction().getUserPositions();
       expect(gateway.signIns).toBe(0);
       expect(userCalls(gateway)).toStrictEqual(["Bearer restored"]);
+      expect(onSessionToken).not.toHaveBeenCalled();
     });
+  });
+
+  it("both clients pass saved tokens through to the kwil client", () => {
+    for (const client of [
+      new NodeTNClient({
+        ...options("http://127.0.0.1:1"),
+        sessionTokens: { [wallet.address]: "saved" },
+      }),
+      new BrowserTNClient({
+        ...options("http://127.0.0.1:1"),
+        sessionTokens: { [wallet.address]: "saved" },
+      }),
+    ]) {
+      expect(client.getSessionToken()).toBe("saved");
+    }
   });
 
   it("getSessionToken and setSessionToken act on the client's own signer", () => {

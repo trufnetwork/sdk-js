@@ -77,11 +77,11 @@ For detailed configuration options for both clients, please see our [API Referen
 
 ### Wallet In-App Browsers
 
-A dapp opened in a wallet's in-app browser runs in Android WebView or iOS WKWebView. Those drop third-party cookies unless the wallet app opts in, so the gateway's session cookie is lost when the dapp is not served from truf.network.
+A dapp opened in a wallet's in-app browser runs in Android WebView or iOS WKWebView. Those drop third-party cookies by default, so the gateway's session cookie is lost when the dapp is not served from truf.network.
 
-On the TRUF.NETWORK gateways, these reads need no session at all, so they work there without signing in: `getOrderBook`, `getMarketDepth`, `getFullMarketDepth`, `getBestPrices`, `getConsolidatedOrderBook`, `getMarketForecast`, `getMarketInfo`, `getMarketByHash`, `listMarkets`, `getMarketActivity`, `getPositionsByWallet`, `getCollateralByWallet`, `getWalletBalance` and `getOrderedBalances`. Every other read needs a sign-in.
+On the TRUF.NETWORK gateways, these reads need no session at all, so they work there without signing in: `getOrderBook`, `getMarketDepth`, `getFullMarketDepth`, `getBestPrices`, `getConsolidatedOrderBook`, `getMarketForecast`, `getMarketInfo`, `getMarketByHash`, `listMarkets`, `getMarketActivity`, `getPositionsByWallet`, `getCollateralByWallet`, `getWalletBalance` and `getOrderedBalances`. Every other read that calls an action, such as `getRecord` or `getUserPositions`, needs a sign-in.
 
-For those reads, a gateway that supports session tokens returns one when the signer signs in, and `BrowserTNClient` sends it with that signer's later reads, so the session holds without the cookie. Reads that fail together share one sign-in. When the gateway ends the session, the next read signs in again. A gateway without token support keeps the cookie behaviour.
+For reads that need a sign-in, a gateway that supports session tokens returns one when the signer signs in, and `BrowserTNClient` sends it with that signer's later reads, so the session holds without the cookie. Reads that fail together share one sign-in. When the gateway ends the session, the next read signs in again. A gateway without token support keeps the cookie behaviour.
 
 The token lives in memory. To keep it across page loads, save it and pass it back:
 
@@ -110,7 +110,7 @@ const client = new BrowserTNClient({
 });
 ```
 
-`client.getSessionToken()` and `client.setSessionToken(token)` read and set the token for the client's signer. Unlike the cookie, the token can be read by the page's scripts, and anyone who copies it can use the session until it ends, so keep it in `sessionStorage` rather than `localStorage` if it should end with the tab.
+`client.getSessionToken()` and `client.setSessionToken(token)` read and set the token for the client's signer. Unlike the cookie, the token can be read by the page's scripts, and anyone who copies it can use the session until it ends. Prefer `sessionStorage` to `localStorage`: the saved copy then goes when the tab closes, though the session itself lasts until the gateway ends it. Clearing the token with `setSessionToken(undefined)` only forgets it here.
 
 ## Usage Examples
 
@@ -583,6 +583,7 @@ For other bundlers or serverless platforms, consult their documentation on modul
 | Get best prices | `orderbook.getBestPrices(queryId, outcome)` |
 | Get a market's volume and traders | `orderbook.getMarketActivity(queryId, fromTs, toTs)` |
 | Destroy stream | `client.destroyStream(streamLocator)` |
+| Read or restore the gateway session token | `client.getSessionToken()` / `client.setSessionToken(token)` |
 
 **Safe Operation Pattern:**
 ```typescript

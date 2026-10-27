@@ -291,7 +291,8 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
   /**
    * Sets or clears the gateway session token for the client's signer, for
    * example one saved on an earlier page load. `onSessionToken` is not called
-   * for a change made here.
+   * for a change made here. Clearing only forgets the token here; the gateway
+   * session stays valid until it ends.
    *
    * @param token - The session token, or undefined to clear it.
    */
