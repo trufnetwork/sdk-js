@@ -240,6 +240,28 @@ describe("gateway session tokens", () => {
       expect(userCalls(gateway)).toStrictEqual(["Bearer saved"]);
     });
 
+    it("shares one sign-in between reads that fail together", async () => {
+      gateway = await startGateway();
+      // a token the gateway issued to another account
+      gateway.tokens.set("other", "00".repeat(20));
+      const client = new BrowserTNClient({
+        ...options(gateway.url),
+        sessionTokens: { [wallet.address]: "other" },
+      });
+
+      const positions = await Promise.all([
+        client.loadOrderbookAction().getUserPositions(),
+        client.loadOrderbookAction().getUserPositions(),
+      ]);
+
+      expect(positions).toEqual([[], []]);
+      expect(gateway.signIns).toBe(1);
+      expect(client.getSessionToken()).toBe("token-1");
+      const calls = userCalls(gateway);
+      expect(calls.filter((a) => a === "Bearer other")).toHaveLength(2);
+      expect(calls.filter((a) => a === "Bearer token-1")).toHaveLength(2);
+    });
+
     it("can be handed a token after it is built", async () => {
       gateway = await startGateway();
       gateway.tokens.set("restored", account);
