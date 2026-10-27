@@ -81,7 +81,7 @@ A dapp opened in a wallet's in-app browser runs in Android WebView or iOS WKWebV
 
 On the TRUF.NETWORK gateways, these reads need no session at all, so they work there without signing in: `getOrderBook`, `getMarketDepth`, `getFullMarketDepth`, `getBestPrices`, `getConsolidatedOrderBook`, `getMarketForecast`, `getMarketInfo`, `getMarketByHash`, `listMarkets`, `getMarketActivity`, `getPositionsByWallet`, `getCollateralByWallet`, `getWalletBalance` and `getOrderedBalances`. Every other read that calls an action, such as `getRecord` or `getUserPositions`, needs a sign-in.
 
-For reads that need a sign-in, a gateway that supports session tokens returns one when the signer signs in, and `BrowserTNClient` sends it with that signer's later reads, so the session holds without the cookie. Reads that fail together share one sign-in. When the gateway ends the session, the next read signs in again. A gateway without token support keeps the cookie behaviour.
+For reads that need a sign-in, a gateway that supports session tokens returns one when the signer signs in, and `BrowserTNClient` sends it with that signer's later reads, so the session holds without the cookie. Reads that fail together share one sign-in. When the gateway ends the session, the next read signs in again with the client's signer, unless `autoAuthenticate` is turned off (it is on by default). A gateway without token support keeps the cookie behaviour.
 
 The token lives in memory. To keep it across page loads, save it and pass it back:
 
