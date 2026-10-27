@@ -66,7 +66,16 @@ import { BrowserTNClient } from '@trufnetwork/sdk-js';
 // address and signer come from the connected wallet
 let saved: Record<string, string> = {};
 try {
-  saved = JSON.parse(sessionStorage.getItem('tn-session-tokens') || '{}');
+  const parsed: unknown = JSON.parse(sessionStorage.getItem('tn-session-tokens') || '{}');
+  // keep only an object of strings, so a damaged value cannot stop the saving
+  if (
+    parsed &&
+    typeof parsed === 'object' &&
+    !Array.isArray(parsed) &&
+    Object.values(parsed).every((token) => typeof token === 'string')
+  ) {
+    saved = parsed as Record<string, string>;
+  }
 } catch {
   // storage blocked or the saved value unreadable: start without saved tokens
 }
