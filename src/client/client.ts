@@ -274,6 +274,33 @@ export abstract class BaseTNClient<T extends EnvironmentType> {
   }
 
   /**
+   * Returns the gateway session token the client holds for its signer, if any.
+   *
+   * A gateway that can carry the session in a header returns a token at
+   * sign-in, and the client sends it with the signer's reads. This keeps the
+   * session where the gateway's cookie is dropped, as in a wallet's in-app
+   * browser. Save it to keep the session across page loads; the
+   * `sessionTokens` and `onSessionToken` options do this for every signer.
+   *
+   * @returns The session token, or undefined.
+   */
+  getSessionToken(): string | undefined {
+    return this.getKwilClient().getSessionToken(this.signerInfo.address);
+  }
+
+  /**
+   * Sets or clears the gateway session token for the client's signer, for
+   * example one saved on an earlier page load. `onSessionToken` is not called
+   * for a change made here. Clearing only forgets the token here; the gateway
+   * session stays valid until it ends.
+   *
+   * @param token - The session token, or undefined to clear it.
+   */
+  setSessionToken(token: string | undefined): void {
+    this.getKwilClient().setSessionToken(this.signerInfo.address, token);
+  }
+
+  /**
    * Returns all streams from the TN network.
    * @param input - The input parameters for listing streams.
    * @returns A promise that resolves to a list of stream locators.

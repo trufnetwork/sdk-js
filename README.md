@@ -75,6 +75,52 @@ import { BrowserTNClient } from "@trufnetwork/sdk-js";
 
 For detailed configuration options for both clients, please see our [API Reference](./docs/api-reference.md).
 
+### Wallet In-App Browsers
+
+A dapp opened in a wallet's in-app browser runs in Android WebView or iOS WKWebView. Those drop third-party cookies by default, so the gateway's session cookie is lost when the dapp is not served from truf.network.
+
+On the TRUF.NETWORK gateways, these reads need no session at all, so they work there without signing in: `getOrderBook`, `getMarketDepth`, `getFullMarketDepth`, `getBestPrices`, `getConsolidatedOrderBook`, `getMarketForecast`, `getMarketInfo`, `getMarketByHash`, `listMarkets`, `getMarketActivity`, `getPositionsByWallet`, `getCollateralByWallet`, `getWalletBalance` and `getOrderedBalances`. Every other read that calls an action, such as `getRecord` or `getUserPositions`, needs a sign-in.
+
+For reads that need a sign-in, a gateway that supports session tokens returns one when the signer signs in, and `BrowserTNClient` sends it with that signer's later reads, so the session holds without the cookie. Reads that fail together share one sign-in. When the gateway ends the session, the next read signs in again with the client's signer, unless `autoAuthenticate` is turned off (it is on by default). A gateway without token support keeps the cookie behaviour.
+
+The token lives in memory. To keep it across page loads, save it and pass it back:
+
+```ts
+let saved: Record<string, string> = {};
+try {
+	const parsed: unknown = JSON.parse(sessionStorage.getItem("tn-session-tokens") || "{}");
+	// keep only an object of strings, so a damaged value cannot stop the saving
+	if (
+		parsed &&
+		typeof parsed === "object" &&
+		!Array.isArray(parsed) &&
+		Object.values(parsed).every((token) => typeof token === "string")
+	) {
+		saved = parsed as Record<string, string>;
+	}
+} catch {
+	// storage blocked or the saved value unreadable: start without saved tokens
+}
+
+const client = new BrowserTNClient({
+	endpoint: "https://gateway.mainnet.truf.network",
+	signerInfo: { address, signer },
+	chainId: "tn-v2.1",
+	sessionTokens: saved,
+	onSessionToken: (identifier, token) => {
+		if (token) saved[identifier] = token;
+		else delete saved[identifier];
+		try {
+			sessionStorage.setItem("tn-session-tokens", JSON.stringify(saved));
+		} catch {
+			// storage blocked or full: the client keeps its token in memory
+		}
+	},
+});
+```
+
+`client.getSessionToken()` and `client.setSessionToken(token)` read and set the token for the client's signer. Unlike the cookie, the token can be read by the page's scripts, and anyone who copies it can use the session until it ends. Prefer `sessionStorage` to `localStorage`: the saved copy then goes when the tab closes, though the session itself lasts until the gateway ends it. Clearing the token with `setSessionToken(undefined)` only forgets it here.
+
 ## Usage Examples
 
 Here is a common use case for the SDK. For a wider range of examples and advanced scenarios, please explore the [example scripts in this repository](./examples) and our [detailed API Reference](./docs/api-reference.md).
@@ -546,6 +592,7 @@ For other bundlers or serverless platforms, consult their documentation on modul
 | Get best prices | `orderbook.getBestPrices(queryId, outcome)` |
 | Get a market's volume and traders | `orderbook.getMarketActivity(queryId, fromTs, toTs)` |
 | Destroy stream | `client.destroyStream(streamLocator)` |
+| Read or restore the gateway session token | `client.getSessionToken()` / `client.setSessionToken(token)` |
 
 **Safe Operation Pattern:**
 ```typescript
