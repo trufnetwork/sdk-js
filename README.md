@@ -121,6 +121,8 @@ const client = new BrowserTNClient({
 
 `client.getSessionToken()` and `client.setSessionToken(token)` read and set the token for the client's signer. Unlike the cookie, the token can be read by the page's scripts, and anyone who copies it can use the session until it ends. Prefer `sessionStorage` to `localStorage`: the saved copy then goes when the tab closes, though the session itself lasts until the gateway ends it. Clearing the token with `setSessionToken(undefined)` only forgets it here.
 
+For a runnable walk-through of sign-in, saved tokens and logout, see [examples/session_token_example](./examples/session_token_example).
+
 ## Usage Examples
 
 Here is a common use case for the SDK. For a wider range of examples and advanced scenarios, please explore the [example scripts in this repository](./examples) and our [detailed API Reference](./docs/api-reference.md).
