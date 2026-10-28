@@ -1,0 +1,15 @@
+{
+  "name": "tn-sdk-session-token-example",
+  "version": "1.0.0",
+  "description": "Gateway session tokens with @trufnetwork/sdk-js: sign in once, save the token, read without the cookie",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "tsx main.ts"
+  },
+  "dependencies": {
+    "@trufnetwork/sdk-js": "file:../..",
+    "ethers": "^6.13.5",
+    "tsx": "^4.19.1"
+  }
+}
