@@ -79,10 +79,11 @@ async function run(): Promise<void> {
   const orderbook = client.loadOrderbookAction();
   const markets = await orderbook.listMarkets({ settledFilter: false, limit: 3 });
   console.log(`1. listMarkets: ${markets.length} open markets`);
-  if (markets.length > 0) {
-    const book = await orderbook.getOrderBook(markets[0].id, true);
-    console.log(`   getOrderBook(${markets[0].id}): ${book.length} orders`);
+  if (markets.length === 0) {
+    throw new Error("the gateway lists no open market, so there is no order book to read");
   }
+  const book = await orderbook.getOrderBook(markets[0].id, true);
+  console.log(`   getOrderBook(${markets[0].id}): ${book.length} orders`);
   console.log(`   signatures: ${signatures}\n`);
   expectSignatures(0);
 
