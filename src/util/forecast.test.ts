@@ -292,6 +292,9 @@ describe("forecastFromBuckets: open edge buckets", () => {
   const lowerTails: [string, [number, number][]][] = [
     ["a near-empty", [[98, 99], [0, 1], [0, 1], [0, 1], [0, 1]]],
     ["a thin", [[98, 99], [1, 2], [0, 1], [0, 1], [0, 1]]],
+    // Before the outer-strike rule this book came back unresolved and fell back
+    // to the discrete estimate, 2.4287.
+    ["an exactly empty", [[98, 99], [0, 0], [0, 1], [0, 1], [0, 1]]],
   ];
 
   it.each(lowerTails)(
@@ -305,6 +308,11 @@ describe("forecastFromBuckets: open edge buckets", () => {
       expect(f.valueBasis).toBe("tail");
       expect(f.p10Basis).toBe("tail");
       expect(f.p90Basis).toBe("tail");
+      expect(f.marginOfError).toBe(0);
+      expect(f.sigma).toBe(0);
+      expect(
+        f.warnings.some((w) => w.includes("falling back to discrete estimate"))
+      ).toBe(false);
     }
   );
 
@@ -319,6 +327,11 @@ describe("forecastFromBuckets: open edge buckets", () => {
       expect(f.valueBasis).toBe("tail");
       expect(f.p10Basis).toBe("tail");
       expect(f.p90Basis).toBe("tail");
+      expect(f.marginOfError).toBe(0);
+      expect(f.sigma).toBe(0);
+      expect(
+        f.warnings.some((w) => w.includes("falling back to discrete estimate"))
+      ).toBe(false);
     }
   );
 
@@ -330,6 +343,22 @@ describe("forecastFromBuckets: open edge buckets", () => {
     expect(f.p90Basis).toBe("interior");
     expect(f.p90!).toBeGreaterThan(2.6);
     expect(f.p90!).toBeLessThan(2.98);
+    expect(Math.abs(f.p90! - 2.83465)).toBeLessThan(1e-12);
+    expect(Math.abs(f.marginOfError - (f.p90! - 2.6) / 2)).toBeLessThan(1e-12);
+  });
+
+  it("resolves the band when its tail end sits beside an empty bucket", () => {
+    // Before the outer-strike rule p10 came back unresolved here, so the band
+    // did too and margin and sigma were reported as 0.
+    const f = forecast(quoted([[14, 16], [0, 0], [55, 57], [20, 22], [5, 7]]));
+    expect(f.valueBasis).toBe("interior");
+    expect(Math.abs(f.value - 3.210714285714286)).toBeLessThan(1e-12);
+    expect(f.p10).toBe(2.6);
+    expect(f.p10Basis).toBe("tail");
+    expect(f.p90Basis).toBe("interior");
+    expect(f.marginOfError).toBeGreaterThan(0);
+    expect(Math.abs(f.marginOfError - 0.5315238095238095)).toBeLessThan(1e-12);
+    expect(f.warnings.some((w) => w.includes("band unresolvable"))).toBe(false);
   });
 
   it("says the value is the outer strike", () => {

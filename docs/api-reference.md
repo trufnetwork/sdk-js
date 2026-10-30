@@ -1854,7 +1854,7 @@ bucket of one market into the single number they collectively imply.
 
 ```text
 market says                     ->  forecast says
-"34% between 2.06 and 2.21"         "2.14, p10..p90 1.91..2.38"
+"34% between 2.06 and 2.21"         "2.14, p10..p90 1.91..2.35"
 ```
 
 This is the same algorithm as `sdk-py`'s `get_market_forecast`, and the two are
@@ -1898,7 +1898,7 @@ if (forecast) {
     forecast.p10 !== null && forecast.p90 !== null
       ? `${forecast.p10.toFixed(4)}..${forecast.p90.toFixed(4)}`
       : "unresolved";
-  console.log(band); // 1.9053..2.3792
+  console.log(band); // 1.9100..2.3500
 
   for (const bucket of forecast.buckets) {
     console.log(`  ${bucket.lower}-${bucket.upper}: ${(bucket.probability * 100).toFixed(1)}%`);
@@ -1914,7 +1914,7 @@ if (forecast) {
 | Field | Type | Meaning |
 |-------|------|---------|
 | `value` | `number` | The point estimate: the **median** of the implied distribution |
-| `p10`, `p90` | `number \| null` | The published band. The market implies an 80% chance the outcome lands inside it |
+| `p10`, `p90` | `number \| null` | The published band. When both ends are interior, the market implies an 80% chance the outcome lands inside it; an end flagged `"tail"` is the outer strike, and the band then holds less than 80% |
 | `marginOfError` | `number` | Half the P10..P90 band. **Not** a standard error — see below |
 | `sigma` | `number` | The band scaled to a normal-equivalent standard deviation |
 | `valueBasis` | `ForecastBasis` | `"interior"`, `"tail"`, or `"unresolved"` — see below |
@@ -1923,7 +1923,7 @@ if (forecast) {
 | `buckets` | `BucketEstimate[]` | Per-bucket detail |
 | `warnings` | `string[]` | Book-quality problems worth surfacing |
 | `multimodal`, `nPeaks` | `boolean`, `number` | Whether the book implies more than one peak |
-| `low`, `high` | `number` | `value -/+ marginOfError` |
+| `low`, `high` | `number` | `value -/+ marginOfError`. Either can fall past the outer strikes, for example when `valueBasis` is `"tail"`, so `p10` and `p90` are the ones to show |
 
 Each `BucketEstimate` carries `queryId`, `lower`, `upper`, `probability`
 (normalised, sums to 1), `rawProbability`, `confidence`, `oneSided` and
@@ -1932,15 +1932,17 @@ Each `BucketEstimate` carries `queryId`, `lower`, `upper`, `probability`
 **`marginOfError` is a band, not a precision.** It is half the P10..P90 spread,
 so it describes how uncertain the **outcome** is, not how tightly the book pins
 your estimate. Expect it to be large — on a live five-bucket EPS market, roughly
-0.24 against a value of 2.14. Publishing it as "± 0.24" is correct; reading it
-as "our estimate is accurate to 0.24" is not.
+0.22 against a value of 2.14. Publishing it as "± 0.22" is correct; reading it
+as "our estimate is accurate to 0.22" is not. The margin is 0 when `p10` and
+`p90` both sit at the same outer strike (both flagged `"tail"`), which means the
+book puts nearly all its mass past that strike, not that the value is certain.
 
 **Check the `Basis` flags before displaying a number.** The outer two buckets are
 open-ended, so the books say nothing about how far out they extend. When a
 percentile falls inside one, the number is the outer strike; the value lies at
-or beyond it, and the corresponding flag reads `"tail"`. `"interior"` means it was read between
-real strikes with no shape assumption. `"unresolved"` means the market has too
-few strikes to place it at all.
+or beyond it, and the corresponding flag reads `"tail"`. `"interior"` means it
+was read between real strikes with no shape assumption. `"unresolved"` means the
+market has too few strikes to place it at all.
 
 **Read `warnings`.** Unquoted or one-sided buckets, crossed books, and
 dutch-book deviations are reported rather than silently smoothed over.

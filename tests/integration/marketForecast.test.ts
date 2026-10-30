@@ -269,7 +269,14 @@ describe.skipIf(!configured)(
 
       expect(it.forecast.p10).toBeLessThanOrEqual(it.forecast.value);
       expect(it.forecast.value).toBeLessThanOrEqual(it.forecast.p90);
-      expect(it.forecast.marginOfError).toBeGreaterThan(0);
+      if (it.forecast.p10 === it.forecast.p90) {
+        // Both ends in one edge bucket: both are its strike, so 0 is correct.
+        expect(it.forecast.p10Basis).toBe("tail");
+        expect(it.forecast.p90Basis).toBe("tail");
+        expect(it.forecast.marginOfError).toBe(0);
+      } else {
+        expect(it.forecast.marginOfError).toBeGreaterThan(0);
+      }
     });
 
     test("the buckets are ordered and tile the line", () => {
