@@ -43,11 +43,10 @@
  * within the bucket where the crossing happens. No distribution shape is
  * assumed for anything interior. The published band is P10..P90 read the same
  * way. When a requested percentile falls inside an OPEN-ENDED outer bucket the
- * books contain no information about how far out it lies, so an exponential
- * tail matched to the adjacent bucket's density supplies a number, and the
- * result is flagged (`valueBasis` / `p10Basis` / `p90Basis` = "tail") so
- * consumers can decide whether to show it. Markets struck so that the mass
- * stays between the outer boundaries never need the tail model at all.
+ * books contain no information about how far out it lies, so the outer strike
+ * itself is reported and the result is flagged (`valueBasis` / `p10Basis` /
+ * `p90Basis` = "tail"): the value lies at or beyond that strike. Markets
+ * struck so that the mass stays between the outer boundaries never need it.
  *
  * `confidence` per bucket is (1 - spread) * min(1, n / median(n)) with n the
  * thinner side's committed dollars, standardised against the market's own
@@ -233,8 +232,8 @@ export interface BucketEstimate {
  * `value` is the MEDIAN of the implied distribution. `p10`/`p90` are the
  * published band. Each carries a basis flag: "interior" means it was read
  * between real strikes with no shape assumption; "tail" means it fell inside an
- * open-ended outer bucket and rests on the exponential tail model; "unresolved"
- * means the market has too few strikes to place it at all.
+ * open-ended outer bucket and is the outer strike, the value lying at or beyond
+ * it; "unresolved" means the market has too few strikes to place it at all.
  *
  * `marginOfError` is kept for downstream compatibility as half the P10..P90
  * band; `sigma` as the band scaled to a normal-equivalent standard deviation
@@ -619,10 +618,11 @@ function dutchBookWarning(buckets: readonly BucketBook[]): string | null {
  *
  * Interior crossings interpolate between real strikes and assume nothing beyond
  * uniform density within the bucket. A crossing inside an open-ended outer
- * bucket needs a shape for the tail; we use an exponential decay matched to the
- * adjacent interior bucket's density, and flag the result "tail" so consumers
- * know it rests on that assumption. With fewer than two boundaries there is no
- * interior at all and no density to anchor a tail, so the answer is unresolved.
+ * bucket has no outer bound, and the books say nothing about how far past the
+ * strike it lies, so the outer strike itself is returned, flagged "tail": the
+ * value lies at or beyond it. Extrapolating instead ran to absurd values when an
+ * edge bucket was near-certain and its neighbour near-empty. With fewer than two
+ * boundaries there is no interior at all, so the answer is unresolved.
  */
 function rankQuantile(
   bounds: readonly number[],
@@ -651,30 +651,8 @@ function rankQuantile(
     }
   }
 
-  const widths: number[] = [];
-  for (let i = 0; i + 1 < bounds.length; i++) {
-    widths.push(bounds[i + 1] - bounds[i]);
-  }
-
-  if (q < cum[0]) {
-    // lower open tail
-    const dens = widths[0] > 0 ? probs[1] / widths[0] : 0;
-    if (dens <= 0 || cum[0] <= 0) return { value: null, basis: "unresolved" };
-    const lam = dens / cum[0];
-    return { value: bounds[0] + Math.log(q / cum[0]) / lam, basis: "tail" };
-  }
-
-  // upper open tail
-  const upperMass = probs[k - 1];
-  const dens = widths[widths.length - 1] > 0 ? probs[k - 2] / widths[widths.length - 1] : 0;
-  if (dens <= 0 || upperMass <= 0) return { value: null, basis: "unresolved" };
-  const lam = dens / upperMass;
-  return {
-    value:
-      bounds[bounds.length - 1] -
-      Math.log(Math.max(1 - q, 1e-12) / upperMass) / lam,
-    basis: "tail",
-  };
+  if (q < cum[0]) return { value: bounds[0], basis: "tail" }; // lower open tail
+  return { value: bounds[bounds.length - 1], basis: "tail" }; // upper open tail
 }
 
 /**
@@ -863,7 +841,7 @@ function assemble(
     const outside = probs[0] >= 0.5 ? probs[0] : probs[probs.length - 1];
     warnings.push(
       `median lies beyond the outer strikes (${fixed(outside * 100, 0)}% of mass ` +
-        `in an open-ended bucket); value depends on the assumed tail shape`
+        `in an open-ended bucket); value is the outer strike, the outcome lies at or beyond it`
     );
   }
   for (const [name, basis] of [
@@ -871,7 +849,7 @@ function assemble(
     ["p90", p90.basis],
   ] as const) {
     if (basis === "tail") {
-      warnings.push(`${name} falls in an open tail; tail-model dependent`);
+      warnings.push(`${name} falls in an open tail; reported as the outer strike`);
     } else if (basis === "unresolved") {
       warnings.push(`${name} unresolvable from these strikes`);
     }

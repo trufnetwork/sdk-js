@@ -128,11 +128,11 @@ describe("forecastFromBuckets: the core estimate", () => {
   });
 
   it("needs no assumed value for the open tails", () => {
-    // Heavy mass in the unbounded top bucket must still give a finite answer
-    // that sits above the last boundary.
+    // Heavy mass in the unbounded top bucket gives the last boundary itself,
+    // flagged as a tail: the outcome lies at or above it.
     const f = forecast(build([1, 2, 7, 20, 70]));
-    expect(Number.isFinite(f.value)).toBe(true);
-    expect(f.value).toBeGreaterThan(4.92);
+    expect(f.value).toBe(4.92);
+    expect(f.valueBasis).toBe("tail");
   });
 
   it("normalises the probabilities", () => {
@@ -265,5 +265,81 @@ describe("forecastFromBuckets: degenerate input", () => {
     // not trip over it.
     const f = forecast(build([30, 1, 40, 1, 28]));
     expect(Number.isFinite(f.value)).toBe(true);
+  });
+});
+
+describe("forecastFromBuckets: open edge buckets", () => {
+  // GOOGL EPS ladder from truflation/website#5091. Extrapolating a tail past the
+  // outer strike forecast -47.78 for the first book below.
+  const GOOGL_BOUNDS: [number | null, number | null][] = [
+    [null, 2.6],
+    [2.6, 2.98],
+    [2.98, 3.36],
+    [3.36, 3.73],
+    [3.73, null],
+  ];
+
+  /** Books quoted [bid, ask] per bucket, in cents. */
+  function quoted(quotes: [number, number][]): BucketBook[] {
+    return GOOGL_BOUNDS.map(([lower, upper], i) => ({
+      lower,
+      upper,
+      bestBid: quotes[i][0],
+      bestAsk: quotes[i][1],
+    }));
+  }
+
+  const lowerTails: [string, [number, number][]][] = [
+    ["a near-empty", [[98, 99], [0, 1], [0, 1], [0, 1], [0, 1]]],
+    ["a thin", [[98, 99], [1, 2], [0, 1], [0, 1], [0, 1]]],
+  ];
+
+  it.each(lowerTails)(
+    "reports the lowest strike when the lower bucket is near-certain over %s neighbour",
+    (_, quotes) => {
+      const f = forecast(quoted(quotes));
+      expect(f.method).toBe("rank");
+      expect(f.value).toBe(2.6);
+      expect(f.p10).toBe(2.6);
+      expect(f.p90).toBe(2.6);
+      expect(f.valueBasis).toBe("tail");
+      expect(f.p10Basis).toBe("tail");
+      expect(f.p90Basis).toBe("tail");
+    }
+  );
+
+  it.each(lowerTails)(
+    "reports the highest strike when the upper bucket is near-certain over %s neighbour",
+    (_, quotes) => {
+      const f = forecast(quoted([...quotes].reverse()));
+      expect(f.method).toBe("rank");
+      expect(f.value).toBe(3.73);
+      expect(f.p10).toBe(3.73);
+      expect(f.p90).toBe(3.73);
+      expect(f.valueBasis).toBe("tail");
+      expect(f.p10Basis).toBe("tail");
+      expect(f.p90Basis).toBe("tail");
+    }
+  );
+
+  it("still reads the interior end of the band when only one end is in a tail", () => {
+    const f = forecast(quoted([[69, 71], [19, 21], [0, 1], [0, 1], [0, 1]]));
+    expect(f.value).toBe(2.6);
+    expect(f.valueBasis).toBe("tail");
+    expect(f.p10).toBe(2.6);
+    expect(f.p90Basis).toBe("interior");
+    expect(f.p90!).toBeGreaterThan(2.6);
+    expect(f.p90!).toBeLessThan(2.98);
+  });
+
+  it("says the value is the outer strike", () => {
+    const f = forecast(quoted([[98, 99], [0, 1], [0, 1], [0, 1], [0, 1]]));
+    expect(f.warnings).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/^median lies beyond the outer strikes .*value is the outer strike/),
+        "p10 falls in an open tail; reported as the outer strike",
+        "p90 falls in an open tail; reported as the outer strike",
+      ])
+    );
   });
 });
