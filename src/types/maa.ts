@@ -2,7 +2,7 @@
  * Modular Agent Address (MAA / "agent wallet") types.
  *
  * An MAA lets a token holder (the unrestricted owner/funder) delegate a limited set of actions to an
- * agent key (the restricted creator) that can operate the wallet but provably cannot move funds out. A
+ * agent key (the restricted creator) that can operate the wallet but cannot withdraw from it. A
  * creator registers a rule once (immutable); any funder joins that rule to obtain a distinct,
  * deterministically-derived wallet address. Result fields mirror the on-chain getter columns
  * (migration 048): addresses and hashes are 0x-prefixed lowercase hex as returned by the node.

@@ -2,14 +2,14 @@
  * Modular Agent Address (MAA / "agent wallet") lifecycle smoke test — JavaScript/TypeScript SDK.
  *
  * Runs the full agent-wallet lifecycle against a live TRUF.NETWORK node where maa_exec is activated
- * (testnet from height 6523123). It proves, end-to-end through @trufnetwork/sdk-js, the properties
- * that make an agent wallet useful and safe:
+ * (testnet from height 6523123). It proves, end-to-end through @trufnetwork/sdk-js, these properties
+ * of an agent wallet:
  *
  *   - a restricted AGENT key registers an immutable rule;
  *   - an unrestricted OWNER key joins it to derive a wallet (the MAA) and funds it;
  *   - the agent runs allow-listed actions AS the MAA — the node rewrites @caller to the wallet, so the
  *     streams it creates are owned by the MAA and every fee is debited from the MAA's OWN escrow;
- *   - the agent CANNOT move the funds out (owner-exit actions are reserved for the owner);
+ *   - the agent CANNOT withdraw (maa_withdraw is reserved for the owner);
  *   - the owner withdraws the remaining escrow at any time, paying the agent its commission;
  *   - an owner (or a delegated bot) can read the wallet's order-book portfolio BY ADDRESS.
  *
@@ -302,7 +302,7 @@ async function run(): Promise<void> {
   console.log("Proven on-chain via the JavaScript SDK:");
   console.log("  • @caller rewritten to the MAA (the stream is owned by the wallet, not the agent key)");
   console.log("  • fees debit the MAA's own escrow");
-  console.log("  • the restricted agent cannot move funds out");
+  console.log("  • the restricted agent cannot withdraw (maa_withdraw is reserved for the owner)");
   console.log("  • the owner withdraws with the agreed commission");
   console.log("  • an owner can read the wallet's order-book positions/collateral by address (051)");
 }
