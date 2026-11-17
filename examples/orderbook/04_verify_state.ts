@@ -5,7 +5,7 @@
  */
 
 import { Wallet } from "ethers";
-import { NodeTNClient, bytesToHex } from "../../src/index.node";
+import { NodeTNClient, bytesToHex, isMarketRefunded } from "../../src/index.node";
 import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
@@ -82,7 +82,13 @@ async function main() {
     console.log(`  Settle Time: ${new Date(market.settleTime * 1000).toISOString()}`);
     console.log(`  Settled: ${market.settled}`);
     if (market.settled) {
-      console.log(`  Winning Outcome: ${market.winningOutcome ? "YES" : "NO"}`);
+      // Settled with no winning outcome means refunded, not NO.
+      const outcome = isMarketRefunded(market)
+        ? "REFUNDED"
+        : market.winningOutcome
+          ? "YES"
+          : "NO";
+      console.log(`  Winning Outcome: ${outcome}`);
     }
     console.log(`  Max Spread: ${market.maxSpread}c`);
     console.log(`  Min Order Size: ${market.minOrderSize}`);

@@ -78,6 +78,30 @@ export function encodeActionArgs(args: any[], types?: Record<number, TypeHint>):
 }
 
 /**
+ * Lays out already-built EncodedValues in the same args format as
+ * {@link encodeActionArgs}. For callers that need a value kwil-js would not
+ * produce on its own, such as Go's NULL (type 'null' with no data items).
+ *
+ * @param values - One EncodedValue per argument, in order
+ * @returns Encoded bytes
+ */
+export function encodeEncodedArgs(values: Types.EncodedValue[]): Uint8Array {
+  const encodedArgs = values.map((value) => Utils.encodeEncodedValue(value));
+  const totalSize = encodedArgs.reduce((size, arg) => size + 4 + arg.length, 4);
+
+  const buffer = new Uint8Array(totalSize);
+  writeUint32LE(buffer, encodedArgs.length, 0);
+  let offset = 4;
+  for (const arg of encodedArgs) {
+    writeUint32LE(buffer, arg.length, offset);
+    offset += 4;
+    buffer.set(arg, offset);
+    offset += arg.length;
+  }
+  return buffer;
+}
+
+/**
  * Decodes canonical bytes back into action arguments.
  * This is the inverse of encodeActionArgs.
  *
@@ -603,6 +627,134 @@ export function isBinaryAction(actionId: number): boolean {
 }
 
 /**
+ * The outcome actions of migration 063 (node v2.6.8): index_change_in_range_v2
+ * (13), price_above_threshold_v2 (14), price_below_threshold_v2 (15) and
+ * value_in_range_v2 (16).
+ *
+ * Their result is one data point whose value is 1 (YES), 0 (NO) or -1
+ * (INVALID), so they are not binary actions: {@link isBinaryAction} stays false
+ * for them, as the node's parse_attestation_boolean refuses them.
+ */
+export const OUTCOME_ACTION_IDS: ReadonlySet<number> = new Set([13, 14, 15, 16]);
+
+const OUTCOME_ACTION_NAMES: ReadonlySet<string> = new Set([
+  'index_change_in_range_v2',
+  'price_above_threshold_v2',
+  'price_below_threshold_v2',
+  'value_in_range_v2',
+]);
+
+/**
+ * Reports whether an attestation action is an outcome action (ids 13-16).
+ * Mirrors the node's tn_utils.IsOutcomeAction.
+ *
+ * @param action - Action ID, or action name as decodeMarketData returns it
+ * @returns true for the four v2 outcome actions
+ */
+export function isOutcomeAction(action: number | string): boolean {
+  return typeof action === 'number'
+    ? OUTCOME_ACTION_IDS.has(action)
+    : OUTCOME_ACTION_NAMES.has(action);
+}
+
+/** The outcome resolved YES. */
+export const OUTCOME_YES = 1;
+/** The outcome resolved NO. */
+export const OUTCOME_NO = 0;
+/** No record arrived before the deadline: the market is refunded. */
+export const OUTCOME_INVALID = -1;
+
+/** An outcome action's result: 1 YES, 0 NO, -1 INVALID. */
+export type OutcomeValue = 1 | 0 | -1;
+
+/** What {@link parseOutcomeResult} reads from an outcome attestation. */
+export interface OutcomeResult {
+  outcome: OutcomeValue;
+  actionId: number;
+}
+
+/** 1 and -1 as the data points encoding carries them (scaled by 1e18). */
+const OUTCOME_YES_RAW = 10n ** 18n;
+const OUTCOME_INVALID_RAW = -OUTCOME_YES_RAW;
+
+/**
+ * Reads the outcome from an outcome action's attestation payload.
+ *
+ * Mirrors the node's parse_attestation_outcome: it refuses any action other than
+ * 13-16, requires exactly one data point, and accepts only the values 1e18, 0
+ * and -1e18. The raw int256 is compared, not a formatted decimal.
+ *
+ * @param payload - Canonical attestation payload (without the 65-byte signature)
+ * @returns The outcome (1 YES, 0 NO, -1 INVALID) and the action ID
+ * @throws If the payload is malformed, the action is not an outcome action, or
+ *   the result is not a single 1e18, 0 or -1e18 value
+ */
+export function parseOutcomeResult(payload: Uint8Array): OutcomeResult {
+  if (payload.length === 0) {
+    throw new Error('payload cannot be empty');
+  }
+
+  let offset = 0;
+  const skip = (size: number, field: string): void => {
+    if (offset + size > payload.length) {
+      throw new Error(`payload too short for ${field}`);
+    }
+    offset += size;
+  };
+  const lengthPrefixed = (field: string): Uint8Array => {
+    if (offset + 4 > payload.length) {
+      throw new Error(`payload too short for ${field} length`);
+    }
+    const length = readUint32BE(payload, offset);
+    offset += 4;
+    if (offset + length > payload.length) {
+      throw new Error(`payload too short for ${field}`);
+    }
+    const bytes = payload.subarray(offset, offset + length);
+    offset += length;
+    return bytes;
+  };
+
+  skip(1, 'version');
+  skip(1, 'algorithm');
+  skip(8, 'block height');
+  lengthPrefixed('data provider');
+  lengthPrefixed('stream ID');
+  if (offset + 2 > payload.length) {
+    throw new Error('payload too short for action ID');
+  }
+  const actionId = readUint16BE(payload, offset);
+  offset += 2;
+  if (!OUTCOME_ACTION_IDS.has(actionId)) {
+    throw new Error(`unsupported action_id ${actionId}`);
+  }
+  lengthPrefixed('arguments');
+  const result = lengthPrefixed('result');
+
+  let eventTimes: bigint[];
+  let values: bigint[];
+  try {
+    const decoded = AbiCoder.defaultAbiCoder().decode(['uint256[]', 'int256[]'], result);
+    eventTimes = [...(decoded[0] as bigint[])];
+    values = [...(decoded[1] as bigint[])];
+  } catch (err) {
+    throw new Error(`outcome action result: failed to decode ABI payload: ${err}`);
+  }
+  if (eventTimes.length !== 1 || values.length !== 1) {
+    throw new Error(
+      `outcome action result must hold exactly one data point, got ` +
+        `${eventTimes.length} event times and ${values.length} values`
+    );
+  }
+
+  const value = values[0];
+  if (value === OUTCOME_YES_RAW) return { outcome: OUTCOME_YES, actionId };
+  if (value === 0n) return { outcome: OUTCOME_NO, actionId };
+  if (value === OUTCOME_INVALID_RAW) return { outcome: OUTCOME_INVALID, actionId };
+  throw new Error(`outcome action result must be 1e18, 0 or -1e18, got ${value}`);
+}
+
+/**
  * Decodes a binary action result (abi.encode(bool), a single 32-byte word).
  *
  * Returned as a single-row/single-column result so the shape stays a DecodedRow[],
@@ -814,7 +966,9 @@ export function parseAttestationPayload(payload: Uint8Array): ParsedAttestationP
   // Decode result based on action ID. Binary actions return abi.encode(bool);
   // every other action returns abi.encode(uint256[], int256[]).
   // Mirrors the node encoder (tn_utils.EncodeDataPointsABI) and decoder
-  // (parseAttestationBooleanHandler / IsBinaryAction).
+  // (parseAttestationBooleanHandler / IsBinaryAction). Outcome actions (13-16)
+  // decode here as one data point valued '1', '0' or '-1';
+  // parseOutcomeResult reads them strictly.
   const result = isBinaryAction(actionId)
     ? decodeABIBoolean(resultBytes)
     : decodeABIDatapoints(resultBytes);
@@ -1104,9 +1258,113 @@ if (import.meta.vitest) {
       // 10 and 11 (get_high_value, get_low_value) sit between the two binary
       // blocks and return datapoints: this is why the test is membership rather
       // than a 6-12 range.
-      for (const id of [0, 1, 2, 3, 4, 5, 10, 11, 13]) {
+      for (const id of [0, 1, 2, 3, 4, 5, 10, 11, 13, 14, 15, 16]) {
         expect(isBinaryAction(id)).toBe(false);
       }
+    });
+  });
+
+  describe('isOutcomeAction', () => {
+    it('accepts ids 13-16 and their names', () => {
+      for (const id of [13, 14, 15, 16]) {
+        expect(isOutcomeAction(id)).toBe(true);
+      }
+      for (const name of [
+        'index_change_in_range_v2',
+        'price_above_threshold_v2',
+        'price_below_threshold_v2',
+        'value_in_range_v2',
+      ]) {
+        expect(isOutcomeAction(name)).toBe(true);
+      }
+    });
+
+    it('rejects every other action, including the v1 binary ones', () => {
+      for (const id of [0, 1, 6, 7, 8, 9, 10, 11, 12, 17]) {
+        expect(isOutcomeAction(id)).toBe(false);
+      }
+      for (const name of ['price_above_threshold', 'index_change_in_range', 'get_record', 'constructor']) {
+        expect(isOutcomeAction(name)).toBe(false);
+      }
+    });
+  });
+
+  describe('outcome action results', () => {
+    const buildPayload = (actionId: number, resultBytes: Uint8Array): Uint8Array => {
+      const parts: number[] = [];
+      const pushU32BE = (n: number) => parts.push((n >>> 24) & 0xff, (n >>> 16) & 0xff, (n >>> 8) & 0xff, n & 0xff);
+      const pushBytes = (b: Uint8Array) => b.forEach((x) => parts.push(x));
+      const streamId = new TextEncoder().encode('st000000000000000000000000000000');
+
+      parts.push(1, 0);
+      pushBytes(new Uint8Array(8));
+      pushU32BE(20);
+      pushBytes(new Uint8Array(20));
+      pushU32BE(streamId.length);
+      pushBytes(streamId);
+      parts.push((actionId >>> 8) & 0xff, actionId & 0xff);
+      pushU32BE(0);
+      pushU32BE(resultBytes.length);
+      pushBytes(resultBytes);
+      return new Uint8Array(parts);
+    };
+    const points = (times: bigint[], values: bigint[]): Uint8Array =>
+      Uint8Array.from(
+        Buffer.from(AbiCoder.defaultAbiCoder().encode(['uint256[]', 'int256[]'], [times, values]).slice(2), 'hex')
+      );
+    const E18 = 10n ** 18n;
+
+    it('reads YES, NO and INVALID for each outcome action', () => {
+      for (const id of [13, 14, 15, 16]) {
+        expect(parseOutcomeResult(buildPayload(id, points([1767225600n], [E18])))).toEqual({ outcome: 1, actionId: id });
+        expect(parseOutcomeResult(buildPayload(id, points([1767225600n], [0n])))).toEqual({ outcome: 0, actionId: id });
+        expect(parseOutcomeResult(buildPayload(id, points([1767484800n], [-E18])))).toEqual({ outcome: -1, actionId: id });
+      }
+      expect(OUTCOME_YES).toBe(1);
+      expect(OUTCOME_NO).toBe(0);
+      expect(OUTCOME_INVALID).toBe(-1);
+    });
+
+    it('refuses any other value', () => {
+      for (const value of [2n * E18, E18 - 1n, -E18 + 1n, 1n]) {
+        expect(() => parseOutcomeResult(buildPayload(14, points([1n], [value])))).toThrow(/must be 1e18, 0 or -1e18/);
+      }
+    });
+
+    it('refuses zero or two data points', () => {
+      expect(() => parseOutcomeResult(buildPayload(16, points([], [])))).toThrow(/exactly one data point/);
+      expect(() => parseOutcomeResult(buildPayload(16, points([1n, 2n], [E18, 0n])))).toThrow(/exactly one data point/);
+    });
+
+    it('refuses actions that are not outcome actions', () => {
+      for (const id of [1, 6, 12, 17]) {
+        expect(() => parseOutcomeResult(buildPayload(id, points([1n], [E18])))).toThrow(`unsupported action_id ${id}`);
+      }
+    });
+
+    it('refuses an empty or truncated payload', () => {
+      expect(() => parseOutcomeResult(new Uint8Array(0))).toThrow(/empty/);
+      const full = buildPayload(13, points([1n], [E18]));
+      expect(() => parseOutcomeResult(full.slice(0, full.length - 1))).toThrow(/too short for result/);
+      expect(() => parseOutcomeResult(full.slice(0, 5))).toThrow(/too short/);
+    });
+
+    it('decodes through parseAttestationPayload as one datapoint row', () => {
+      for (const [raw, text] of [[E18, '1'], [0n, '0'], [-E18, '-1']] as const) {
+        const parsed = parseAttestationPayload(buildPayload(15, points([1767225600n], [raw])));
+        expect(parsed.result).toEqual([{ values: ['1767225600', text] }]);
+      }
+    });
+  });
+
+  describe('encodeEncodedArgs', () => {
+    it('lays out values exactly as encodeActionArgs does', () => {
+      const values = ['0xabc', 42, '1.5'];
+      const hints: Record<number, TypeHint> = { 1: Utils.DataType.Int, 2: Utils.DataType.Numeric(36, 18) };
+      const viaHints = encodeActionArgs(values, hints);
+      const viaValues = encodeEncodedArgs(values.map((v, i) => Utils.formatEncodedValue(v, hints[i])));
+      expect(viaValues).toEqual(viaHints);
+      expect(encodeEncodedArgs([])).toEqual(encodeActionArgs([]));
     });
   });
 

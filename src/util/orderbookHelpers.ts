@@ -5,13 +5,19 @@
  */
 
 import { ethers } from "ethers";
-import { Utils } from "@trufnetwork/kwil-js";
+import { Types, Utils } from "@trufnetwork/kwil-js";
 import {
   encodeActionArgs as encodeActionArgsKwil,
+  encodeEncodedArgs,
   decodeActionArgs,
   decodeQueryComponents
 } from "./AttestationEncoding";
 import type { DecodedTransactionPayload } from "./TransactionPayload";
+import type {
+  IndexChangeInRangeV2Input,
+  PriceThresholdV2Input,
+  ValueInRangeV2Input,
+} from "../types/orderbook";
 
 /**
  * Structured content of a prediction market's query components
@@ -20,12 +26,18 @@ export interface MarketData {
   dataProvider: string;
   streamId: string;
   actionId: string;
-  type: "above" | "below" | "between" | "equals" | "change_between" | "unknown";
+  /**
+   * The question the market asks. The v2 outcome actions reuse `"above"` (14),
+   * `"below"` (15) and `"change_between"` (13); `"range"` is value_in_range_v2
+   * (16), half-open `[min, max)` in the stream's own units with either tail
+   * open. `actionId` still tells v1 from v2.
+   */
+  type: "above" | "below" | "between" | "equals" | "change_between" | "range" | "unknown";
   /**
    * The market's strike values in the order the action declares them, one entry
-   * per slot. A `"change_between"` market may strike an open tail, which reads
-   * back as an empty string in place rather than a shorter array — dropping it
-   * would slide the remaining bound into the wrong position.
+   * per slot. A `"change_between"` or `"range"` market may strike an open tail,
+   * which reads back as an empty string in place rather than a shorter array —
+   * dropping it would slide the remaining bound into the wrong position.
    */
   thresholds: string[];
   /**
@@ -40,8 +52,9 @@ export interface MarketData {
   timestamp?: number | null;
   /**
    * The block height the data is pinned to. Encoded as NULL to mean "latest",
-   * so null is a real value rather than a decode failure. Optional for the
-   * same reason as `timestamp`.
+   * so null is a real value rather than a decode failure. Always null for the
+   * v2 outcome actions, which have no such argument. Optional for the same
+   * reason as `timestamp`.
    */
   frozenAt?: number | null;
   /**
@@ -63,6 +76,16 @@ export interface MarketData {
    * presentation.
    */
   timeInterval?: number | null;
+  /**
+   * Seconds after `timestamp` a v2 outcome market waits for a record before it
+   * settles INVALID. Null for v1 markets. Part of the market's identity.
+   */
+  window?: number | null;
+  /**
+   * Seconds from `timestamp` a record may sit and still count, for a v2
+   * outcome market. Null for v1 markets. Part of the market's identity.
+   */
+  tolerance?: number | null;
 }
 
 /**
@@ -76,6 +99,8 @@ export interface DecodedMarketData extends MarketData {
   frozenAt: number | null;
   baseTime: number | null;
   timeInterval: number | null;
+  window: number | null;
+  tolerance: number | null;
 }
 
 /**
@@ -105,6 +130,8 @@ export function decodeMarketData(encoded: string | Uint8Array): DecodedMarketDat
     frozenAt: null,
     baseTime: null,
     timeInterval: null,
+    window: null,
+    tolerance: null,
   };
 
   /** INT8 arguments arrive as bigint, and NULL is a value rather than an error. */
@@ -128,11 +155,12 @@ export function decodeMarketData(encoded: string | Uint8Array): DecodedMarketDat
   };
 
   /**
-   * Every binary action takes ($data_provider, $stream_id, $timestamp, ...,
+   * Every v1 binary action takes ($data_provider, $stream_id, $timestamp, ...,
    * $frozen_at), so the timestamp is always argument 2 and frozen_at is always
    * last. Only the arguments in between change shape, and they are not all
    * thresholds: index_change_in_range carries $base_time and $time_interval
-   * ahead of its two bounds.
+   * ahead of its two bounds. The v2 outcome actions have no frozen_at; see
+   * readOutcomeArgs.
    */
   const readQueryTime = (frozenAtIndex: number): void => {
     // Both slots have to exist for either to mean anything. A truncated
@@ -146,9 +174,24 @@ export function decodeMarketData(encoded: string | Uint8Array): DecodedMarketDat
     market.frozenAt = argInt(frozenAtIndex);
   };
 
+  /**
+   * The v2 outcome actions take ($data_provider, $stream_id, $timestamp,
+   * $window, $tolerance, ...) with no defaults, so a market is read only when it
+   * carries exactly the action's argument count. Anything else leaves the
+   * timestamp null and the thresholds empty, which the forecast refuses.
+   */
+  const readOutcomeArgs = (count: number): boolean => {
+    if (args.length !== count) return false;
+    market.timestamp = argInt(2);
+    market.window = argInt(3);
+    market.tolerance = argInt(4);
+    return true;
+  };
+
   // Map action_id to market type and thresholds
-  // Based on 040-binary-attestation-actions.sql and
-  // 055-index-change-attestation-action.sql
+  // Based on 040-binary-attestation-actions.sql,
+  // 055-index-change-attestation-action.sql and
+  // 063-outcome-attestation-actions.sql
   switch (actionId) {
     case "price_above_threshold":
       market.type = "above";
@@ -193,6 +236,28 @@ export function decodeMarketData(encoded: string | Uint8Array): DecodedMarketDat
         market.timeInterval = argInt(4);
       }
       readQueryTime(7);
+      break;
+    case "price_above_threshold_v2":
+    case "price_below_threshold_v2":
+      // Strict > and <, as in v1. The threshold is never NULL on chain.
+      market.type = actionId === "price_above_threshold_v2" ? "above" : "below";
+      if (readOutcomeArgs(6) && args[5] != null) {
+        market.thresholds.push(args[5].toString());
+      }
+      break;
+    case "value_in_range_v2":
+      // Not "between": these bounds are half-open and either may be NULL.
+      market.type = "range";
+      if (readOutcomeArgs(7)) {
+        market.thresholds.push(argThreshold(5), argThreshold(6));
+      }
+      break;
+    case "index_change_in_range_v2":
+      market.type = "change_between";
+      if (readOutcomeArgs(8)) {
+        market.timeInterval = argInt(5);
+        market.thresholds.push(argThreshold(6), argThreshold(7));
+      }
       break;
   }
 
@@ -434,8 +499,8 @@ const NUMERIC_INTEGER_DIGITS = 36 - NUMERIC_SCALE;
  * This closes the divergence in the bound itself. It does not, on its own, make
  * the whole argument list byte-identical across SDKs: kwil-js and kwil-db's Go
  * encoder also disagree on the metadata they attach to an INT8 and on how they
- * lay out a NULL, for every argument of every action. Those live below this
- * package.
+ * lay out a NULL, for every argument of every v1 action. Those live below this
+ * package; the v2 encoders work around them (see goText and goNumeric).
  *
  * Accepts an optionally signed integer with an optional fractional part, and
  * nothing else. The three rejections are the cases where this rendering and the
@@ -458,6 +523,32 @@ const NUMERIC_INTEGER_DIGITS = 36 - NUMERIC_SCALE;
  * @internal Not part of the package's public surface.
  */
 export function toCanonicalNumeric(value: string, field: string): string {
+  return parseCanonicalNumeric(value, field, false).text;
+}
+
+/**
+ * Renders a v2 outcome bound exactly as sdk-go sends it. Same as
+ * {@link toCanonicalNumeric}, except that a non-zero magnitude below 1e-6 is
+ * written in Go's exponent form (`1E-18`, `1.20000000000E-7`) rather than
+ * refused, because the node accepts it.
+ *
+ * @internal Not part of the package's public surface.
+ */
+export function toOutcomeNumeric(value: string, field: string): string {
+  return parseCanonicalNumeric(value, field, true).text;
+}
+
+/** A bound as Go renders it at NUMERIC(36,18), and its value scaled by 1e18. */
+interface CanonicalNumeric {
+  text: string;
+  scaled: bigint;
+}
+
+function parseCanonicalNumeric(
+  value: string,
+  field: string,
+  exponentBelowMicro: boolean
+): CanonicalNumeric {
   const match = /^(-?)(\d+)(?:\.(\d*))?$/.exec(value);
   if (!match) {
     throw new Error(
@@ -489,16 +580,25 @@ export function toCanonicalNumeric(value: string, field: string): string {
   // Below 1e-6 Go switches to exponent form. The test is on the digits rather
   // than on Number(value), which would have already lost them.
   const isZero = integer === "0" && !/[1-9]/.test(fraction);
+  const scaled = BigInt(`${sign}${integer}${fraction}`);
   if (!isZero && integer === "0" && !/[1-9]/.test(fraction.slice(0, 6))) {
-    throw new Error(
-      `${field} is smaller than 1e-6, which encodes in exponent form and would ` +
-        `not match the same bound written from another SDK: '${value}'`
-    );
+    if (!exponentBelowMicro) {
+      throw new Error(
+        `${field} is smaller than 1e-6, which encodes in exponent form and would ` +
+          `not match the same bound written from another SDK: '${value}'`
+      );
+    }
+    // Go's decimal String() (apd 'G') writes the scaled digits with one before
+    // the point and the exponent after them once it drops below -6.
+    const digits = fraction.replace(/^0+/, "");
+    const mantissa =
+      digits.length > 1 ? `${digits[0]}.${digits.slice(1)}` : digits;
+    return { text: `${sign}${mantissa}E-${19 - digits.length}`, scaled };
   }
 
   // The sign survives a zero magnitude on purpose: Go renders "-0" as
   // "-0.000000000000000000", and dropping the minus here would change the bytes.
-  return `${sign}${integer}.${fraction}`;
+  return { text: `${sign}${integer}.${fraction}`, scaled };
 }
 
 /**
@@ -601,6 +701,317 @@ export function encodeIndexChangeActionArgs(
       6: Utils.DataType.Numeric(36, 18),
     }
   );
+}
+
+/**
+ * The longest `window` or `time_interval` the node accepts for an outcome
+ * action: 10 years of 365 days, in seconds.
+ */
+export const OUTCOME_MAX_SPAN_SECONDS = 315360000;
+
+/** The largest `tolerance` the node accepts for an outcome action: 45 days, in seconds. */
+export const OUTCOME_MAX_TOLERANCE_SECONDS = 3888000;
+
+/**
+ * The v2 args are encoded the way sdk-go encodes them (kwil-db core
+ * EncodeValue), so the same question hashes to the same market from every SDK:
+ * INT8 with zero metadata, NUMERIC(36,18) in Go's rendering, and NULL as type
+ * 'null' with no data items. kwil-js on its own differs on the last two.
+ */
+const goText = (value: string): Types.EncodedValue =>
+  Utils.formatEncodedValue(value, Utils.DataType.Text);
+const goInt8 = (value: number): Types.EncodedValue =>
+  Utils.formatEncodedValue(value, Utils.DataType.Int);
+const goNumeric = (value: string | null): Types.EncodedValue =>
+  value === null
+    ? { type: Utils.DataType.Null, data: [] }
+    : Utils.formatEncodedValue(value, Utils.DataType.Numeric(36, 18));
+
+/** A whole number of seconds in [min, max]. */
+function isSecondsInRange(value: number, min: number, max: number): boolean {
+  return Number.isSafeInteger(value) && value >= min && value <= max;
+}
+
+/**
+ * Checks the time fields against the node's bounds (outcome.go
+ * validateOutcomeActionArgs) and no further. The node's "timestamp at most 10
+ * years past the block time" check is left to the node.
+ */
+function validateOutcomeTimes(
+  timestamp: number,
+  window: number,
+  tolerance: number
+): void {
+  if (!isSecondsInRange(timestamp, 0, Number.MAX_SAFE_INTEGER)) {
+    throw new Error(
+      `timestamp must be a whole number of seconds, not negative, got ${timestamp}`
+    );
+  }
+  if (!isSecondsInRange(window, 1, OUTCOME_MAX_SPAN_SECONDS)) {
+    throw new Error(
+      `window must be a whole number of seconds in (0, ${OUTCOME_MAX_SPAN_SECONDS}], got ${window}`
+    );
+  }
+  if (!isSecondsInRange(tolerance, 0, OUTCOME_MAX_TOLERANCE_SECONDS)) {
+    throw new Error(
+      `tolerance must be a whole number of seconds in [0, ${OUTCOME_MAX_TOLERANCE_SECONDS}], got ${tolerance}`
+    );
+  }
+  if (window < tolerance) {
+    throw new Error(
+      `window (${window}) must not be less than tolerance (${tolerance})`
+    );
+  }
+}
+
+/** A required v2 threshold, in Go's rendering. */
+function outcomeThreshold(threshold: string | null | undefined): string {
+  if (threshold == null) {
+    throw new Error("threshold is required");
+  }
+  if (threshold === "") {
+    throw new Error("threshold is empty");
+  }
+  return toOutcomeNumeric(threshold, "threshold");
+}
+
+/** A v2 [min, max) pair in Go's rendering; null is an open tail, not both. */
+function outcomeBounds(
+  minField: string,
+  maxField: string,
+  min: string | null | undefined,
+  max: string | null | undefined
+): [string | null, string | null] {
+  for (const [field, bound] of [
+    [minField, min],
+    [maxField, max],
+  ] as const) {
+    if (bound === "") {
+      throw new Error(`${field} is empty; pass null to strike an open tail`);
+    }
+  }
+  const lo = min == null ? null : parseCanonicalNumeric(min, minField, true);
+  const hi = max == null ? null : parseCanonicalNumeric(max, maxField, true);
+  if (lo === null && hi === null) {
+    throw new Error(`at least one of ${minField} or ${maxField} is required`);
+  }
+  if (lo !== null && hi !== null && lo.scaled >= hi.scaled) {
+    throw new Error(
+      `${minField} must be less than ${maxField}, got [${min}, ${max})`
+    );
+  }
+  return [lo?.text ?? null, hi?.text ?? null];
+}
+
+/** The five args every outcome action starts with, then its own. */
+function encodeOutcomeArgs(
+  dataProvider: string,
+  streamId: string,
+  timestamp: number,
+  window: number,
+  tolerance: number,
+  rest: Types.EncodedValue[]
+): Uint8Array {
+  return encodeEncodedArgs([
+    goText(dataProvider.toLowerCase()),
+    goText(streamId),
+    goInt8(timestamp),
+    goInt8(window),
+    goInt8(tolerance),
+    ...rest,
+  ]);
+}
+
+/**
+ * Encodes args for price_above_threshold_v2 (14) or price_below_threshold_v2
+ * (15): ($data_provider, $stream_id, $timestamp, $window, $tolerance,
+ * $threshold). Bytes match sdk-go's.
+ *
+ * @throws If a time field is outside the node's bounds, or the threshold is
+ *   missing or not a plain decimal that fits NUMERIC(36,18).
+ */
+export function encodePriceThresholdV2ActionArgs(
+  dataProvider: string,
+  streamId: string,
+  timestamp: number,
+  window: number,
+  tolerance: number,
+  threshold: string
+): Uint8Array {
+  validateOutcomeTimes(timestamp, window, tolerance);
+  return encodeOutcomeArgs(dataProvider, streamId, timestamp, window, tolerance, [
+    goNumeric(outcomeThreshold(threshold)),
+  ]);
+}
+
+/**
+ * Encodes args for value_in_range_v2 (16): ($data_provider, $stream_id,
+ * $timestamp, $window, $tolerance, $min_value, $max_value). A null bound is an
+ * open tail. Bytes match sdk-go's.
+ *
+ * @throws If a time field is outside the node's bounds, both bounds are open,
+ *   min >= max, or a bound is not a plain decimal that fits NUMERIC(36,18).
+ */
+export function encodeValueInRangeV2ActionArgs(
+  dataProvider: string,
+  streamId: string,
+  timestamp: number,
+  window: number,
+  tolerance: number,
+  minValue: string | null | undefined,
+  maxValue: string | null | undefined
+): Uint8Array {
+  validateOutcomeTimes(timestamp, window, tolerance);
+  const [min, max] = outcomeBounds("min_value", "max_value", minValue, maxValue);
+  return encodeOutcomeArgs(dataProvider, streamId, timestamp, window, tolerance, [
+    goNumeric(min),
+    goNumeric(max),
+  ]);
+}
+
+/**
+ * Encodes args for index_change_in_range_v2 (13): ($data_provider, $stream_id,
+ * $timestamp, $window, $tolerance, $time_interval, $min_change, $max_change).
+ * A null bound is an open tail. Bytes match sdk-go's.
+ *
+ * @throws If a time field or the interval is outside the node's bounds, both
+ *   bounds are open, min >= max, or a bound is not a plain decimal that fits
+ *   NUMERIC(36,18).
+ */
+export function encodeIndexChangeV2ActionArgs(
+  dataProvider: string,
+  streamId: string,
+  timestamp: number,
+  window: number,
+  tolerance: number,
+  timeInterval: number,
+  minChange: string | null | undefined,
+  maxChange: string | null | undefined
+): Uint8Array {
+  validateOutcomeTimes(timestamp, window, tolerance);
+  if (!isSecondsInRange(timeInterval, 1, OUTCOME_MAX_SPAN_SECONDS)) {
+    throw new Error(
+      `time_interval must be a whole number of seconds in (0, ${OUTCOME_MAX_SPAN_SECONDS}], got ${timeInterval}`
+    );
+  }
+  // The prior record is read within tolerance of current - interval.
+  if (2 * tolerance >= timeInterval) {
+    throw new Error(
+      `time_interval (${timeInterval}) must be more than twice tolerance (${tolerance})`
+    );
+  }
+  const [min, max] = outcomeBounds("min_change", "max_change", minChange, maxChange);
+  return encodeOutcomeArgs(dataProvider, streamId, timestamp, window, tolerance, [
+    goInt8(timeInterval),
+    goNumeric(min),
+    goNumeric(max),
+  ]);
+}
+
+function priceThresholdV2Components(
+  actionId: string,
+  input: PriceThresholdV2Input
+): Uint8Array {
+  const args = encodePriceThresholdV2ActionArgs(
+    input.dataProvider,
+    input.streamId,
+    input.timestamp,
+    input.window,
+    input.tolerance,
+    input.threshold
+  );
+  return encodeQueryComponents(
+    input.dataProvider.toLowerCase(),
+    input.streamId,
+    actionId,
+    args
+  );
+}
+
+/**
+ * Builds query_components for a price_above_threshold_v2 market (YES when
+ * value > threshold).
+ */
+export function buildPriceAboveThresholdV2QueryComponents(
+  input: PriceThresholdV2Input
+): Uint8Array {
+  return priceThresholdV2Components("price_above_threshold_v2", input);
+}
+
+/**
+ * Builds query_components for a price_below_threshold_v2 market (YES when
+ * value < threshold).
+ */
+export function buildPriceBelowThresholdV2QueryComponents(
+  input: PriceThresholdV2Input
+): Uint8Array {
+  return priceThresholdV2Components("price_below_threshold_v2", input);
+}
+
+/**
+ * Builds query_components for a value_in_range_v2 market (YES when
+ * minValue <= value < maxValue).
+ */
+export function buildValueInRangeV2QueryComponents(
+  input: ValueInRangeV2Input
+): Uint8Array {
+  const args = encodeValueInRangeV2ActionArgs(
+    input.dataProvider,
+    input.streamId,
+    input.timestamp,
+    input.window,
+    input.tolerance,
+    input.minValue,
+    input.maxValue
+  );
+  return encodeQueryComponents(
+    input.dataProvider.toLowerCase(),
+    input.streamId,
+    "value_in_range_v2",
+    args
+  );
+}
+
+/**
+ * Builds query_components for an index_change_in_range_v2 market (YES when the
+ * percent change over timeInterval lands in [minChange, maxChange)).
+ */
+export function buildIndexChangeInRangeV2QueryComponents(
+  input: IndexChangeInRangeV2Input
+): Uint8Array {
+  const args = encodeIndexChangeV2ActionArgs(
+    input.dataProvider,
+    input.streamId,
+    input.timestamp,
+    input.window,
+    input.tolerance,
+    input.timeInterval,
+    input.minChange,
+    input.maxChange
+  );
+  return encodeQueryComponents(
+    input.dataProvider.toLowerCase(),
+    input.streamId,
+    "index_change_in_range_v2",
+    args
+  );
+}
+
+/**
+ * Reports whether a market was refunded: settled with no winning outcome.
+ *
+ * A v2 market whose record never arrived settles INVALID: every YES and NO
+ * share is paid 50c, open bids are returned at their locked price, and no fee is
+ * taken. Markets closed that way by hand read the same.
+ *
+ * @param market - A MarketInfo or MarketSummary (or anything with the two fields)
+ * @returns true when settled and winningOutcome is null
+ */
+export function isMarketRefunded(market: {
+  settled: boolean;
+  winningOutcome?: boolean | null;
+}): boolean {
+  return market.settled === true && market.winningOutcome == null;
 }
 
 /**

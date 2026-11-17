@@ -17,6 +17,10 @@ import type { MarketInfo, OrderBookEntry } from "../types/orderbook";
 import { BookLevel, BucketDepth, forecastFromDepth } from "./forecast";
 import { bucketBoundsFromMarketData, requireQueryTime } from "./marketBuckets";
 import {
+  buildIndexChangeInRangeV2QueryComponents,
+  buildPriceAboveThresholdV2QueryComponents,
+  buildPriceBelowThresholdV2QueryComponents,
+  buildValueInRangeV2QueryComponents,
   decodeMarketData,
   encodeActionArgs,
   encodeIndexChangeActionArgs,
@@ -137,6 +141,58 @@ describe("bucketBoundsFromMarketData", () => {
     expect(
       bucketBoundsFromMarketData(decodeMarketData(components("3", null)))
     ).toEqual({ lower: 3, upper: null });
+  });
+
+  it("derives v2 outcome bounds from real query components", () => {
+    // value_in_range_v2 is "range": half-open, in the stream's own units, with
+    // either tail open. 14 and 15 read as "above" and "below".
+    const DP = "0x4710a8d8f0d845da110086812a32de6d90d7ff5c";
+    const SID = "stmsft00000000000000000000000000";
+    const query = { dataProvider: DP, streamId: SID, timestamp: 1700000000, window: 259200, tolerance: 86400 };
+    const range = (minValue: string | null, maxValue: string | null) =>
+      bucketBoundsFromMarketData(
+        decodeMarketData(buildValueInRangeV2QueryComponents({ ...query, minValue, maxValue }))
+      );
+
+    expect(range("4.04", "4.33")).toEqual({ lower: 4.04, upper: 4.33 });
+    expect(range(null, "4.04")).toEqual({ lower: null, upper: 4.04 });
+    expect(range("4.92", null)).toEqual({ lower: 4.92, upper: null });
+    expect(
+      bucketBoundsFromMarketData(
+        decodeMarketData(buildPriceAboveThresholdV2QueryComponents({ ...query, threshold: "4.92" }))
+      )
+    ).toEqual({ lower: 4.92, upper: null });
+    expect(
+      bucketBoundsFromMarketData(
+        decodeMarketData(buildPriceBelowThresholdV2QueryComponents({ ...query, threshold: "4.04" }))
+      )
+    ).toEqual({ lower: null, upper: 4.04 });
+    expect(
+      bucketBoundsFromMarketData(
+        decodeMarketData(
+          buildIndexChangeInRangeV2QueryComponents({
+            ...query,
+            timeInterval: 31536000,
+            minChange: "2",
+            maxChange: null,
+          })
+        )
+      )
+    ).toEqual({ lower: 2, upper: null });
+  });
+
+  it("rejects a range market with both tails open or inverted bounds", () => {
+    expect(() =>
+      bucketBoundsFromMarketData({ type: "range", thresholds: ["", ""] })
+    ).toThrow(/at least one bound/);
+    for (const thresholds of [
+      ["4.33", "4.04"],
+      ["4.33", "4.33"],
+    ]) {
+      expect(() =>
+        bucketBoundsFromMarketData({ type: "range", thresholds })
+      ).toThrow(/lower < upper/);
+    }
   });
 
   it("rejects a market type that cannot describe a bucket", () => {
@@ -500,6 +556,40 @@ function changeMarkets(
 }
 
 /**
+ * MSFT_MARKETS struck on the v2 outcome actions: value_in_range_v2 for every
+ * bucket, the outer two with an open tail. Same provider, stream, settlement
+ * and observation time, so only window and tolerance set it apart.
+ */
+function v2Markets(
+  window = 259200,
+  tolerance = 86400,
+  offset = 700
+): Record<number, FakeMarket> {
+  const bucket = (minValue: string | null, maxValue: string | null) =>
+    buildValueInRangeV2QueryComponents({
+      dataProvider: DATA_PROVIDER,
+      streamId: STREAM_ID,
+      timestamp: TIMESTAMP,
+      window,
+      tolerance,
+      minValue,
+      maxValue,
+    });
+  const markets: Record<number, FakeMarket> = {};
+  Object.values(MSFT_MARKETS).forEach((market, i) => {
+    const { lower, upper } = market.bounds;
+    markets[offset + i] = {
+      ...market,
+      components: bucket(
+        lower === null ? null : String(lower),
+        upper === null ? null : String(upper)
+      ),
+    };
+  });
+  return markets;
+}
+
+/**
  * A fourth set identical to MSFT_MARKETS in every field but `frozenAt`: the
  * same question asked of data pinned to a block rather than of latest data.
  * That is a different query, and only frozenAt says so.
@@ -786,6 +876,44 @@ describe("getMarketForecast", () => {
         Object.keys(change).map(Number)
       )
     ).not.toBeNull();
+  });
+
+  it("forecasts a v2 ladder of its own, as the v1 ladder does", async () => {
+    const v2 = v2Markets();
+    const forecast = (await fakeAction({ markets: v2 }).getMarketForecast(
+      Object.keys(v2).map(Number)
+    ))!;
+    const v1 = (await fakeAction().getMarketForecast(ALL_QUERY_IDS))!;
+    expect(forecast.value).toBeCloseTo(v1.value, 10);
+  });
+
+  it("rejects a v1 set and a v2 set on the same timestamp", async () => {
+    // Same stream, settlement and observation time; v1 carries no window or
+    // tolerance, so only those two fields keep the sets apart.
+    const both = { ...MSFT_MARKETS, ...v2Markets() };
+    await expect(
+      fakeAction({ markets: both }).getMarketForecast(
+        Object.keys(both).map(Number)
+      )
+    ).rejects.toThrow(/different event/);
+  });
+
+  it("rejects two v2 sets that differ only in window", async () => {
+    const both = { ...v2Markets(259200, 86400, 700), ...v2Markets(345600, 86400, 800) };
+    await expect(
+      fakeAction({ markets: both }).getMarketForecast(
+        Object.keys(both).map(Number)
+      )
+    ).rejects.toThrow(/different event/);
+  });
+
+  it("rejects two v2 sets that differ only in tolerance", async () => {
+    const both = { ...v2Markets(259200, 86400, 700), ...v2Markets(259200, 3600, 800) };
+    await expect(
+      fakeAction({ markets: both }).getMarketForecast(
+        Object.keys(both).map(Number)
+      )
+    ).rejects.toThrow(/window, tolerance\)/);
   });
 
   it("still forecasts each of those sets on its own", async () => {

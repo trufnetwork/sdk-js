@@ -580,10 +580,13 @@ For other bundlers or serverless platforms, consult their documentation on modul
 | Request attestation | `attestationAction.requestAttestation({dataProvider, streamId, actionName, args, encryptSig, maxFee})` |
 | Get signed attestation | `attestationAction.getSignedAttestation({requestTxId})` |
 | Parse attestation payload | `parseAttestationPayload(canonicalPayload)` |
+| Read an outcome (v2) attestation | `parseOutcomeResult(canonicalPayload)` |
 | List attestations | `attestationAction.listAttestations({requester, limit, offset, orderBy})` |
 | Get transaction event | `transactionAction.getTransactionEvent({txId})` |
 | List transaction fees | `transactionAction.listTransactionFees({wallet, mode, limit, offset})` |
 | Create prediction market | `orderbook.createMarket({bridge, queryComponents, settleTime, ...})` |
+| Create a market that refunds if its record never arrives | `orderbook.createValueInRangeV2Market({dataProvider, streamId, timestamp, window, tolerance, minValue, maxValue, ...})` |
+| Tell a refunded market from an unsettled one | `isMarketRefunded(market)` |
 | Place buy order | `orderbook.placeBuyOrder({queryId, outcome, price, amount})` |
 | Place split limit order | `orderbook.placeSplitLimitOrder({queryId, truePrice, amount})` |
 | Get order book | `orderbook.getOrderBook(queryId, outcome)` |

@@ -916,7 +916,38 @@ const [timestamp, value] = row.values;
 console.log(`Timestamp: ${timestamp}, Value: ${value}`);
 ```
 
-**Note**: When used in attestation results (via `parseAttestationPayload`), each `DecodedRow` contains exactly two values: a Unix timestamp and a decimal value string.
+**Note**: When used in attestation results (via `parseAttestationPayload`), each `DecodedRow` contains exactly two values: a Unix timestamp and a decimal value string. For the outcome actions (ids 13-16) there is one row and its value is `"1"` (YES), `"0"` (NO) or `"-1"` (INVALID).
+
+### `parseOutcomeResult(payload: Uint8Array): OutcomeResult`
+
+Reads the result of an outcome action (ids 13-16) from a canonical attestation payload (without
+the 65-byte signature). It mirrors the node's `parse_attestation_outcome`.
+
+#### Returns
+- `{ outcome: 1 | 0 | -1, actionId: number }`. `1` is YES, `0` is NO, and `-1` is INVALID: no
+  record arrived before `timestamp + window`. The constants are exported as `OUTCOME_YES`,
+  `OUTCOME_NO` and `OUTCOME_INVALID`.
+
+#### Throws
+- The action is not 13-16 (`unsupported action_id N`).
+- The result does not hold exactly one data point.
+- The value is not exactly `1e18`, `0` or `-1e18`.
+
+```typescript
+import { parseOutcomeResult, OUTCOME_INVALID } from "@trufnetwork/sdk-js";
+
+const { outcome, actionId } = parseOutcomeResult(canonicalPayload);
+if (outcome === OUTCOME_INVALID) {
+  console.log(`action ${actionId}: no record before the deadline, the market is refunded`);
+}
+```
+
+### `isOutcomeAction(action: number | string): boolean`
+
+`true` for the four outcome actions, by id (`OUTCOME_ACTION_IDS` = 13, 14, 15, 16) or by name
+(`index_change_in_range_v2`, `price_above_threshold_v2`, `price_below_threshold_v2`,
+`value_in_range_v2`). `isBinaryAction` stays `false` for them, because their result is a data
+point and not an `abi.encode(bool)`.
 
 ### Attestation Result Format
 
@@ -1451,6 +1482,115 @@ magnitude below `1e-6` is rejected rather than silently rounded or reformatted.
 > Requires node migration 055. On a network without it, the market is created but can never be
 > attested.
 
+### Outcome Markets (v2)
+
+The v2 outcome actions always settle. If the stream has no record when the market needs one, the
+market settles **INVALID** by `timestamp + window` and is refunded, so it never hangs waiting for a
+print.
+
+| id | Action | Helper | YES when |
+|----|--------|--------|----------|
+| 14 | `price_above_threshold_v2` | `createPriceAboveThresholdV2Market` | value > `threshold` |
+| 15 | `price_below_threshold_v2` | `createPriceBelowThresholdV2Market` | value < `threshold` |
+| 16 | `value_in_range_v2` | `createValueInRangeV2Market` | `minValue` <= value < `maxValue` |
+| 13 | `index_change_in_range_v2` | `createIndexChangeInRangeV2Market` | `minChange` <= % change < `maxChange` |
+
+Every helper takes `dataProvider`, `streamId`, `timestamp`, `window` and `tolerance`, plus the
+market fields `bridge`, `settleTime`, `maxSpread` and `minOrderSize`. There is no `frozenAt`.
+
+- `timestamp` is the moment the market asks about, in unix seconds.
+- `tolerance` is how far from `timestamp` a record may sit and still count. Ids 14-16 read the
+  latest record in `[timestamp - tolerance, timestamp]`. Id 13 reads the first record in
+  `[timestamp, timestamp + tolerance]`, and compares it with the record nearest
+  `current - timeInterval`, also within `tolerance`.
+- `window` is how long after `timestamp` the market waits for that record. From
+  `timestamp + window`, a market with no record settles INVALID.
+- On ids 13 and 16, leave a bound unset (or `null`) for an open tail. Leaving both unset is
+  rejected.
+
+```typescript
+// A daily ladder: every band on value_in_range_v2, the outer two open.
+const strikes = ["4.04", "4.33", "4.62", "4.92"];
+const bands = [null, ...strikes].map((min, i) => [min, strikes[i] ?? null]);
+for (const [minValue, maxValue] of bands) {
+  await orderbook.createValueInRangeV2Market({
+    dataProvider: "0x4710a8d8f0d845da110086812a32de6d90d7ff5c",
+    streamId: "stmsft00000000000000000000000000",
+    timestamp: 1767225600,  // the market's reference time
+    window: 259200,
+    tolerance: 86400,
+    minValue,
+    maxValue,
+    bridge: "eth_usdc",
+    settleTime: 1767484800,
+    maxSpread: 10,
+    minOrderSize: 1000000,
+  });
+}
+
+// CPI year over year for the month starting 1 Jan 2026.
+await orderbook.createIndexChangeInRangeV2Market({
+  dataProvider: "0x4710a8d8f0d845da110086812a32de6d90d7ff5c",
+  streamId: "stcpi0000000000000000000000000us",
+  timestamp: 1767225600,  // data month start
+  window: 7776000,
+  tolerance: 172800,
+  timeInterval: 31536000,
+  minChange: "2",
+  maxChange: "3",
+  bridge: "eth_usdc",
+  settleTime: 1775001600,
+  maxSpread: 10,
+  minOrderSize: 1000000,
+});
+```
+
+#### Defaults
+
+| Market | `timestamp` | `tolerance` | `window` | `timeInterval` |
+|--------|-------------|-------------|----------|----------------|
+| Month-start series (CPI, PCE) on id 13 | the data month start | 172800 (2 days) | 7776000 (90 days) | 31536000 |
+| Daily ladder on ids 14-16 | the market's reference time | 86400 (1 day) | 259200 (3 days) | |
+| EPS level market on ids 14-16 | after the stamp (the settle time) | 1728000 (20 days) | 1728000 (20 days) | |
+
+Strike a ladder with `value_in_range_v2` for every band, the outer two with an open tail. A top band
+on `price_above_threshold_v2` is strict, so a value exactly on its strike would pay no band.
+
+#### Bounds
+
+The helpers check exactly what the node checks, and nothing more:
+
+- `0 <= timestamp`
+- `0 < window <= 315360000` (`OUTCOME_MAX_SPAN_SECONDS`, 10 years)
+- `0 <= tolerance <= 3888000` (`OUTCOME_MAX_TOLERANCE_SECONDS`, 45 days)
+- `window >= tolerance`
+- id 13: `0 < timeInterval <= 315360000` and `2 * tolerance < timeInterval`
+- `threshold` is required on ids 14 and 15. On ids 13 and 16 the bounds cannot both be open, and
+  `min < max` when both are set.
+
+The node also refuses a `timestamp` more than 10 years past the block time, and a composed stream:
+the v2 actions read primitive streams only.
+
+Thresholds and bounds are plain decimal strings (`"2"`, `"-0.5"`). They are rendered as sdk-go
+renders a `NUMERIC(36,18)`. A value with more than 18 decimal places or more than 18 integer
+digits is rejected rather than rounded.
+
+#### Same market from every SDK
+
+The args are encoded byte for byte as sdk-go encodes them: INT8 for the time fields, Go's
+`NUMERIC(36,18)` rendering, Go's NULL for an open tail, and the data provider lowercased. The same
+question therefore has the same market hash whether it was created from JavaScript, Go or Python.
+Creating it twice fails with "Market already exists" instead of opening a duplicate. The v1
+encoders are unchanged.
+
+To build the bytes without sending a transaction, use
+`buildPriceAboveThresholdV2QueryComponents`, `buildPriceBelowThresholdV2QueryComponents`,
+`buildValueInRangeV2QueryComponents` and `buildIndexChangeInRangeV2QueryComponents`, which take the
+same fields as the helpers. For the args alone, use `encodePriceThresholdV2ActionArgs`,
+`encodeValueInRangeV2ActionArgs` and `encodeIndexChangeV2ActionArgs`.
+
+> Requires node v2.6.8 (migration 063).
+
 #### `orderbook.getMarketInfo(queryId: number): Promise<MarketInfo>`
 
 Gets detailed information about a market. Returns `MarketInfo` object containing `queryComponents` bytes.
@@ -1458,6 +1598,21 @@ Gets detailed information about a market. Returns `MarketInfo` object containing
 ```typescript
 const market = await orderbook.getMarketInfo(queryId);
 console.log(`Settle Time: ${new Date(market.settleTime * 1000)}`);
+```
+
+`winningOutcome` is `true` for YES and `false` for NO. It is `null` while the market is unsettled,
+and also when the market settled with no result. Use `isMarketRefunded(market)` to tell those
+apart. It returns `true` when `settled` is `true` and `winningOutcome` is `null`. A refunded market
+paid every YES and NO share 50¢, returned open bids at their locked price, and took no fee.
+
+```typescript
+import { isMarketRefunded } from "@trufnetwork/sdk-js";
+
+if (isMarketRefunded(market)) {
+  console.log("Refunded: no result");
+} else if (market.settled) {
+  console.log(market.winningOutcome ? "YES" : "NO");
+}
 ```
 
 #### `decodeMarketData(encoded: string | Uint8Array): MarketData`
@@ -1481,19 +1636,34 @@ interface MarketData {
   dataProvider: string;
   streamId: string;
   actionId: string;
-  type: "above" | "below" | "between" | "equals" | "change_between" | "unknown";
+  type: "above" | "below" | "between" | "equals" | "change_between" | "range" | "unknown";
   thresholds: string[]; // Formatted numeric values as strings
   timestamp: number | null;    // The point in the stream the query observes
-  frozenAt: number | null;     // Block height the data is pinned to; null = latest
-  baseTime: number | null;     // "change_between" only; null = the stream's default base
+  frozenAt: number | null;     // Block height the data is pinned to; null = latest (always null for v2)
+  baseTime: number | null;     // v1 "change_between" only; null = the stream's default base
   timeInterval: number | null; // "change_between" only, in seconds, e.g. 31536000 for YoY
+  window: number | null;       // v2 only: seconds after timestamp before the market settles INVALID
+  tolerance: number | null;    // v2 only: seconds from timestamp a record may sit and still count
 }
 ```
 
 `thresholds` holds one entry per strike slot the action declares, in order. A `"change_between"`
-market may strike an open tail, which reads back as an **empty string in place** rather than as a
-shorter array — so `["", "2.000000000000000000"]` is "below 2%", and dropping the empty entry
+or `"range"` market may strike an open tail, which reads back as an **empty string in place** rather
+than as a shorter array — so `["", "2.000000000000000000"]` is "below 2%", and dropping the empty entry
 would slide the surviving bound into the wrong slot and turn it into "2% or more".
+
+The v2 outcome actions decode as follows. `actionId` keeps the action name, and `window` and
+`tolerance` are set, so a v2 market is easy to tell from a v1 one.
+
+| Action | `type` | `thresholds` | Other fields |
+|--------|--------|--------------|--------------|
+| `price_above_threshold_v2` | `"above"` | `[threshold]` | `timestamp`, `window`, `tolerance` |
+| `price_below_threshold_v2` | `"below"` | `[threshold]` | `timestamp`, `window`, `tolerance` |
+| `value_in_range_v2` | `"range"` | `[min, max]`, `""` for an open tail | `timestamp`, `window`, `tolerance` |
+| `index_change_in_range_v2` | `"change_between"` | `[min, max]`, `""` for an open tail | `timestamp`, `window`, `tolerance`, `timeInterval` |
+
+`"range"` is half-open `[min, max)` in the stream's own units. The v1 `"between"` is closed at both
+ends and never open.
 
 #### `orderbook.listMarkets(input?: ListMarketsInput): Promise<MarketSummary[]>`
 
@@ -1507,6 +1677,8 @@ const markets = await orderbook.listMarkets({
   offset: 0,
 });
 ```
+
+`settledFilter: true` includes refunded markets. Filter them with `isMarketRefunded`.
 
 #### `orderbook.validateMarketCollateral(queryId: number): Promise<MarketValidation>`
 
@@ -1879,9 +2051,12 @@ One forecast covers the buckets of **one** market. A repeated query_id would
 have its bucket counted twice, and mixing two markets would normalise unrelated
 probabilities into a single distribution — both are rejected rather than warned
 about. Buckets of one market differ only in their strike, so the identity
-compared is `(dataProvider, streamId, bridge, settleTime, timestamp, frozenAt)`
-— the bridge included because an identical question collateralised two ways is
-two markets with two separate books.
+compared is `(dataProvider, streamId, bridge, settleTime, timestamp, frozenAt,
+baseTime, timeInterval, window, tolerance)` — the bridge included because an
+identical question collateralised two ways is two markets with two separate
+books. `window` and `tolerance` are null for v1 markets, so a v1 set and a v2
+set on the same timestamp are two markets, as are two v2 sets with a different
+window or tolerance.
 
 **Cost:** two order-book reads plus one market-info read per bucket. Both the
 YES and NO books are fetched, because on this venue a resting BUY NO at *p* is
@@ -2023,8 +2198,8 @@ accordingly.
 
 `bucketBoundsFromMarketData(marketData)` converts the output of
 `decodeMarketData` into a `{ lower, upper }` pair, handling the `below`,
-`between`, `above`, `equals` and `change_between` market types. Either side is
-`null` when that tail is open.
+`between`, `above`, `equals`, `range` and `change_between` market types. Either
+side is `null` when that tail is open.
 
 Note the units differ: `change_between` bounds are in percent, against the
 stream's value one `timeInterval` earlier, where the other types are in the
@@ -2041,6 +2216,12 @@ Settles a market after settlement time has passed.
 const result = await orderbook.settleMarket(queryId);
 await client.waitForTx(result.data!.tx_hash);
 ```
+
+A v2 outcome market whose record never arrived settles **INVALID**: `settled` becomes `true` and
+`winningOutcome` stays `null` (see `isMarketRefunded`). Every YES and NO share, held or listed, is
+paid 50¢, and open bids are refunded at their locked price (`amount * |price| / 100` dollars). No
+fee is taken, and nothing goes to LPs, the data provider or validators, so
+`getDistributionSummary` throws "No distribution found" for that market.
 
 ### Price Representation
 

@@ -41,7 +41,11 @@ export interface MarketInfo {
   settleTime: number;
   /** Whether market has been settled */
   settled: boolean;
-  /** Winning outcome (null if not settled) */
+  /**
+   * Winning outcome: true YES, false NO. Null while the market is unsettled,
+   * and also once it settled with no result (refunded: every share paid 50c,
+   * bids returned). Use `isMarketRefunded` to tell the two apart.
+   */
   winningOutcome: boolean | null;
   /** Unix timestamp when settled (null if not settled) */
   settledAt: number | null;
@@ -65,7 +69,11 @@ export interface MarketSummary {
   settleTime: number;
   /** Whether market has been settled */
   settled: boolean;
-  /** Winning outcome (null if not settled) */
+  /**
+   * Winning outcome: true YES, false NO. Null while the market is unsettled,
+   * and also once it settled with no result (refunded: every share paid 50c,
+   * bids returned). Use `isMarketRefunded` to tell the two apart.
+   */
   winningOutcome: boolean | null;
   /** Maximum bid-ask spread allowed (1-50 cents) */
   maxSpread: number;
@@ -499,6 +507,103 @@ export interface CreateIndexChangeInRangeMarketInput extends BaseBinaryMarketInp
   /** Upper bound in percent, exclusive (as decimal string); omit for an open tail */
   maxChange?: string | null;
 }
+
+// ============================================
+// Outcome (v2) Market Input Types
+// ============================================
+
+/**
+ * The query fields every outcome action (ids 13-16, node v2.6.8) takes.
+ *
+ * The node reads the stream at `timestamp` within `tolerance` seconds. If no
+ * record is there by `timestamp + window`, the market settles INVALID and is
+ * refunded instead of waiting forever. All three go into the market hash.
+ *
+ * The node accepts `0 <= timestamp`, `0 < window <= 315360000`,
+ * `0 <= tolerance <= 3888000` and `window >= tolerance`.
+ */
+export interface OutcomeQueryInput {
+  /** Data provider's Ethereum address (lowercased in the args) */
+  dataProvider: string;
+  /** Stream ID (32 characters); must be a primitive stream */
+  streamId: string;
+  /** Unix seconds the market asks about */
+  timestamp: number;
+  /** Seconds after `timestamp` the market waits for a record before it settles INVALID */
+  window: number;
+  /**
+   * Seconds from `timestamp` a record may sit and still count: before it for
+   * the price and range actions, after it for index_change_in_range_v2
+   */
+  tolerance: number;
+}
+
+/**
+ * Query for price_above_threshold_v2 (YES when value > threshold) or
+ * price_below_threshold_v2 (YES when value < threshold). Reads the latest record
+ * in [timestamp - tolerance, timestamp].
+ */
+export interface PriceThresholdV2Input extends OutcomeQueryInput {
+  /** Threshold (as decimal string, e.g. "50000.00"); required */
+  threshold: string;
+}
+
+/**
+ * Query for value_in_range_v2: YES when minValue <= value < maxValue. Reads the
+ * latest record in [timestamp - tolerance, timestamp]. Either bound may be
+ * omitted for an open tail, not both.
+ */
+export interface ValueInRangeV2Input extends OutcomeQueryInput {
+  /** Lower bound, inclusive (as decimal string); omit or null for an open tail */
+  minValue?: string | null;
+  /** Upper bound, exclusive (as decimal string); omit or null for an open tail */
+  maxValue?: string | null;
+}
+
+/**
+ * Query for index_change_in_range_v2: YES when the percent change from the
+ * record nearest `current - timeInterval` lands in [minChange, maxChange). The
+ * current record is the first in [timestamp, timestamp + tolerance]. Either
+ * bound may be omitted for an open tail, not both.
+ *
+ * The node also requires `0 < timeInterval <= 315360000` and
+ * `2 * tolerance < timeInterval`.
+ */
+export interface IndexChangeInRangeV2Input extends OutcomeQueryInput {
+  /** Seconds back to the comparison record, e.g. 31536000 for year over year */
+  timeInterval: number;
+  /** Lower bound in percent, inclusive (as decimal string); omit or null for an open tail */
+  minChange?: string | null;
+  /** Upper bound in percent, exclusive (as decimal string); omit or null for an open tail */
+  maxChange?: string | null;
+}
+
+/** Market fields shared by the outcome (v2) market helpers. No frozenAt: v2 has none. */
+export interface BaseOutcomeMarketInput extends OutcomeQueryInput {
+  /** Bridge identifier for collateral */
+  bridge: BridgeIdentifier;
+  /** Unix timestamp for market settlement */
+  settleTime: number;
+  /** Maximum bid-ask spread (1-50 cents) */
+  maxSpread: number;
+  /** Minimum order size (use string for large values to avoid JS safe integer limits) */
+  minOrderSize: number | string;
+}
+
+/** Input for price_above_threshold_v2 and price_below_threshold_v2 markets */
+export interface CreatePriceThresholdV2MarketInput
+  extends BaseOutcomeMarketInput,
+    PriceThresholdV2Input {}
+
+/** Input for value_in_range_v2 markets */
+export interface CreateValueInRangeV2MarketInput
+  extends BaseOutcomeMarketInput,
+    ValueInRangeV2Input {}
+
+/** Input for index_change_in_range_v2 markets */
+export interface CreateIndexChangeInRangeV2MarketInput
+  extends BaseOutcomeMarketInput,
+    IndexChangeInRangeV2Input {}
 
 // ============================================
 // Raw Database Response Types (Internal)
