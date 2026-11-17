@@ -36,6 +36,113 @@ Some tests work directly against any TRUF Network endpoint without local setup.
 - Can test against mainnet or any endpoint
 - Faster to set up and run
 
+### 3. Kwil-free v1 API Tests (opt-in)
+
+`v1Client.test.ts` reads the consolidated v1 API through the kwil-free `src/v1`
+entry. It skips unless `TEST_V1_BASE_URL` names a deployment:
+
+```bash
+TEST_V1_BASE_URL=https://api.trufscan.io TEST_V1_NETWORK=mainnet \
+  npx vitest run tests/integration/v1Client.test.ts
+```
+
+#### Credentials
+
+Only `GET /capabilities` is readable anonymously (`accessOptional`). Every data
+namespace is `accessRequired`, so the market reads need a bearer credential and
+skip when none is configured. Provide one of:
+
+```bash
+# a token obtained elsewhere
+TEST_V1_CREDENTIAL=<bearer token>
+
+# or mint the public preset lazily; the same value is sent as Origin, which
+# the mint requires
+TEST_V1_ORIGIN=http://localhost:8090
+```
+
+A token minted for an origin is bound to it, so pair `TEST_V1_CREDENTIAL` with
+`TEST_V1_ORIGIN` when the deployment mints origin-bound tokens.
+
+#### Writes
+
+The trade tests broadcast real transactions, so they need a second opt-in:
+
+```bash
+TEST_V1_WRITE=1   # only against a throwaway deployment or the mock
+```
+
+Without it, a live run stays read-only. `npm run test:v1:mock` sets it for you.
+The suite signs with a real key so the mock can recover the signer. It falls
+back to a public, well-known test key, which is fine against the mock; set
+`TEST_V1_PRIVATE_KEY` before a live write run so the trades are not submitted
+from an account anyone can sign for.
+
+Two contract details the suite pins:
+
+- `markets/{id}` takes the integer `query_id`. A non-numeric id is
+  `400 invalid_argument` on `id`, **not** `not_found`, so the absent-market case
+  uses an unused integer.
+- The credential routes (`credentials`, `credentials/jwks`,
+  `credentials/quote`, `credentials/redemptions`) are ungated. `CredentialsApi`
+  therefore sends no bearer token on them; sending one would make the mint call
+  re-enter the credential manager that triggered it.
+
+#### Without a deployment
+
+Run the same suite against an in-memory mock of the API (`mockV1Api.ts`, a
+seeded dataset served over HTTP):
+
+```bash
+npm run test:v1:mock
+```
+
+The harness starts the mock, exports its URL as `TEST_V1_BASE_URL` and an
+origin as `TEST_V1_ORIGIN`, sets `TEST_V1_WRITE=1` so the trade tests run, runs
+the suite in a child process, and shuts the server down. The mock enforces the
+same gate as the real router (401 without a credential, 409 for an unoffered
+namespace, 400 for a non-numeric market id), encodes a `prepare` payload the
+client can decode, and keeps `broadcast` receipts, so a full
+prepare → verify → sign → broadcast → receipt trade is exercised without a
+deployment. A missing credential fails rather than silently passing.
+
+The mock also verifies the signature instead of only inspecting it. `prepare`
+returns the real `concat` signature message (`txMsgToSignTmplV0`, rebuilt from
+the body with its own copy of the template), and `broadcast` rebuilds that
+message from the envelope body and recovers the signer with `ethers`, rejecting
+a signature that does not belong to the declared sender. That is what makes the
+mock a check on `sign` rather than on HTTP plumbing: a wrong signature type, a
+wrong sender, or a stale `signature_message` fails here the way the node would
+reject it.
+
+#### Running against a local `indexer`
+
+The v1 API needs Postgres and two required flags; it does not need a live node
+for the routes these tests read (`capabilities` reads the registry and
+`markets` reads Postgres):
+
+```bash
+# 1. Postgres, then the store migrations. `serve` does NOT create the schema;
+#    `kwil-indexer run` (or store.InitStore) does. Without this every read is 500.
+psql "$PG_DSN" -c 'select 1'   # sanity check
+
+# 2. A registry and a credential policy, then serve.
+go run . serve --networks networks.json --credentials credentials.json -l :8090
+
+# 3. Mint an origin-bound token (ungated) and point the suite at it.
+curl -X POST http://127.0.0.1:8090/<network>/v1/credentials \
+  -H 'Origin: http://localhost:8090' -H 'Content-Type: application/json' \
+  -d '{"preset":"public"}'
+
+TEST_V1_BASE_URL=http://127.0.0.1:8090 TEST_V1_NETWORK=<network> \
+  TEST_V1_ORIGIN=http://localhost:8090 \
+  npx vitest run tests/integration/v1Client.test.ts
+```
+
+The registry's `gateway` is dialed at startup for a `user.health` call and its
+`chain_id` must match `tn_chain_id`, so a stub that answers that one method is
+enough for read-only work.
+
 ## Environment Configuration
 
 Use `.env` or environment variables to customize test behavior:

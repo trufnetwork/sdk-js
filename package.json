@@ -1,6 +1,6 @@
 {
   "name": "@trufnetwork/sdk-js",
-  "version": "0.5.9",
+  "version": "0.6.0",
   "description": "TRUF.NETWORK SDK for JavaScript/TypeScript",
   "type": "module",
   "keywords": [
@@ -20,20 +20,39 @@
   "module": "./dist/esm/index.mjs",
   "types": "./dist/types/index.d.ts",
   "exports": {
-    "node": {
-      "types": "./dist/types/index.d.ts",
-      "require": "./dist/cjs/index.node.cjs",
-      "import": "./dist/esm/index.node.mjs"
+    ".": {
+      "node": {
+        "types": "./dist/types/index.d.ts",
+        "require": "./dist/cjs/index.node.cjs",
+        "import": "./dist/esm/index.node.mjs"
+      },
+      "browser": {
+        "types": "./dist/types/index.d.ts",
+        "require": "./dist/cjs/index.browser.cjs",
+        "import": "./dist/esm/index.browser.mjs"
+      },
+      "default": {
+        "types": "./dist/types/index.d.ts",
+        "require": "./dist/cjs/index.cjs",
+        "import": "./dist/esm/index.mjs"
+      }
     },
-    "browser": {
-      "types": "./dist/types/index.d.ts",
-      "require": "./dist/cjs/index.browser.cjs",
-      "import": "./dist/esm/index.browser.mjs"
-    },
-    "default": {
-      "types": "./dist/types/index.d.ts",
-      "require": "./dist/cjs/index.cjs",
-      "import": "./dist/esm/index.mjs"
+    "./v1": {
+      "browser": {
+        "types": "./dist/types/v1/index.d.ts",
+        "require": "./dist/cjs/v1/index.cjs",
+        "import": "./dist/esm/v1/index.mjs"
+      },
+      "node": {
+        "types": "./dist/types/v1/index.d.ts",
+        "require": "./dist/cjs/v1/index.cjs",
+        "import": "./dist/esm/v1/index.mjs"
+      },
+      "default": {
+        "types": "./dist/types/v1/index.d.ts",
+        "require": "./dist/cjs/v1/index.cjs",
+        "import": "./dist/esm/v1/index.mjs"
+      }
     }
   },
   "sideEffects": false,
@@ -48,7 +67,9 @@
     "publish:dev": "pnpm publish --tag dev --no-git-checks",
     "test": "vitest",
     "test:unit": "vitest src/ --run",
-    "test:integration": "vitest tests/integration/ --run"
+    "test:integration": "vitest tests/integration/ --run",
+    "test:v1:mock": "tsx ./scripts/run-v1-mock-suite.ts",
+    "check:v1": "tsx ./scripts/check-v1-kwil-free.ts"
   },
   "dependencies": {
     "@trufnetwork/kwil-js": "0.9.15",

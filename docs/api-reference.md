@@ -97,6 +97,321 @@ const client = new BrowserTNClient({
 });
 ```
 
+## Kwil-free v1 Client (`@trufnetwork/sdk-js/v1`)
+
+The consolidated v1 API has a second entry point that never loads
+`@trufnetwork/kwil-js`, `ethers`, `pg`, or a Node builtin. A browser can place a
+trade without a local payload encoder: `prepare` builds the payload
+server-side, and the client echoes that envelope back when signing.
+
+```typescript
+import { V1Client } from "@trufnetwork/sdk-js/v1";
+
+const client = new V1Client({
+  baseUrl: "https://api.trufscan.io", // required; the SDK never hard-codes a host
+  network: "mainnet", // becomes the /{network}/v1/... path segment
+  signer: {
+    address: walletAddress,
+    // `signMessage` receives the exact UTF-8 bytes of `signature_message` and
+    // must apply Ethereum personal-sign (EIP-191) itself.
+    signMessage: (message) => wallet.signMessage(message),
+  },
+});
+```
+
+- Import from the subpath only. The root entry still depends on `kwil-js`;
+  `npm run check:v1` bundles the subpath for the browser and fails closed if that
+  ever changes.
+- `baseUrl` is required and must be an absolute `http(s)` URL. There is no
+  built-in default: the hosted deployment used by Trufscan is
+  `https://api.trufscan.io`, and any deployment exposing the same
+  `/{network}/v1/...` routes works. The testnet `/v0` host is an unstable EC2
+  DNS name, so the SDK ships no testnet default.
+- `network` is validated (`[A-Za-z0-9._-]+`) and placed in the path.
+- `timeoutMs` defaults to `30000`.
+- The entry is side-effect free (`sideEffects: false`) and tree-shakeable.
+
+### Three ways to transact
+
+An intent names the namespace, the action, the account used for the nonce
+lookup, and the typed arguments:
+
+```typescript
+import type { TxIntent } from "@trufnetwork/sdk-js/v1";
+
+const intent: TxIntent = {
+  namespace: "main",
+  action: "place_trade",
+  sender: walletAddress, // used for the nonce lookup, not as the envelope sender
+  args: [
+    { type: "text", value: "st_btcusd" },
+    { type: "int8", value: 1 }, // a JSON number; see Precision below
+  ],
+};
+```
+
+**1. Convenience** — `submit` prepares, signs, broadcasts, and can wait for the
+receipt. Verification is off by default.
+
+```typescript
+const { broadcast, receipt } = await client.tx.submit(intent, { wait: true });
+```
+
+**2. Verified** — opt-in hardening. A mismatch throws
+`PayloadVerificationError` before anything is signed or broadcast.
+
+```typescript
+await client.tx.submit(intent, { verify: true }); // payload + envelope checks
+await client.tx.submit(intent, { verify: { mode: "payload" } }); // payload only
+```
+
+**3. Self-construct** — `broadcast` is a pure passthrough. It accepts a signed
+envelope built by any client and does not require a prior `prepare` in the same
+instance, so an existing SDK can keep building transactions and relay them here.
+
+```typescript
+await client.tx.broadcast(envelopeBuiltElsewhere);
+```
+
+The step-by-step API is available when `submit` is too coarse:
+`client.tx.params(sender)`, `client.tx.prepare(intent)`, `client.tx.verify(...)`,
+`client.tx.sign(prepared)`, `client.tx.broadcast(signed)`,
+`client.tx.get(hash)`, `client.tx.events(hash)`, and
+`client.tx.waitForReceipt(hash)`.
+
+### Signing and the envelope
+
+`sign` takes the `signature_message` the API returned, hands its exact bytes to
+the wallet, and returns a deep clone of the prepared envelope with two fields
+added:
+
+- `signature: { sig, type }` — `sig` is **base64 of the 65 raw `r || s || v`
+  bytes**, and `type` is `"secp256k1_ep"` by default, the node's Ethereum
+  personal-sign authenticator (it requires a 20-byte `sender`). A caller signing
+  with a 33-byte compressed key passes `type: "secp256k1"`, the plain secp256k1
+  authenticator. The key is `sig`, not `data`; using `signature.data` is the
+  usual cause of "invalid signature" reports.
+- `sender` — the bare lowercase account hex, without `0x`.
+
+Nothing else is re-encoded or re-ordered, and the prepared object is not
+mutated, so the envelope you echo is exactly the one the server built.
+
+`sign` signs the message **verbatim**; it does not rebuild it. That is why
+verification (below) refuses a `prepare` whose `signature_message` does not
+match its own `body`: otherwise a dishonest API could show you a body worth
+signing and hand the wallet a message for a different one.
+
+### Verification semantics
+
+`verifyPrepared(prepared, intent)` decodes the payload with a native
+`EXECUTE_ACTION` decoder and compares it **semantically** with the intent. It
+never re-encodes, never relies on `desc` (which is API-authored), and reports
+issues instead of throwing; `assertPrepared` throws `PayloadVerificationError`
+with the same issue list.
+
+A payload that cannot be decoded at all is one of those reported failures, not
+an exception: the result carries a `payload_decode` issue and `decoded` is
+`null`, so `assertPrepared` still throws `PayloadVerificationError`. A caller
+therefore never has to distinguish "the payload is wrong" from "the payload is
+unreadable" with a `try`/`catch`.
+
+The payload check covers the namespace, the action, the single-call shape, the
+argument count, each argument's declared type (including `numeric(p,s)`
+precision and scale), and each value. In `full` mode (the default) the envelope's
+`body.type`, `fee`, `nonce`, and `chain_id` are also checked against what
+`prepare` reported. `{ mode: "payload" }` restricts the check to the payload.
+
+#### The signed message is bound to the body
+
+A payload check alone proves what the envelope's `body` holds, not what the
+signature authorizes, because `sign` signs `signature_message` as returned. So
+verification also rebuilds the message from `body` and compares it with
+`signature_message`. The message is kwil's `concat` serialization
+(`txMsgToSignTmplV0`):
+
+```
+<desc>
+
+PayloadType: <type>
+PayloadDigest: <first 20 bytes of sha256(payload), hex>
+Fee: <fee>
+Nonce: <nonce>
+
+Kwil Chain ID: <chain_id>
+```
+
+The trailing newline is part of the message. Rebuilding it costs a SHA-256 over
+the payload (tens of bytes) and keeps verification synchronous; it is computed
+in TypeScript rather than with `crypto.subtle`, which would force an async API
+and is unavailable in non-secure browser contexts.
+
+This check runs in **both** modes. The digest line is what commits the payload,
+so it belongs to payload verification, not to the envelope echo that `full` mode
+adds. It requires `transaction.serialization` to be `"concat"`; `direct` signs a
+raw hash, which cannot be compared with a text message, and is reported as a
+`serialization` issue instead of being silently skipped.
+
+The reported `VerificationIssue.code` values are `payload_decode`,
+`payload_type`, `namespace`, `action`, `call_count`, `argument_count`,
+`argument_type`, `argument_value`, `array_length`, `serialization`,
+`signature_message`, `fee`, `nonce`, and `chain_id`.
+
+Comparison follows the server's coercion rules:
+
+- `int8` accepts a safe JSON number (preferred), a `bigint`, or a decimal
+  integer string in the intent; the decoded value is a `bigint`. Only a JSON
+  `number` is guaranteed to be accepted by the server for `int8` (see
+  Precision).
+- `uuid` compares normalised forms, so case, dashes, and braces are ignored and a
+  dashless or braced intent matches the server's canonical output; `bytea`
+  accepts hex with or without `0x`.
+- `numeric` compares canonically, so `1.50` equals `1.5` and `1E-7` equals
+  `0.0000001`. A `bigint` or `number` intent value is canonicalised too; any
+  non-decimal value is reported as a mismatch rather than throwing.
+- A scalar JSON `null` ignores the declared type; a `null` array is the empty
+  array.
+
+### Precision
+
+`int8` intents are best given as JSON numbers. Verification also accepts a
+`bigint` or an integer string, but a `bigint` cannot be `JSON.stringify`'d:
+the transport serialises one as a decimal string, which the server accepts for
+`numeric(p,s)` but rejects for `int8`. Keep `int8` values within
+`Number.MAX_SAFE_INTEGER` (`2^53 - 1`); verification rejects anything larger
+rather than silently truncating it.
+
+### Credentials
+
+There is no refresh route. A credential is re-minted (public preset) or
+re-redeemed (paid preset), and `expires_at` is the schedule. The routes are
+reachable through `client.credentialsApi`:
+
+| Method | Route |
+|---|---|
+| `mint(preset?)` | `POST /{network}/v1/credentials` |
+| `jwks()` | `GET /{network}/v1/credentials/jwks` |
+| `quote(preset, days)` | `GET /{network}/v1/credentials/quote` |
+| `redeem({ tx_hash, preset, signature, quote? })` | `POST /{network}/v1/credentials/redemptions` |
+
+These four routes are ungated on the server, so the client sends no bearer token
+when calling them. That is what lets `CredentialManager` mint the very token it
+will use for every other route: a gated mint would have to acquire a token to
+acquire a token, which recurses.
+
+`client.credentialsApi.mint()` needs an `Origin` on the API's allowlist. A
+browser sets its own, so a page served from an allowed origin works as-is; a
+server-side mint passes `origin` in the constructor options.
+
+To let the client manage the credential, give it a strategy. Requests then carry
+`Authorization: Bearer <credential>` and a burst of calls shares one acquisition
+(single flight), refreshed lazily from `expires_at` with a 30-second skew.
+
+```typescript
+const client = new V1Client({
+  baseUrl,
+  network,
+  // Public preset: re-minted when it nears expiry.
+  credentialStrategy: { kind: "public", preset: "public" },
+  // Paid preset: re-redeemed on demand. `payment` returns a fresh (or
+  // idempotent) payment for each acquisition.
+  // credentialStrategy: { kind: "redeem", payment: async () => payment },
+});
+
+// Access the manager directly to inspect or force a refresh.
+await client.credentialManager?.getToken();
+```
+
+A static `token` is also accepted; it is ignored when `getToken` or a strategy is
+set.
+
+### Capabilities and namespace gating
+
+Capabilities is the degradation switch. Load it once, then ask before calling a
+namespace:
+
+```typescript
+await client.loadCapabilities();
+
+client.supportsNamespace("markets"); // offered and permitted
+client.offersNamespace("markets"); // offered, regardless of permission
+client.namespace("markets"); // throws NamespaceUnavailableError if not usable
+```
+
+Before capabilities are loaded the client treats the namespace as unknown and
+lets the server answer (`409 namespace_unavailable`, or `403 permission_denied`).
+`capabilitiesSupports`, `capabilitiesPermits`, and `capabilitiesAllow` are
+exported for the same checks against a document you already hold.
+
+### Join sets (`include`)
+
+The v1 lists accept one join parameter, `include`, with the tokens `metadata`,
+`prices`, `depth`, and `chain`. `normalizeIncludes` makes a set order-insensitive
+and duplicate-free, `includeQueryValue` produces the query value, and
+`classifyIncludes` maps the response to per-token `satisfied`, `unavailable`, or
+`uncollected` outcomes. An unavailable include is data, not a failed request.
+
+### Pagination
+
+Every list shares one cursor walker. A cursor is opaque, route-scoped, and
+`null` on the last page; `walkCursor` copies it verbatim, stops on `null` or an
+empty page, honours `maxPages`, and throws if a server ever repeats a cursor.
+`NamespaceReader.paginate` and `.collect` wrap it, and `limit` is the only paging
+knob v1 has.
+
+```typescript
+for await (const page of client.markets.markets({ limit: 100 })) {
+  consume(page.data);
+}
+const all = await client.markets.collect("", { limit: 100 });
+```
+
+### Namespaces
+
+Phase 1 ships typed readers for `tx`, `capabilities`, `credentials`, `streams`,
+`chain`, and `markets`. `client.namespace(name)` is the generic accessor for any
+other namespace (`agents`, `bridge`, `metadata`), which get named readers later.
+
+| Reader | Routes |
+|---|---|
+| `client.streams` | `streams/{provider}/{id}` and its `records`, `index`, `index-change`, `first-record`, `taxonomy`, `access` sub-routes (locator-addressed; there is no list route) |
+| `client.chain` | `chain/blocks`, `chain/block`, `chain/transactions`, `chain/transactions/{hash}`, and the count routes |
+| `client.markets` | `markets`, `markets/{id}`, `markets/{id}/{sub}`, `markets/participants/{wallet}/{sub}` |
+
+### Typed errors
+
+The transport throws `V1ApiError`. Branch on `code` and `details.lever`, never on
+`message`:
+
+- `code` is one of `invalid_argument`, `unauthenticated`,
+  `permission_denied`, `resource_exhausted`, `not_found`,
+  `namespace_unavailable`, `failed_precondition`, `unavailable`, `internal`.
+- `V1ApiError.TRANSPORT_CODE` (`transport_error`) means there was no v1 JSON
+  error: a plain-text `404`, invalid JSON, or a network failure (`status: 0` for
+  a timeout or an unreachable host).
+- `is(code)` and `isLever(lever)` are conveniences over those fields.
+
+There is no automatic retry on `429`; surface `details.lever` to the caller.
+
+### Receipts and troubleshooting
+
+- `tx.get(hash)` returns the receipt; `height` is `-1` while the transaction is
+  still in the mempool.
+- `tx.waitForReceipt(hash)` retries a `not_found` while pending and resolves once
+  `height >= 0`; it throws `TxWaitTimeoutError` when the timeout elapses.
+- A `200` at broadcast followed by a receipt that **stays** `404` means the node
+  did not admit the envelope. Prepare and sign again instead of polling forever.
+- Resending the same signed envelope is safe; it has the same transaction hash.
+- A definitive `400` means the envelope was rejected. Re-prepare on a definitive
+  `400` to get a fresh nonce, and never reuse an old nonce after a gap.
+
+### Packaging and version
+
+`main`, `module`, and `types` are unchanged, and the existing `node`, `browser`,
+and `default` conditions moved verbatim under the `.` key; `exports` gained the
+`./v1` subpath, which is why the sugar form had to become the expanded form.
+Existing imports keep working with no code change. This is the `0.6.0` release
+(`0.5.9` plus the additive subpath).
+
 ## Stream Identification
 
 ### `StreamId.generate(name: string): Promise<StreamId>`
