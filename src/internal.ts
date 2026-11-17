@@ -238,7 +238,10 @@ export type {
   ForecastMethod,
 } from "./util/forecast";
 
-export { bucketBoundsFromMarketData } from "./util/marketBuckets";
+export {
+  bucketBoundsFromMarketData,
+  OUTCOME_REFUND_WARNING,
+} from "./util/marketBuckets";
 export type { BucketBounds } from "./util/marketBuckets";
 
 // Consolidating a market's two outcome books into one executable ladder.

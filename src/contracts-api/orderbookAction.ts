@@ -77,8 +77,10 @@ import {
 } from "../util/orderbookHelpers";
 import {
   bucketBoundsFromMarketData,
+  OUTCOME_REFUND_WARNING,
   requireQueryTime,
 } from "../util/marketBuckets";
+import { isOutcomeAction } from "../util/AttestationEncoding";
 import { forecastFromDepth } from "../util/forecast";
 import type {
   BookLevel,
@@ -922,6 +924,13 @@ export class OrderbookAction {
    * (mint match), so NO liquidity is executable YES liquidity and ignoring it
    * would discard real quotes. That costs two order-book reads per bucket.
    *
+   * A v2 outcome market (action ids 13-16) pays $0.50 per YES and per NO share
+   * when it settles INVALID, so a bucket's YES price is about
+   * P(YES) + 0.5 * P(INVALID). The forecast reads YES midpoints as
+   * probabilities, so for a v2 set the returned probabilities include that
+   * refund value and are not a distribution over valid outcomes only. Such a
+   * forecast carries {@link OUTCOME_REFUND_WARNING} in `warnings`.
+   *
    * @param queryIds - The bucket query_ids of ONE market. Order does not matter,
    *   they are sorted by lower bound here. The buckets are expected to tile the
    *   whole line, with the bottom one open below and the top one open above; a
@@ -957,6 +966,7 @@ export class OrderbookAction {
 
     const books: BucketDepth[] = [];
     let identity: string | null = null;
+    let refundsOnInvalid = false;
     for (const queryId of queryIds) {
       // The three reads are independent, so overlap them. Buckets stay
       // sequential: fanning every bucket out at once would put 3N simultaneous
@@ -1023,6 +1033,8 @@ export class OrderbookAction {
         );
       }
 
+      if (isOutcomeAction(marketData.actionId)) refundsOnInvalid = true;
+
       const { lower, upper } = bucketBoundsFromMarketData(marketData);
       books.push({
         lower,
@@ -1055,6 +1067,9 @@ export class OrderbookAction {
     }
     if (breaks) {
       layout.push(`${breaks} gap(s) or overlap(s) between bucket bounds`);
+    }
+    if (refundsOnInvalid) {
+      layout.push(OUTCOME_REFUND_WARNING);
     }
 
     const forecast = forecastFromDepth(books);

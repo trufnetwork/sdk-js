@@ -2050,6 +2050,17 @@ Collapses a market's bucket books into the single value they imply.
 do not all belong to the same market, or if a market is missing the
 `queryComponents` needed to derive its bounds.
 
+**v2 outcome markets include the INVALID refund.** A v2 outcome market (action
+ids 13-16) pays $0.50 per YES and per NO share when it settles INVALID, so a
+bucket's YES price is about P(YES) + 0.5 × P(INVALID). The forecast reads YES
+midpoints as probabilities, so for a v2 set the returned probabilities include
+that refund value and are not a distribution over valid outcomes only. Such a
+forecast carries this warning, exported as `OUTCOME_REFUND_WARNING`:
+
+```text
+v2 outcome markets: each YES price includes the $0.50 per share an INVALID result pays, so these probabilities include that refund value and are not a distribution over valid outcomes only
+```
+
 One forecast covers the buckets of **one** market. A repeated query_id would
 have its bucket counted twice, and mixing two markets would normalise unrelated
 probabilities into a single distribution — both are rejected rather than warned
@@ -2123,7 +2134,8 @@ was read between real strikes with no shape assumption. `"unresolved"` means the
 market has too few strikes to place it at all.
 
 **Read `warnings`.** Unquoted or one-sided buckets, crossed books, and
-dutch-book deviations are reported rather than silently smoothed over.
+dutch-book deviations are reported rather than silently smoothed over. A v2 set
+also carries `OUTCOME_REFUND_WARNING` (see above).
 
 #### Finding a market's queryIds
 
@@ -2207,6 +2219,10 @@ algorithm is designed for, but it is not enforced: an interior-only or gapped
 set still returns a forecast, with the problem reported in `warnings`. The mass
 beyond an unrepresented tail simply has nowhere to go, so treat those results
 accordingly.
+
+These functions see prices, not action ids, so they never add
+`OUTCOME_REFUND_WARNING`. Books from v2 outcome markets still carry the INVALID
+refund in their YES prices.
 
 `bucketBoundsFromMarketData(marketData)` converts the output of
 `decodeMarketData` into a `{ lower, upper }` pair, handling the `below`,

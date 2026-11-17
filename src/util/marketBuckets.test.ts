@@ -15,7 +15,11 @@ import { describe, it, expect } from "vitest";
 import { OrderbookAction } from "../contracts-api/orderbookAction";
 import type { MarketInfo, OrderBookEntry } from "../types/orderbook";
 import { BookLevel, BucketDepth, forecastFromDepth } from "./forecast";
-import { bucketBoundsFromMarketData, requireQueryTime } from "./marketBuckets";
+import {
+  bucketBoundsFromMarketData,
+  OUTCOME_REFUND_WARNING,
+  requireQueryTime,
+} from "./marketBuckets";
 import {
   buildIndexChangeInRangeV2QueryComponents,
   buildPriceAboveThresholdV2QueryComponents,
@@ -885,6 +889,24 @@ describe("getMarketForecast", () => {
     ))!;
     const v1 = (await fakeAction().getMarketForecast(ALL_QUERY_IDS))!;
     expect(forecast.value).toBeCloseTo(v1.value, 10);
+  });
+
+  it("warns that a v2 set's probabilities include the INVALID refund", async () => {
+    // A YES price on a v2 market also carries the $0.50 an INVALID result pays,
+    // so the caller must be told the distribution is not over valid outcomes.
+    const v2 = v2Markets();
+    const forecast = (await fakeAction({ markets: v2 }).getMarketForecast(
+      Object.keys(v2).map(Number)
+    ))!;
+    const v1 = (await fakeAction().getMarketForecast(ALL_QUERY_IDS))!;
+    expect(forecast.warnings).toContain(OUTCOME_REFUND_WARNING);
+    expect(v1.warnings).not.toContain(OUTCOME_REFUND_WARNING);
+    // The same text in every SDK, so callers can match on it.
+    expect(OUTCOME_REFUND_WARNING).toBe(
+      "v2 outcome markets: each YES price includes the $0.50 per share an " +
+        "INVALID result pays, so these probabilities include that refund " +
+        "value and are not a distribution over valid outcomes only"
+    );
   });
 
   it("rejects a v1 set and a v2 set on the same timestamp", async () => {

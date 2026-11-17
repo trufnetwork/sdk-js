@@ -9,6 +9,20 @@
 
 import type { MarketData } from "./orderbookHelpers";
 
+/**
+ * The warning `getMarketForecast` adds when its buckets are v2 outcome markets
+ * (action ids 13-16).
+ *
+ * An INVALID result pays $0.50 on every YES and every NO share, so a bucket's
+ * YES price is about P(YES) + 0.5 * P(INVALID). The forecast reads YES
+ * midpoints as probabilities and is not adjusted for that: the estimator is a
+ * port of shared upstream code, so the fact is reported instead.
+ */
+export const OUTCOME_REFUND_WARNING =
+  "v2 outcome markets: each YES price includes the $0.50 per share an INVALID " +
+  "result pays, so these probabilities include that refund value and are not " +
+  "a distribution over valid outcomes only";
+
 /** One bucket's half-open `[lower, upper)` bounds; `null` means open-ended. */
 export interface BucketBounds {
   lower: number | null;
