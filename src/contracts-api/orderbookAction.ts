@@ -1224,10 +1224,11 @@ export class OrderbookAction {
    * Can only be called after settle_time has passed.
    * Automatically distributes payouts and LP rewards.
    *
-   * A v2 outcome market whose record never arrived settles INVALID instead:
-   * winningOutcome stays null, every YES and NO share is paid 50c, open bids are
-   * refunded at their locked price, and no fee or LP reward is distributed (see
-   * `isMarketRefunded`).
+   * A v2 outcome market whose capture answers INVALID (for example, a capture
+   * at or after timestamp + window found no record) settles with no result
+   * instead: winningOutcome stays null, every YES and NO share is paid 50c,
+   * open bids are refunded at their locked price, and no fee or LP reward is
+   * distributed (see `isMarketRefunded`).
    *
    * @param queryId - Market identifier
    * @returns Transaction receipt
@@ -1584,8 +1585,10 @@ export class OrderbookAction {
    * Creates a "price above threshold" outcome market (v2, id 14).
    *
    * YES if the latest record in [timestamp - tolerance, timestamp] is above the
-   * threshold, NO if it is not. If no record is there by timestamp + window,
-   * the market settles INVALID and is refunded.
+   * threshold, NO if it is not. If a capture taken at or after
+   * timestamp + window finds no record, the market settles INVALID and is
+   * refunded. A record written after that deadline but before the first
+   * capture still decides the market.
    *
    * Requires node v2.6.8 (migration 063).
    *
@@ -1605,7 +1608,8 @@ export class OrderbookAction {
    * Creates a "price below threshold" outcome market (v2, id 15).
    *
    * YES if the latest record in [timestamp - tolerance, timestamp] is below the
-   * threshold. Refunded if no record is there by timestamp + window.
+   * threshold. Refunded if a capture taken at or after timestamp + window finds
+   * no record.
    *
    * Requires node v2.6.8 (migration 063).
    *
@@ -1626,8 +1630,8 @@ export class OrderbookAction {
    *
    * YES if the latest record in [timestamp - tolerance, timestamp] lands in
    * [minValue, maxValue). Leave a bound unset for an open tail, which is how
-   * the outer buckets of a ladder are struck. Refunded if no record is there by
-   * timestamp + window.
+   * the outer buckets of a ladder are struck. Refunded if a capture taken at or
+   * after timestamp + window finds no record.
    *
    * Requires node v2.6.8 (migration 063).
    *
@@ -1665,8 +1669,9 @@ export class OrderbookAction {
    *
    * YES if the percent change from the record nearest current - timeInterval
    * to the first record in [timestamp, timestamp + tolerance] lands in
-   * [minChange, maxChange). Refunded if either record is missing by
-   * timestamp + window.
+   * [minChange, maxChange). Refunded if a capture taken at or after
+   * timestamp + window finds either record missing, or if the prior record is
+   * zero, since the change is then undefined.
    *
    * Requires node v2.6.8 (migration 063).
    *

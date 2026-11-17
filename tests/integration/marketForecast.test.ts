@@ -72,8 +72,9 @@ function tilesTheLine(members: Candidate[]): boolean {
 /**
  * Every open market, grouped into candidate bucket sets.
  *
- * A market's buckets share a data stream and a settlement time, which is enough
- * to reassemble them from chain data alone — no local config needed.
+ * A market's buckets share a data stream and a settlement time (and, for v2, a
+ * window and a tolerance), which is enough to reassemble them from chain data
+ * alone — no local config needed.
  */
 async function discoverGroups(
   orderbook: OrderbookAction
@@ -107,7 +108,11 @@ async function discoverGroups(
           type: marketData.type,
           ...bounds,
         };
-        key = `${marketData.streamId}@${market.settleTime}`;
+        // window and tolerance keep a v1 set and a v2 set on the same stream
+        // and settle time apart; one forecast refuses to mix them.
+        key =
+          `${marketData.streamId}@${market.settleTime}` +
+          `@${marketData.window}@${marketData.tolerance}`;
       } catch {
         // Legacy or non-bucket markets: not what this test is about.
         continue;

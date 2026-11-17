@@ -515,9 +515,11 @@ export interface CreateIndexChangeInRangeMarketInput extends BaseBinaryMarketInp
 /**
  * The query fields every outcome action (ids 13-16, node v2.6.8) takes.
  *
- * The node reads the stream at `timestamp` within `tolerance` seconds. If no
- * record is there by `timestamp + window`, the market settles INVALID and is
- * refunded instead of waiting forever. All three go into the market hash.
+ * The node reads the stream at `timestamp` within `tolerance` seconds. A
+ * capture taken at or after `timestamp + window` that finds no record answers
+ * INVALID, and the market is refunded instead of waiting forever. A record
+ * written after that deadline but before the first capture still decides the
+ * market. All three go into the market hash.
  *
  * The node accepts `0 <= timestamp`, `0 < window <= 315360000`,
  * `0 <= tolerance <= 3888000` and `window >= tolerance`.
@@ -529,7 +531,10 @@ export interface OutcomeQueryInput {
   streamId: string;
   /** Unix seconds the market asks about */
   timestamp: number;
-  /** Seconds after `timestamp` the market waits for a record before it settles INVALID */
+  /**
+   * Seconds after `timestamp` a capture waits for a record; from then on, a
+   * capture that finds none answers INVALID
+   */
   window: number;
   /**
    * Seconds from `timestamp` a record may sit and still count: before it for

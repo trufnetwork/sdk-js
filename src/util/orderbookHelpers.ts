@@ -77,8 +77,9 @@ export interface MarketData {
    */
   timeInterval?: number | null;
   /**
-   * Seconds after `timestamp` a v2 outcome market waits for a record before it
-   * settles INVALID. Null for v1 markets. Part of the market's identity.
+   * Seconds after `timestamp` a capture of a v2 outcome market waits for a
+   * record; from then on, a capture that finds none answers INVALID. Null for
+   * v1 markets. Part of the market's identity.
    */
   window?: number | null;
   /**
@@ -1000,7 +1001,8 @@ export function buildIndexChangeInRangeV2QueryComponents(
 /**
  * Reports whether a market was refunded: settled with no winning outcome.
  *
- * A v2 market whose record never arrived settles INVALID: every YES and NO
+ * A v2 market whose capture answers INVALID (for example, a capture at or after
+ * timestamp + window found no record) settles with no result: every YES and NO
  * share is paid 50c, open bids are returned at their locked price, and no fee is
  * taken. Markets closed that way by hand read the same.
  *

@@ -924,9 +924,9 @@ Reads the result of an outcome action (ids 13-16) from a canonical attestation p
 the 65-byte signature). It mirrors the node's `parse_attestation_outcome`.
 
 #### Returns
-- `{ outcome: 1 | 0 | -1, actionId: number }`. `1` is YES, `0` is NO, and `-1` is INVALID: no
-  record arrived before `timestamp + window`. The constants are exported as `OUTCOME_YES`,
-  `OUTCOME_NO` and `OUTCOME_INVALID`.
+- `{ outcome: 1 | 0 | -1, actionId: number }`. `1` is YES, `0` is NO, and `-1` is INVALID: a
+  capture taken at or after `timestamp + window` found no record, or, on id 13, the prior record
+  is zero. The constants are exported as `OUTCOME_YES`, `OUTCOME_NO` and `OUTCOME_INVALID`.
 
 #### Throws
 - The action is not 13-16 (`unsupported action_id N`).
@@ -938,7 +938,7 @@ import { parseOutcomeResult, OUTCOME_INVALID } from "@trufnetwork/sdk-js";
 
 const { outcome, actionId } = parseOutcomeResult(canonicalPayload);
 if (outcome === OUTCOME_INVALID) {
-  console.log(`action ${actionId}: no record before the deadline, the market is refunded`);
+  console.log(`action ${actionId}: INVALID, the market is refunded`);
 }
 ```
 
@@ -1484,9 +1484,10 @@ magnitude below `1e-6` is rejected rather than silently rounded or reformatted.
 
 ### Outcome Markets (v2)
 
-The v2 outcome actions always settle. If the stream has no record when the market needs one, the
-market settles **INVALID** by `timestamp + window` and is refunded, so it never hangs waiting for a
-print.
+The v2 outcome actions always settle. A capture taken at or after `timestamp + window` that finds
+no record answers **INVALID**, and the market is refunded, so it never hangs waiting for a print.
+The rule applies when the capture is taken: a record written after the deadline but before the
+first capture still decides the market.
 
 | id | Action | Helper | YES when |
 |----|--------|--------|----------|
@@ -1503,8 +1504,10 @@ market fields `bridge`, `settleTime`, `maxSpread` and `minOrderSize`. There is n
   latest record in `[timestamp - tolerance, timestamp]`. Id 13 reads the first record in
   `[timestamp, timestamp + tolerance]`, and compares it with the record nearest
   `current - timeInterval`, also within `tolerance`.
-- `window` is how long after `timestamp` the market waits for that record. From
-  `timestamp + window`, a market with no record settles INVALID.
+- `window` is how long after `timestamp` a capture waits for that record. Before
+  `timestamp + window`, a capture that finds no record fails and is taken again later. From then
+  on, it answers INVALID. On id 13, a prior record of zero answers INVALID without waiting for
+  the deadline, because the change is undefined.
 - On ids 13 and 16, leave a bound unset (or `null`) for an open tail. Leaving both unset is
   rejected.
 
@@ -1642,7 +1645,7 @@ interface MarketData {
   frozenAt: number | null;     // Block height the data is pinned to; null = latest (always null for v2)
   baseTime: number | null;     // v1 "change_between" only; null = the stream's default base
   timeInterval: number | null; // "change_between" only, in seconds, e.g. 31536000 for YoY
-  window: number | null;       // v2 only: seconds after timestamp before the market settles INVALID
+  window: number | null;       // v2 only: seconds after timestamp until no record answers INVALID
   tolerance: number | null;    // v2 only: seconds from timestamp a record may sit and still count
 }
 ```
@@ -2126,7 +2129,8 @@ dutch-book deviations are reported rather than silently smoothed over.
 
 Each bucket is a **separate market** with its own query_id, so a "market" is a
 set of them. They can be reassembled from chain data alone: buckets of the same
-market share a data stream and a settlement time.
+market share a data stream and a settlement time, and v2 buckets also share a
+`window` and a `tolerance`.
 
 ```typescript
 import { decodeMarketData } from "@trufnetwork/sdk-js";
@@ -2137,13 +2141,19 @@ for (const summary of await orderbook.listMarkets({ settledFilter: false, limit:
   // Legacy markets carry no query_components and cannot be decoded.
   if (!info.queryComponents || info.queryComponents.length === 0) continue;
   const marketData = decodeMarketData(info.queryComponents);
-  const key = `${marketData.streamId}@${summary.settleTime}`;
+  // window and tolerance are null for v1, so a v1 set and a v2 set on the same
+  // stream and settle time land in different groups.
+  const key =
+    `${marketData.streamId}@${summary.settleTime}` +
+    `@${marketData.window}@${marketData.tolerance}`;
   groups.set(key, [...(groups.get(key) ?? []), summary.id]);
 }
 
-// A complete market tiles the line: one "below" bucket, one "above", ranges
-// between. A stream can also carry a market that is not part of a bucket set at
-// all, so skip anything too small to forecast rather than letting it throw.
+// A complete v1 market tiles the line: one "below" bucket, one "above", ranges
+// between. A v2 ladder strikes every band on value_in_range_v2 ("range"), with
+// the outer two open. A stream can also carry a market that is not part of a
+// bucket set at all, so skip anything too small to forecast rather than letting
+// it throw.
 for (const [, queryIds] of groups) {
   if (queryIds.length < 2) continue;
   const forecast = await orderbook.getMarketForecast(queryIds);
@@ -2217,11 +2227,13 @@ const result = await orderbook.settleMarket(queryId);
 await client.waitForTx(result.data!.tx_hash);
 ```
 
-A v2 outcome market whose record never arrived settles **INVALID**: `settled` becomes `true` and
-`winningOutcome` stays `null` (see `isMarketRefunded`). Every YES and NO share, held or listed, is
-paid 50¢, and open bids are refunded at their locked price (`amount * |price| / 100` dollars). No
-fee is taken, and nothing goes to LPs, the data provider or validators, so
-`getDistributionSummary` throws "No distribution found" for that market.
+A v2 outcome market settles **INVALID** when its capture answers INVALID, for example when a
+capture taken at or after `timestamp + window` finds no record (see
+[Outcome Markets (v2)](#outcome-markets-v2)). `settled` becomes `true` and `winningOutcome` stays
+`null` (see `isMarketRefunded`). Every YES and NO share, held or listed, is paid 50¢, and open bids
+are refunded at their locked price (`amount * |price| / 100` dollars). No fee is taken, and nothing
+goes to LPs, the data provider or validators, so `getDistributionSummary` throws "No distribution
+found" for that market.
 
 ### Price Representation
 

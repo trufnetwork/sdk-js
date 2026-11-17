@@ -661,7 +661,10 @@ export function isOutcomeAction(action: number | string): boolean {
 export const OUTCOME_YES = 1;
 /** The outcome resolved NO. */
 export const OUTCOME_NO = 0;
-/** No record arrived before the deadline: the market is refunded. */
+/**
+ * INVALID: a capture taken at or after timestamp + window found no record, or,
+ * on id 13, the prior record is zero. The market is refunded.
+ */
 export const OUTCOME_INVALID = -1;
 
 /** An outcome action's result: 1 YES, 0 NO, -1 INVALID. */
