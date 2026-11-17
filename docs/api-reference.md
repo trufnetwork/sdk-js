@@ -2129,8 +2129,8 @@ dutch-book deviations are reported rather than silently smoothed over.
 
 Each bucket is a **separate market** with its own query_id, so a "market" is a
 set of them. They can be reassembled from chain data alone: buckets of the same
-market share a data stream and a settlement time, and v2 buckets also share a
-`window` and a `tolerance`.
+market share every field of the forecast identity above and differ only in their
+strike, so group by that identity.
 
 ```typescript
 import { decodeMarketData } from "@trufnetwork/sdk-js";
@@ -2141,11 +2141,13 @@ for (const summary of await orderbook.listMarkets({ settledFilter: false, limit:
   // Legacy markets carry no query_components and cannot be decoded.
   if (!info.queryComponents || info.queryComponents.length === 0) continue;
   const marketData = decodeMarketData(info.queryComponents);
-  // window and tolerance are null for v1, so a v1 set and a v2 set on the same
-  // stream and settle time land in different groups.
-  const key =
-    `${marketData.streamId}@${summary.settleTime}` +
-    `@${marketData.window}@${marketData.tolerance}`;
+  // The full forecast identity. window and tolerance are null for v1, so a v1
+  // set and a v2 set on the same stream and settle time land in different groups.
+  const key = [
+    marketData.dataProvider, marketData.streamId, info.bridge, summary.settleTime,
+    marketData.timestamp, marketData.frozenAt, marketData.baseTime,
+    marketData.timeInterval, marketData.window, marketData.tolerance,
+  ].join("@");
   groups.set(key, [...(groups.get(key) ?? []), summary.id]);
 }
 
