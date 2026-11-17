@@ -9,6 +9,20 @@
 
 import type { MarketData } from "./orderbookHelpers";
 
+/**
+ * The warning `getMarketForecast` adds when its buckets are v2 outcome markets
+ * (action ids 13-16).
+ *
+ * An INVALID result pays $0.50 on every YES and every NO share, so a bucket's
+ * YES price is about P(YES) + 0.5 * P(INVALID). The forecast reads YES
+ * midpoints as probabilities and is not adjusted for that: the estimator is a
+ * port of shared upstream code, so the fact is reported instead.
+ */
+export const OUTCOME_REFUND_WARNING =
+  "v2 outcome markets: each YES price includes the $0.50 per share an INVALID " +
+  "result pays, so these probabilities include that refund value and are not " +
+  "a distribution over valid outcomes only";
+
 /** One bucket's half-open `[lower, upper)` bounds; `null` means open-ended. */
 export interface BucketBounds {
   lower: number | null;
@@ -18,8 +32,8 @@ export interface BucketBounds {
 /**
  * Throws when a market's query timestamp could not be read.
  *
- * Every binary action carries one at argument 2; only `frozenAt` is nullable. A
- * null timestamp stringifies to `"null"` in the market identity, so two
+ * Every binary and outcome action carries one at argument 2; only `frozenAt`
+ * is nullable. A null timestamp stringifies to `"null"` in the market identity, so two
  * malformed markets would COLLIDE on that component and match each other — the
  * identity check failing open in exactly the case it exists to catch. Better to
  * refuse a market we cannot pin down than to match it by accident.
@@ -52,9 +66,9 @@ export function requireQueryTime(
  * always struck. Bounds are half-open upstream, so a value landing exactly on a
  * boundary resolves the upper bucket only.
  *
- * `"above"`, `"below"`, `"between"` and `"equals"` markets are struck in the
- * stream's own units; `"change_between"` markets are struck in percent, against
- * the stream's value one time_interval earlier. This function does not
+ * `"above"`, `"below"`, `"between"`, `"equals"` and `"range"` markets are
+ * struck in the stream's own units; `"change_between"` markets are struck in
+ * percent, against the stream's value one time_interval earlier. This function does not
  * distinguish them — a caller comparing bounds across markets has to know it is
  * comparing like with like.
  *
@@ -98,9 +112,9 @@ export function bucketBoundsFromMarketData(
   /**
    * A threshold slot that may be struck open, which a decoded market holds as an
    * empty string in place rather than as a shorter array. Only
-   * `"change_between"` markets have one; every other type's bounds are all
-   * present, so they read through {@link threshold} and an empty slot is an
-   * error there rather than a tail.
+   * `"change_between"` and `"range"` markets have one; every other type's
+   * bounds are all present, so they read through {@link threshold} and an empty
+   * slot is an error there rather than a tail.
    */
   const optionalThreshold = (index: number): number | null => {
     if (thresholds.length <= index) {
@@ -130,12 +144,13 @@ export function bucketBoundsFromMarketData(
       }
       return { lower, upper };
     }
+    case "range":
     case "change_between": {
-      // Percentage-change buckets, already half-open upstream and already in
-      // the open-ended shape this function returns, so the bounds pass through
-      // rather than being derived. Note the units differ from every other case:
-      // these are percent, against the stream's value one time_interval
-      // earlier, where "above"/"below"/"between" are in the stream's own units.
+      // Both are already half-open upstream and already in the open-ended
+      // shape this function returns, so the bounds pass through rather than
+      // being derived. Note the units of "change_between" differ from every
+      // other case: percent, against the stream's value one time_interval
+      // earlier. "range" (value_in_range_v2) is in the stream's own units.
       const lower = optionalThreshold(0);
       const upper = optionalThreshold(1);
       // Both tails open would describe the whole number line. The node action

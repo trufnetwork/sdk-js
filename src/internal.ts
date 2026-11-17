@@ -33,11 +33,19 @@ export {
   decodeActionArgs,
   decodeQueryComponents,
   isBinaryAction,
+  isOutcomeAction,
+  parseOutcomeResult,
+  OUTCOME_ACTION_IDS,
+  OUTCOME_YES,
+  OUTCOME_NO,
+  OUTCOME_INVALID,
 } from "./util/AttestationEncoding";
 
 export type {
   DecodedRow,
-  ParsedAttestationPayload
+  ParsedAttestationPayload,
+  OutcomeResult,
+  OutcomeValue,
 } from "./util/AttestationEncoding";
 
 // Transaction payload decoding
@@ -159,6 +167,14 @@ export type {
   CreateValueInRangeMarketInput,
   CreateValueEqualsMarketInput,
   CreateIndexChangeInRangeMarketInput,
+  OutcomeQueryInput,
+  PriceThresholdV2Input,
+  ValueInRangeV2Input,
+  IndexChangeInRangeV2Input,
+  BaseOutcomeMarketInput,
+  CreatePriceThresholdV2MarketInput,
+  CreateValueInRangeV2MarketInput,
+  CreateIndexChangeInRangeV2MarketInput,
 } from "./types/orderbook";
 
 // Orderbook helper utilities
@@ -168,6 +184,16 @@ export {
   encodeRangeActionArgs,
   encodeEqualsActionArgs,
   encodeIndexChangeActionArgs,
+  encodePriceThresholdV2ActionArgs,
+  encodeValueInRangeV2ActionArgs,
+  encodeIndexChangeV2ActionArgs,
+  buildPriceAboveThresholdV2QueryComponents,
+  buildPriceBelowThresholdV2QueryComponents,
+  buildValueInRangeV2QueryComponents,
+  buildIndexChangeInRangeV2QueryComponents,
+  isMarketRefunded,
+  OUTCOME_MAX_SPAN_SECONDS,
+  OUTCOME_MAX_TOLERANCE_SECONDS,
   hexToBytes,
   bytesToHex,
   decodeMarketData,
@@ -212,7 +238,10 @@ export type {
   ForecastMethod,
 } from "./util/forecast";
 
-export { bucketBoundsFromMarketData } from "./util/marketBuckets";
+export {
+  bucketBoundsFromMarketData,
+  OUTCOME_REFUND_WARNING,
+} from "./util/marketBuckets";
 export type { BucketBounds } from "./util/marketBuckets";
 
 // Consolidating a market's two outcome books into one executable ladder.

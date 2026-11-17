@@ -2,6 +2,7 @@ import { KwilSigner, NodeKwil } from "@trufnetwork/kwil-js";
 import { describe, it, expect, vi } from "vitest";
 import { OrderbookAction } from "./orderbookAction";
 import type { ConsolidatedLevel } from "../types/orderbook";
+import { decodeMarketData, isMarketRefunded } from "../util/orderbookHelpers";
 
 /**
  * Pure-unit tests for the address-parameterized portfolio getters (migration 051):
@@ -606,4 +607,140 @@ describe("OrderbookAction.getMarketActivity", () => {
       expect(call).not.toHaveBeenCalled();
     },
   );
+});
+
+describe("OrderbookAction v2 outcome markets", () => {
+  const dataProvider = "0x4710A8D8F0D845da110086812a32De6d90d7ff5C";
+  const streamId = "stcpi0000000000000000000000000us";
+  const market = {
+    dataProvider,
+    streamId,
+    timestamp: 1767225600,
+    window: 259200,
+    tolerance: 86400,
+    bridge: "eth_usdc" as const,
+    settleTime: Math.floor(Date.now() / 1000) + 86400,
+    maxSpread: 10,
+    minOrderSize: 1000000,
+  };
+
+  function makeExecAction() {
+    const execute = vi.fn().mockResolvedValue({ status: 200, data: { tx_hash: "0x01" } });
+    const mockKwil = { execute } as unknown as NodeKwil;
+    return { action: new OrderbookAction(mockKwil, mockSigner), execute };
+  }
+
+  /** The create_market call's decoded query components. */
+  function created(execute: ReturnType<typeof vi.fn>) {
+    expect(execute).toHaveBeenCalledTimes(1);
+    const [payload, signer] = execute.mock.calls[0];
+    expect(signer).toBe(mockSigner);
+    expect(payload.name).toBe("create_market");
+    const inputs = payload.inputs[0];
+    expect(inputs.$bridge).toBe("eth_usdc");
+    expect(inputs.$settle_time).toBe(market.settleTime);
+    return decodeMarketData(inputs.$query_components);
+  }
+
+  it("creates a price_above_threshold_v2 market", async () => {
+    const { action, execute } = makeExecAction();
+    await action.createPriceAboveThresholdV2Market({ ...market, threshold: "4.92" });
+    expect(created(execute)).toMatchObject({
+      dataProvider: dataProvider.toLowerCase(),
+      actionId: "price_above_threshold_v2",
+      type: "above",
+      thresholds: ["4.920000000000000000"],
+      timestamp: 1767225600,
+      window: 259200,
+      tolerance: 86400,
+      frozenAt: null,
+    });
+  });
+
+  it("creates a price_below_threshold_v2 market", async () => {
+    const { action, execute } = makeExecAction();
+    await action.createPriceBelowThresholdV2Market({ ...market, threshold: "4.04" });
+    expect(created(execute)).toMatchObject({
+      actionId: "price_below_threshold_v2",
+      type: "below",
+      thresholds: ["4.040000000000000000"],
+    });
+  });
+
+  it("creates a value_in_range_v2 market with an open tail", async () => {
+    const { action, execute } = makeExecAction();
+    await action.createValueInRangeV2Market({ ...market, minValue: "4.92" });
+    expect(created(execute)).toMatchObject({
+      actionId: "value_in_range_v2",
+      type: "range",
+      thresholds: ["4.920000000000000000", ""],
+    });
+  });
+
+  it("creates an index_change_in_range_v2 market", async () => {
+    const { action, execute } = makeExecAction();
+    await action.createIndexChangeInRangeV2Market({
+      ...market,
+      window: 7776000,
+      tolerance: 172800,
+      timeInterval: 31536000,
+      minChange: "2",
+      maxChange: "3",
+    });
+    expect(created(execute)).toMatchObject({
+      actionId: "index_change_in_range_v2",
+      type: "change_between",
+      thresholds: ["2.000000000000000000", "3.000000000000000000"],
+      timeInterval: 31536000,
+      baseTime: null,
+      window: 7776000,
+      tolerance: 172800,
+    });
+  });
+
+  it("refuses bounds the node refuses before sending anything", async () => {
+    const { action, execute } = makeExecAction();
+    await expect(
+      action.createValueInRangeV2Market({ ...market, window: 3600, tolerance: 86400, minValue: "1" }),
+    ).rejects.toThrow("window (3600) must not be less than tolerance (86400)");
+    await expect(action.createValueInRangeV2Market({ ...market })).rejects.toThrow(
+      "at least one of min_value or max_value is required",
+    );
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it("reads a settled market with no winning outcome as refunded", async () => {
+    const info = {
+      hash: "0x" + "11".repeat(32),
+      query_components: "0x",
+      bridge: "eth_usdc",
+      settle_time: 1767484800,
+      settled: true,
+      winning_outcome: null,
+      settled_at: 1767484900,
+      max_spread: 10,
+      min_order_size: "1000000",
+      created_at: 1767000000,
+      creator: "0x" + "ab".repeat(20),
+    };
+    const call = vi
+      .fn()
+      .mockResolvedValueOnce(ok([info]))
+      .mockResolvedValueOnce(
+        ok([
+          { ...info, id: 1110 },
+          { ...info, id: 1111, winning_outcome: false },
+          { ...info, id: 1112, settled: false },
+        ]),
+      );
+    const action = makeAction(call);
+
+    const marketInfo = await action.getMarketInfo(1110);
+    expect(marketInfo.settled).toBe(true);
+    expect(marketInfo.winningOutcome).toBeNull();
+    expect(isMarketRefunded(marketInfo)).toBe(true);
+
+    const summaries = await action.listMarkets({ settledFilter: true });
+    expect(summaries.map(isMarketRefunded)).toEqual([true, false, false]);
+  });
 });

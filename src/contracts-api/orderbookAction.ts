@@ -33,6 +33,9 @@ import {
   CreateValueInRangeMarketInput,
   CreateValueEqualsMarketInput,
   CreateIndexChangeInRangeMarketInput,
+  CreatePriceThresholdV2MarketInput,
+  CreateValueInRangeV2MarketInput,
+  CreateIndexChangeInRangeV2MarketInput,
   BridgeIdentifier,
   RawMarketInfo,
   RawMarketSummary,
@@ -55,6 +58,13 @@ import {
   encodeRangeActionArgs,
   encodeEqualsActionArgs,
   encodeIndexChangeActionArgs,
+  encodePriceThresholdV2ActionArgs,
+  encodeValueInRangeV2ActionArgs,
+  encodeIndexChangeV2ActionArgs,
+  buildPriceAboveThresholdV2QueryComponents,
+  buildPriceBelowThresholdV2QueryComponents,
+  buildValueInRangeV2QueryComponents,
+  buildIndexChangeInRangeV2QueryComponents,
   dbBytesToUint8Array,
   decodeMarketData,
   validatePrice,
@@ -67,8 +77,10 @@ import {
 } from "../util/orderbookHelpers";
 import {
   bucketBoundsFromMarketData,
+  OUTCOME_REFUND_WARNING,
   requireQueryTime,
 } from "../util/marketBuckets";
+import { isOutcomeAction } from "../util/AttestationEncoding";
 import { forecastFromDepth } from "../util/forecast";
 import type {
   BookLevel,
@@ -912,6 +924,15 @@ export class OrderbookAction {
    * (mint match), so NO liquidity is executable YES liquidity and ignoring it
    * would discard real quotes. That costs two order-book reads per bucket.
    *
+   * A v2 outcome market (action ids 13-16) pays $0.50 per YES and per NO share
+   * when it settles INVALID, so a bucket's YES price is about
+   * P(YES) + 0.5 * P(INVALID). The forecast prices each bucket from its full
+   * YES and NO books, weighted by committed notional, and a NO price read as
+   * YES (1 minus the NO price) carries the same refund share. It normalises
+   * those bucket prices, so for a v2 set the returned probabilities include that
+   * refund value and are not a distribution over valid outcomes only. Such a
+   * forecast carries {@link OUTCOME_REFUND_WARNING} in `warnings`.
+   *
    * @param queryIds - The bucket query_ids of ONE market. Order does not matter,
    *   they are sorted by lower bound here. The buckets are expected to tile the
    *   whole line, with the bottom one open below and the top one open above; a
@@ -947,6 +968,7 @@ export class OrderbookAction {
 
     const books: BucketDepth[] = [];
     let identity: string | null = null;
+    let refundsOnInvalid = false;
     for (const queryId of queryIds) {
       // The three reads are independent, so overlap them. Buckets stay
       // sequential: fanning every bucket out at once would put 3N simultaneous
@@ -987,6 +1009,10 @@ export class OrderbookAction {
       // also keeps a percent-change bucket from joining a set struck in the
       // stream's own units, since only a change market has an interval at all.
       //
+      // window and tolerance are null for v1 markets and set for the v2
+      // outcome actions, so a v1 set and a v2 set on the same timestamp stay
+      // apart, as do two v2 sets with a different window or tolerance.
+      //
       // The action id is deliberately NOT here: a complete set tiles the line
       // with one price_below_threshold bucket, one price_above_threshold, and
       // value_in_range between, so three different actions is the normal shape
@@ -995,18 +1021,21 @@ export class OrderbookAction {
       const thisIdentity =
         `${marketData.dataProvider}|${marketData.streamId}|${info.bridge}` +
         `|${info.settleTime}|${marketData.timestamp}|${marketData.frozenAt}` +
-        `|${marketData.baseTime}|${marketData.timeInterval}`;
+        `|${marketData.baseTime}|${marketData.timeInterval}` +
+        `|${marketData.window}|${marketData.tolerance}`;
       if (identity === null) {
         identity = thisIdentity;
       } else if (thisIdentity !== identity) {
         throw new Error(
           `market ${queryId} belongs to a different event than the first ` +
             `bucket: (dataProvider, streamId, bridge, settleTime, timestamp, ` +
-            `frozenAt, baseTime, timeInterval) ` +
+            `frozenAt, baseTime, timeInterval, window, tolerance) ` +
             `is ${thisIdentity} against ${identity}. One forecast covers the ` +
             `buckets of ONE market.`
         );
       }
+
+      if (isOutcomeAction(marketData.actionId)) refundsOnInvalid = true;
 
       const { lower, upper } = bucketBoundsFromMarketData(marketData);
       books.push({
@@ -1040,6 +1069,9 @@ export class OrderbookAction {
     }
     if (breaks) {
       layout.push(`${breaks} gap(s) or overlap(s) between bucket bounds`);
+    }
+    if (refundsOnInvalid) {
+      layout.push(OUTCOME_REFUND_WARNING);
     }
 
     const forecast = forecastFromDepth(books);
@@ -1209,6 +1241,12 @@ export class OrderbookAction {
    * Can only be called after settle_time has passed.
    * Automatically distributes payouts and LP rewards.
    *
+   * A v2 outcome market whose capture answers INVALID (for example, a capture
+   * at or after timestamp + window found no record) settles with no result
+   * instead: winningOutcome stays null, every YES and NO share is paid 50c,
+   * open bids are refunded at their locked price, and no fee or LP reward is
+   * distributed (see `isMarketRefunded`).
+   *
    * @param queryId - Market identifier
    * @returns Transaction receipt
    */
@@ -1257,6 +1295,9 @@ export class OrderbookAction {
 
   /**
    * Gets the fee distribution summary for a market.
+   *
+   * A refunded (INVALID) market takes no fee, so it has no distribution and
+   * this throws.
    *
    * @param queryId - Market identifier
    * @returns Distribution summary
@@ -1557,6 +1598,146 @@ export class OrderbookAction {
     });
   }
 
+  /**
+   * Creates a "price above threshold" outcome market (v2, id 14).
+   *
+   * YES if the latest record in [timestamp - tolerance, timestamp] is above the
+   * threshold, NO if it is not. If a capture taken at or after
+   * timestamp + window finds no record, the market settles INVALID and is
+   * refunded. A record written after that deadline but before the first
+   * capture still decides the market.
+   *
+   * Requires node v2.6.8 (migration 063).
+   *
+   * @param input - Market parameters
+   * @returns Transaction receipt
+   */
+  async createPriceAboveThresholdV2Market(
+    input: CreatePriceThresholdV2MarketInput
+  ): Promise<Types.GenericResponse<Types.TxReceipt>> {
+    return this.createOutcomeMarket(
+      input,
+      buildPriceAboveThresholdV2QueryComponents(input)
+    );
+  }
+
+  /**
+   * Creates a "price below threshold" outcome market (v2, id 15).
+   *
+   * YES if the latest record in [timestamp - tolerance, timestamp] is below the
+   * threshold. Refunded if a capture taken at or after timestamp + window finds
+   * no record.
+   *
+   * Requires node v2.6.8 (migration 063).
+   *
+   * @param input - Market parameters
+   * @returns Transaction receipt
+   */
+  async createPriceBelowThresholdV2Market(
+    input: CreatePriceThresholdV2MarketInput
+  ): Promise<Types.GenericResponse<Types.TxReceipt>> {
+    return this.createOutcomeMarket(
+      input,
+      buildPriceBelowThresholdV2QueryComponents(input)
+    );
+  }
+
+  /**
+   * Creates a "value in range" outcome market (v2, id 16).
+   *
+   * YES if the latest record in [timestamp - tolerance, timestamp] lands in
+   * [minValue, maxValue). Leave a bound unset for an open tail, which is how
+   * the outer buckets of a ladder are struck. Refunded if a capture taken at or
+   * after timestamp + window finds no record.
+   *
+   * Requires node v2.6.8 (migration 063).
+   *
+   * @param input - Market parameters
+   * @returns Transaction receipt
+   *
+   * @example
+   * ```typescript
+   * // A daily ladder bucket: [4.04, 4.33) at the reference time
+   * await orderbook.createValueInRangeV2Market({
+   *   dataProvider, streamId,
+   *   timestamp: 1767225600,
+   *   window: 259200,
+   *   tolerance: 86400,
+   *   minValue: "4.04",
+   *   maxValue: "4.33",
+   *   bridge: "eth_usdc",
+   *   settleTime: 1767484800,
+   *   maxSpread: 10,
+   *   minOrderSize: 1000000,
+   * });
+   * ```
+   */
+  async createValueInRangeV2Market(
+    input: CreateValueInRangeV2MarketInput
+  ): Promise<Types.GenericResponse<Types.TxReceipt>> {
+    return this.createOutcomeMarket(
+      input,
+      buildValueInRangeV2QueryComponents(input)
+    );
+  }
+
+  /**
+   * Creates an "index change in range" outcome market (v2, id 13).
+   *
+   * YES if the percent change from the record nearest current - timeInterval
+   * to the first record in [timestamp, timestamp + tolerance] lands in
+   * [minChange, maxChange). Refunded if a capture taken at or after
+   * timestamp + window finds either record missing, or if the prior record is
+   * zero, since the change is then undefined.
+   *
+   * Requires node v2.6.8 (migration 063).
+   *
+   * @param input - Market parameters
+   * @returns Transaction receipt
+   *
+   * @example
+   * ```typescript
+   * // CPI year over year for the month starting 1 Jan 2026
+   * await orderbook.createIndexChangeInRangeV2Market({
+   *   dataProvider, streamId,
+   *   timestamp: 1767225600,
+   *   window: 7776000,
+   *   tolerance: 172800,
+   *   timeInterval: 31536000,
+   *   minChange: "2",
+   *   maxChange: "3",
+   *   bridge: "eth_usdc",
+   *   settleTime: 1775001600,
+   *   maxSpread: 10,
+   *   minOrderSize: 1000000,
+   * });
+   * ```
+   */
+  async createIndexChangeInRangeV2Market(
+    input: CreateIndexChangeInRangeV2MarketInput
+  ): Promise<Types.GenericResponse<Types.TxReceipt>> {
+    return this.createOutcomeMarket(
+      input,
+      buildIndexChangeInRangeV2QueryComponents(input)
+    );
+  }
+
+  private createOutcomeMarket(
+    input: Pick<
+      CreatePriceThresholdV2MarketInput,
+      "bridge" | "settleTime" | "maxSpread" | "minOrderSize"
+    >,
+    queryComponents: Uint8Array
+  ): Promise<Types.GenericResponse<Types.TxReceipt>> {
+    return this.createMarket({
+      bridge: input.bridge,
+      queryComponents,
+      settleTime: input.settleTime,
+      maxSpread: input.maxSpread,
+      minOrderSize: input.minOrderSize,
+    });
+  }
+
   // ==========================================
   // Static Helper Methods
   // ==========================================
@@ -1590,6 +1771,25 @@ export class OrderbookAction {
    * @see encodeIndexChangeActionArgs
    */
   static encodeIndexChangeActionArgs = encodeIndexChangeActionArgs;
+
+  /**
+   * Encodes action arguments for price_above_threshold_v2 and
+   * price_below_threshold_v2 markets.
+   * @see encodePriceThresholdV2ActionArgs
+   */
+  static encodePriceThresholdV2ActionArgs = encodePriceThresholdV2ActionArgs;
+
+  /**
+   * Encodes action arguments for value_in_range_v2 markets.
+   * @see encodeValueInRangeV2ActionArgs
+   */
+  static encodeValueInRangeV2ActionArgs = encodeValueInRangeV2ActionArgs;
+
+  /**
+   * Encodes action arguments for index_change_in_range_v2 markets.
+   * @see encodeIndexChangeV2ActionArgs
+   */
+  static encodeIndexChangeV2ActionArgs = encodeIndexChangeV2ActionArgs;
 
   // ==========================================
   // Private Helper Methods
