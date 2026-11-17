@@ -926,8 +926,10 @@ export class OrderbookAction {
    *
    * A v2 outcome market (action ids 13-16) pays $0.50 per YES and per NO share
    * when it settles INVALID, so a bucket's YES price is about
-   * P(YES) + 0.5 * P(INVALID). The forecast reads YES midpoints as
-   * probabilities, so for a v2 set the returned probabilities include that
+   * P(YES) + 0.5 * P(INVALID). The forecast prices each bucket from its full
+   * YES and NO books, weighted by committed notional, and a NO price read as
+   * YES (1 minus the NO price) carries the same refund share. It normalises
+   * those bucket prices, so for a v2 set the returned probabilities include that
    * refund value and are not a distribution over valid outcomes only. Such a
    * forecast carries {@link OUTCOME_REFUND_WARNING} in `warnings`.
    *
