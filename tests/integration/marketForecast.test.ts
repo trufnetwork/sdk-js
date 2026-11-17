@@ -32,7 +32,11 @@ import type {
   MarketForecast,
 } from "../../src/util/forecast";
 import { bucketBoundsFromMarketData } from "../../src/util/marketBuckets";
-import { decodeMarketData } from "../../src/util/orderbookHelpers";
+import {
+  buildValueInRangeV2QueryComponents,
+  decodeMarketData,
+} from "../../src/util/orderbookHelpers";
+import type { MarketInfo, MarketSummary } from "../../src/types/orderbook";
 
 // Discovery costs one call per open market, so it is bounded. Mainnet carried
 // ~110 open markets when this was written; the cap is headroom, not a target.
@@ -59,13 +63,20 @@ interface Candidate {
   upper: number | null;
 }
 
-/** One bucket open below, one open above, at least one in between. */
+/**
+ * One bucket open below, one open above, at least one in between.
+ *
+ * Read from the bounds, not the market type: a v2 ladder can strike every
+ * bucket on value_in_range_v2, open tails included, so all of it is "range".
+ */
 function tilesTheLine(members: Candidate[]): boolean {
-  const types = members.map((m) => m.type);
+  const openBelow = members.filter((m) => m.lower === null);
+  const openAbove = members.filter((m) => m.upper === null);
   return (
     members.length >= 3 &&
-    types.filter((t) => t === "below").length === 1 &&
-    types.filter((t) => t === "above").length === 1
+    openBelow.length === 1 &&
+    openAbove.length === 1 &&
+    openBelow[0] !== openAbove[0]
   );
 }
 
@@ -147,6 +158,65 @@ function medianBucket(forecast: MarketForecast): BucketEstimate {
   }
   return forecast.buckets[forecast.buckets.length - 1];
 }
+
+// Not gated: discovery runs against a stubbed order book, so it needs no node.
+describe("discoverGroups", () => {
+  /** An order book holding only the given v2 range buckets. */
+  function stubOrderbook(
+    buckets: { id: number; window: number; min: string | null; max: string | null }[]
+  ): OrderbookAction {
+    const settleTime = 1700000000;
+    const components = new Map(
+      buckets.map((b) => [
+        b.id,
+        buildValueInRangeV2QueryComponents({
+          dataProvider: "0x4710a8d8f0d845da110086812a32de6d90d7ff5c",
+          streamId: "stmsft00000000000000000000000000",
+          timestamp: settleTime,
+          window: b.window,
+          tolerance: 86400,
+          minValue: b.min,
+          maxValue: b.max,
+        }),
+      ])
+    );
+    return {
+      listMarkets: async ({ offset }: { offset?: number }) =>
+        offset
+          ? []
+          : buckets.map((b) => ({ id: b.id, settleTime }) as MarketSummary),
+      getMarketInfo: async (queryId: number) =>
+        ({ queryComponents: components.get(queryId) }) as MarketInfo,
+    } as unknown as OrderbookAction;
+  }
+
+  test("accepts a v2 ladder struck entirely on value_in_range_v2", async () => {
+    // (NULL, 4), [4, 5), [5, NULL): every bucket decodes as "range", and the
+    // open tails are known only from the bounds.
+    const groups = await discoverGroups(
+      stubOrderbook([
+        { id: 1, window: 259200, min: null, max: "4" },
+        { id: 2, window: 259200, min: "4", max: "5" },
+        { id: 3, window: 259200, min: "5", max: null },
+      ])
+    );
+    expect(groups.map((g) => g.map((m) => m.queryId).sort())).toEqual([
+      [1, 2, 3],
+    ]);
+    expect(groups[0].every((m) => m.type === "range")).toBe(true);
+  });
+
+  test("discards a range ladder with no open top", async () => {
+    const groups = await discoverGroups(
+      stubOrderbook([
+        { id: 1, window: 259200, min: null, max: "4" },
+        { id: 2, window: 259200, min: "4", max: "5" },
+        { id: 3, window: 259200, min: "5", max: "6" },
+      ])
+    );
+    expect(groups).toEqual([]);
+  });
+});
 
 describe.skipIf(!configured)(
   "Market Forecast Live Integration Tests",
