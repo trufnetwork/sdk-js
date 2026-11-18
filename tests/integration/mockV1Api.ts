@@ -163,8 +163,13 @@ function validateDatabase(db: MockV1Database): void {
     if (typeof market.id !== "string" || market.id === "") {
       throw new Error("every mock market needs a non-empty id");
     }
-    if (market.query_id !== Number(market.id)) {
-      throw new Error(`mock market ${market.id} needs query_id ${market.id}`);
+    if (
+      !Number.isSafeInteger(market.query_id) ||
+      market.id !== String(market.query_id)
+    ) {
+      throw new Error(
+        `mock market ${market.id} needs an integer query_id written the same way`,
+      );
     }
     if (seen.has(market.id)) {
       throw new Error(`duplicate mock market id: ${market.id}`);

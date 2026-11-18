@@ -85,6 +85,16 @@ export interface SubmitResult {
   receipt?: TxReceiptData;
 }
 
+/** A message for any thrown value, even one `String` cannot convert. */
+function describeError(value: unknown): string {
+  if (value instanceof Error) return value.message;
+  try {
+    return String(value);
+  } catch {
+    return "an error that has no message";
+  }
+}
+
 /**
  * Thrown by {@link TxApi.submit} when the broadcast succeeded but waiting for
  * the receipt failed. The transaction may still execute, so it carries what
@@ -100,7 +110,7 @@ export class TxSubmitWaitError extends Error {
   readonly broadcast: TxBroadcastData;
 
   constructor(result: Omit<SubmitResult, "receipt">, cause: unknown) {
-    const reason = cause instanceof Error ? cause.message : String(cause);
+    const reason = describeError(cause);
     super(
       `transaction ${result.broadcast.tx_hash} was broadcast, but waiting for its receipt failed: ${reason}`,
       { cause },
@@ -149,15 +159,25 @@ const RETRYABLE_RECEIPT_CODES: ReadonlySet<string> = new Set([
   "resource_exhausted",
 ]);
 
+/** HTTP statuses that mean "try again later" even without a v1 body. */
+const RETRYABLE_RECEIPT_STATUSES: ReadonlySet<number> = new Set([
+  429, 502, 503, 504,
+]);
+
 function isRetryableReceiptError(error: unknown): error is V1ApiError {
   if (!(error instanceof V1ApiError)) return false;
-  // A transport error that carries an HTTP status is a response that is not
-  // v1 (a wrong base URL, a proxy's page) and will not change on retry. Only a
-  // request that got no response at all (status 0: a network failure or a
-  // timeout) is worth another try.
-  if (error.code === V1ApiError.TRANSPORT_CODE) return error.status === 0;
+  // A transport error is a response that is not a v1 body, or no response at
+  // all. Retry it when there was no response (status 0: a network failure or a
+  // timeout) or when its status says to try again (a proxy's 502, or a 503 or
+  // 429 whose body was lost). A wrong base URL's 404 or a 401 will not change.
+  if (error.code === V1ApiError.TRANSPORT_CODE) {
+    return error.status === 0 || RETRYABLE_RECEIPT_STATUSES.has(error.status);
+  }
   return RETRYABLE_RECEIPT_CODES.has(error.code);
 }
+
+/** The longest delay `setTimeout` honours; a longer one fires at once. */
+const MAX_TIMER_MS = 2_147_483_647;
 
 /** The validated timing of a receipt wait, checked before anything is sent. */
 function waitTiming(options: WaitForReceiptOptions): {
@@ -298,10 +318,13 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
       clearTimeout(timer);
       reject(new Error("aborted"));
     };
-    const timer = setTimeout(() => {
-      signal?.removeEventListener("abort", onAbort);
-      resolve();
-    }, ms);
+    const timer = setTimeout(
+      () => {
+        signal?.removeEventListener("abort", onAbort);
+        resolve();
+      },
+      Math.min(ms, MAX_TIMER_MS),
+    );
     signal?.addEventListener("abort", onAbort, { once: true });
   });
 }
@@ -365,9 +388,12 @@ export class TxApi {
     if (active === undefined) {
       throw new Error("a TnSigner is required to sign a transaction");
     }
-    validateSender(active.address);
+    // Read the identity once: a wallet that switches accounts while its prompt
+    // is open must not change the sender after it was checked.
+    const address = active.address;
     const type = active.signatureType ?? "secp256k1_ep";
-    validateSenderForType(type, active.address);
+    validateSender(address);
+    validateSenderForType(type, address);
     const envelope = cloneEnvelope(prepared.transaction);
     if (envelope.body === undefined || envelope.body === null) {
       throw new Error("prepared transaction has no body");
@@ -380,7 +406,7 @@ export class TxApi {
     }
     const signature: TxSignature = { sig: bytesToBase64(sigBytes), type };
     envelope.signature = signature;
-    envelope.sender = bareHex(active.address);
+    envelope.sender = bareHex(address);
     return envelope;
   }
 
@@ -433,9 +459,12 @@ export class TxApi {
 
   /**
    * Poll the receipt until the transaction is in a block (`height >= 0`). A
-   * `404` while the node has not admitted the transaction yet, a `503`, a `429`
-   * and a request that got no response are retried until the timeout; any
-   * other error, a response that is not v1, and an abort end the wait at once.
+   * `404` while the node has not admitted the transaction yet, a `503`, a `429`,
+   * a `502` or `504` from a proxy, and a request that got no response are
+   * retried until the timeout; any other error, and an abort, end the wait at
+   * once.
+   * No read starts after `timeoutMs`, and a read still in flight then is
+   * cancelled; a credential fetch the read needs first is not.
    */
   async waitForReceipt(
     hash: string,
@@ -446,19 +475,48 @@ export class TxApi {
     const deadline = Date.now() + timeoutMs;
     let lastError: V1ApiError | undefined;
     for (;;) {
-      try {
-        const receipt = await this.get(hash, { signal: options.signal });
-        if (receipt.height >= 0) return receipt;
-        lastError = undefined;
-      } catch (error) {
-        if (options.signal?.aborted === true || !isRetryableReceiptError(error))
-          throw error;
-        lastError = error;
-      }
+      // No read starts after the deadline, and a read in flight at the
+      // deadline is cancelled.
       const remaining = deadline - Date.now();
       if (remaining <= 0)
         throw new TxWaitTimeoutError(hash, timeoutMs, lastError);
-      await sleep(Math.min(intervalMs, remaining), options.signal);
+      const read = new AbortController();
+      // A wait longer than the timer allows re-arms on the next iteration.
+      const timer = setTimeout(
+        () => read.abort(),
+        Math.min(remaining, MAX_TIMER_MS),
+      );
+      const onAbort = (): void => read.abort();
+      if (options.signal?.aborted === true) read.abort();
+      else options.signal?.addEventListener("abort", onAbort, { once: true });
+      try {
+        const receipt = await this.get(hash, { signal: read.signal });
+        if (receipt.height >= 0) return receipt;
+        lastError = undefined;
+      } catch (error) {
+        // A caller abort is the caller's error, not a timeout.
+        if (options.signal?.aborted === true) throw error;
+        if (read.signal.aborted) {
+          if (deadline - Date.now() > 0) continue;
+          throw new TxWaitTimeoutError(
+            hash,
+            timeoutMs,
+            V1ApiError.transport(
+              0,
+              "no answer before the deadline",
+              undefined,
+              error,
+            ),
+          );
+        }
+        if (!isRetryableReceiptError(error)) throw error;
+        lastError = error;
+      } finally {
+        clearTimeout(timer);
+        options.signal?.removeEventListener("abort", onAbort);
+      }
+      const left = deadline - Date.now();
+      if (left > 0) await sleep(Math.min(intervalMs, left), options.signal);
     }
   }
 
@@ -472,8 +530,13 @@ export class TxApi {
     intent: TxIntent,
     options: SubmitOptions = {},
   ): Promise<SubmitResult> {
-    // A bad wait option must fail before anything is broadcast.
-    if (typeof options.wait === "object") waitTiming(options.wait);
+    // A bad wait option must fail before anything is broadcast. Copy it once,
+    // so a caller that changes it later cannot change the wait.
+    const wait =
+      options.wait !== null && typeof options.wait === "object"
+        ? { ...options.wait }
+        : (options.wait ?? false);
+    if (typeof wait === "object") waitTiming(wait);
     const prepared = await this.prepare(intent, { signal: options.signal });
     if (options.verify === true) {
       assertPrepared(prepared, intent);
@@ -482,13 +545,11 @@ export class TxApi {
     }
     const signed = await this.sign(prepared, options.signer);
     const broadcast = await this.broadcast(signed, { signal: options.signal });
-    if (options.wait === undefined || options.wait === false) {
-      return { prepared, signed, broadcast };
-    }
+    if (wait === false) return { prepared, signed, broadcast };
     const waitOptions: WaitForReceiptOptions =
-      options.wait === true
+      wait === true
         ? { signal: options.signal }
-        : { ...options.wait, signal: options.signal ?? options.wait.signal };
+        : { ...wait, signal: options.signal ?? wait.signal };
     let receipt: TxReceiptData;
     try {
       receipt = await this.waitForReceipt(broadcast.tx_hash, waitOptions);

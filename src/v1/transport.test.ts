@@ -407,6 +407,28 @@ describe("Transport", () => {
     expect(error.message).toMatch(/timed out/);
   });
 
+  it("keeps the status of an error response whose body fails to arrive", async () => {
+    const fetchImpl = async (): Promise<Response> =>
+      ({
+        ok: false,
+        status: 401,
+        headers: new Headers(),
+        text: () => Promise.reject(new TypeError("connection reset")),
+      }) as unknown as Response;
+    const transport = new Transport({
+      baseUrl: "https://api.example.com",
+      network: "mainnet",
+      fetch: fetchImpl,
+    });
+
+    const error = (await transport
+      .get("capabilities")
+      .catch((e: unknown) => e)) as V1ApiError;
+    expect(error.code).toBe(V1ApiError.TRANSPORT_CODE);
+    expect(error.status).toBe(401);
+    expect(error.message).toMatch(/HTTP 401 response could not be read/);
+  });
+
   it("labels a caller abort as aborted, not as a timeout", async () => {
     const fetchImpl = async (
       _input: RequestInfo | URL,

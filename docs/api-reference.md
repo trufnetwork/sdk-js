@@ -413,8 +413,9 @@ The transport throws `V1ApiError`. Branch on `code` and `details.lever`, never o
   `permission_denied`, `resource_exhausted`, `not_found`,
   `namespace_unavailable`, `failed_precondition`, `unavailable`, `internal`.
 - `V1ApiError.TRANSPORT_CODE` (`transport_error`) means there was no v1 JSON
-  error: a plain-text `404`, invalid JSON, or a network failure (`status: 0` for
-  a timeout or an unreachable host).
+  error: a plain-text `404`, invalid JSON, or a network failure. `status` is
+  `0` when no response arrived (a timeout or an unreachable host); a timeout or
+  failure while reading an error response's body keeps that response's status.
 - `is(code)` and `isLever(lever)` are conveniences over those fields.
 
 The transport never retries a `429`; surface `details.lever` to the caller. The
@@ -426,9 +427,12 @@ one retry in the client is `tx.waitForReceipt`, described below.
   still in the mempool.
 - `tx.waitForReceipt(hash)` resolves once `height >= 0`. It retries a
   `not_found` while the node has not admitted the transaction, a `503`
-  `unavailable`, a `429` `resource_exhausted`, and a failed request, and throws
-  `TxWaitTimeoutError` when the timeout elapses. Any other error, and an abort,
-  ends the wait at once.
+  `unavailable`, a `429` `resource_exhausted`, a `502` or `504` from a proxy,
+  and a request that got no response, and throws `TxWaitTimeoutError` when the
+  timeout elapses, with the last failed read as `cause`. No read starts after
+  `timeoutMs`, and a read still in flight then is cancelled; a credential fetch
+  the read needs first is not. Any other error, such as a plain-text `404` from
+  a wrong `baseUrl`, and an abort end the wait at once.
 - `tx.submit(intent, { wait })` throws `TxSubmitWaitError` when the broadcast
   succeeded but the wait failed. It carries `hash`, `signed`, `prepared`, and
   `broadcast`, and the original error as `cause`: poll `hash` again or resend

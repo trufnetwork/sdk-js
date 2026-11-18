@@ -202,6 +202,10 @@ export class Transport {
 
     let response: Response;
     let text: string;
+    // The status of an error response whose body then failed to arrive. It is
+    // kept, so a 401 is not mistaken for a request that got no response; a body
+    // lost after a success status stays 0, a transient failure.
+    let errorStatus = 0;
     try {
       response = await this.fetchImpl(url, {
         method,
@@ -212,6 +216,7 @@ export class Transport {
             : JSON.stringify(options.body, bigintReplacer),
         signal: controller.signal,
       });
+      if (!response.ok) errorStatus = response.status;
       // Read the body while the timeout and the caller abort still apply: a
       // server that sends headers and then stalls would otherwise hang forever.
       text = await response.text();
@@ -221,16 +226,28 @@ export class Transport {
       // mislabel a caller abort as a timeout.
       if (timedOut) {
         throw V1ApiError.transport(
-          0,
+          errorStatus,
           `request timed out after ${this.timeoutMs}ms`,
           undefined,
           cause,
         );
       }
       if (options.signal?.aborted === true) {
-        throw V1ApiError.transport(0, "request aborted", undefined, cause);
+        throw V1ApiError.transport(
+          errorStatus,
+          "request aborted",
+          undefined,
+          cause,
+        );
       }
-      throw V1ApiError.transport(0, "network request failed", undefined, cause);
+      throw V1ApiError.transport(
+        errorStatus,
+        errorStatus === 0
+          ? "network request failed"
+          : `the body of the HTTP ${errorStatus} response could not be read`,
+        undefined,
+        cause,
+      );
     } finally {
       clearTimeout(timer);
       options.signal?.removeEventListener("abort", onExternalAbort);
