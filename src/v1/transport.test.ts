@@ -429,6 +429,26 @@ describe("Transport", () => {
     expect(error.message).toMatch(/HTTP 401 response could not be read/);
   });
 
+  it("stops waiting for a stalled credential when the caller aborts", async () => {
+    const { fetchImpl, calls } = fakeFetch(() => jsonResponse(success));
+    const transport = new Transport({
+      baseUrl: "https://api.example.com",
+      network: "mainnet",
+      fetch: fetchImpl,
+      getToken: () => new Promise<string>(() => undefined),
+    });
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), 5);
+
+    const error = (await transport
+      .get("capabilities", { signal: controller.signal })
+      .catch((e: unknown) => e)) as V1ApiError;
+
+    expect(error).toBeInstanceOf(V1ApiError);
+    expect(error.message).toMatch(/request aborted/);
+    expect(calls).toHaveLength(0);
+  });
+
   it("labels a caller abort as aborted, not as a timeout", async () => {
     const fetchImpl = async (
       _input: RequestInfo | URL,

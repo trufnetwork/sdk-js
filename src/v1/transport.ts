@@ -181,7 +181,8 @@ export class Transport {
       headers.set("Content-Type", "application/json");
 
     if (options.includeAuth !== false) {
-      const token = await this.resolveToken();
+      // A credential fetch that stalls must not outlast the caller's abort.
+      const token = await untilAborted(this.resolveToken(), options.signal);
       if (token !== null) headers.set("Authorization", `Bearer ${token}`);
     }
 
@@ -290,4 +291,31 @@ export class Transport {
   post<T>(path: string, options?: RequestOptions): Promise<V1Success<T>> {
     return this.request<T>("POST", path, options);
   }
+}
+
+/**
+ * Settle with `promise`, or reject as an aborted request as soon as `signal`
+ * aborts. The promise itself keeps running; only the wait for it ends.
+ */
+function untilAborted<T>(
+  promise: Promise<T>,
+  signal?: AbortSignal,
+): Promise<T> {
+  if (signal === undefined) return promise;
+  const aborted = (): V1ApiError => V1ApiError.transport(0, "request aborted");
+  if (signal.aborted) return Promise.reject(aborted());
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = (): void => reject(aborted());
+    signal.addEventListener("abort", onAbort, { once: true });
+    promise.then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (error: unknown) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      },
+    );
+  });
 }

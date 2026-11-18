@@ -703,6 +703,35 @@ describe("TxApi reads", () => {
     expect((error as TxWaitTimeoutError).cause).toBeInstanceOf(V1ApiError);
   });
 
+  it("ends the wait at the deadline while a credential fetch stalls", async () => {
+    const transport = new Transport({
+      baseUrl: "https://api.example.com",
+      network: "mainnet",
+      fetch: async () => jsonResponse(envelope({})),
+      getToken: () => new Promise<string>(() => undefined),
+    });
+    const tx = new TxApi(transport);
+
+    const started = Date.now();
+    const timeout = await tx
+      .waitForReceipt(HASH, { intervalMs: 1, timeoutMs: 20 })
+      .catch((e: unknown) => e);
+    expect(timeout).toBeInstanceOf(TxWaitTimeoutError);
+    expect(Date.now() - started).toBeLessThan(5_000);
+
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), 5);
+    const aborted = await tx
+      .waitForReceipt(HASH, {
+        intervalMs: 1,
+        timeoutMs: 10_000,
+        signal: controller.signal,
+      })
+      .catch((e: unknown) => e);
+    expect(aborted).toBeInstanceOf(V1ApiError);
+    expect((aborted as V1ApiError).message).toMatch(/request aborted/);
+  });
+
   it("waits longer than the longest timer delay", async () => {
     // 2^31 ms and more would make a plain setTimeout fire at once, so a read
     // that takes a little while would be cut.

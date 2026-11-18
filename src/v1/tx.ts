@@ -463,8 +463,8 @@ export class TxApi {
    * a `502` or `504` from a proxy, and a request that got no response are
    * retried until the timeout; any other error, and an abort, end the wait at
    * once.
-   * No read starts after `timeoutMs`, and a read still in flight then is
-   * cancelled; a credential fetch the read needs first is not.
+   * No read starts after `timeoutMs`, and a read still in flight then, or the
+   * credential fetch it waits on, is cancelled.
    */
   async waitForReceipt(
     hash: string,

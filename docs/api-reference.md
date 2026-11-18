@@ -430,9 +430,9 @@ one retry in the client is `tx.waitForReceipt`, described below.
   `unavailable`, a `429` `resource_exhausted`, a `502` or `504` from a proxy,
   and a request that got no response, and throws `TxWaitTimeoutError` when the
   timeout elapses, with the last failed read as `cause`. No read starts after
-  `timeoutMs`, and a read still in flight then is cancelled; a credential fetch
-  the read needs first is not. Any other error, such as a plain-text `404` from
-  a wrong `baseUrl`, and an abort end the wait at once.
+  `timeoutMs`, and a read still in flight then, or the credential fetch it
+  waits on, is cancelled. Any other error, such as a plain-text `404` from a
+  wrong `baseUrl`, and an abort end the wait at once.
 - `tx.submit(intent, { wait })` throws `TxSubmitWaitError` when the broadcast
   succeeded but the wait failed. It carries `hash`, `signed`, `prepared`, and
   `broadcast`, and the original error as `cause`: poll `hash` again or resend
