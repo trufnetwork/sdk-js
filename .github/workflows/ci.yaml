@@ -88,6 +88,12 @@ jobs:
       - name: Run unit tests
         run: pnpm test:unit
 
+      - name: Kwil-free v1 guard
+        run: pnpm run check:v1
+
+      - name: Run v1 mock integration suite
+        run: pnpm run test:v1:mock
+
       - name: Run integration tests
         run: |
           pnpm test:integration

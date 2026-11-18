@@ -75,6 +75,49 @@ import { BrowserTNClient } from "@trufnetwork/sdk-js";
 
 For detailed configuration options for both clients, please see our [API Reference](./docs/api-reference.md).
 
+### Kwil-free v1 client (browser-friendly)
+
+The consolidated v1 API has a second entry point that does not load
+`@trufnetwork/kwil-js`, `ethers`, `pg`, or a Node builtin. It prepares the
+payload server-side, so a front-end can place a trade with no local encoder:
+
+```typescript
+import { V1Client } from "@trufnetwork/sdk-js/v1";
+
+const client = new V1Client({
+	baseUrl: "https://api.trufscan.io", // required; no host is hard-coded
+	network: "mainnet",
+	signer: {
+		address: wallet.address,
+		// Receives the exact bytes to personal-sign (EIP-191).
+		signMessage: (message) => wallet.signMessage(message),
+	},
+});
+
+const { receipt } = await client.tx.submit(
+	{
+		namespace: "main",
+		action: "place_trade",
+		sender: wallet.address,
+		args: [
+			{ type: "text", value: "st_btcusd" },
+			{ type: "int8", value: 1 }, // a JSON number, not a bigint
+		],
+	},
+	{ verify: true, wait: true },
+);
+```
+
+Verification is opt-in: drop `verify` and the client still signs and broadcasts.
+With `verify`, the client also rebuilds the signature message from the envelope
+body and refuses a `prepare` whose `signature_message` commits to a different
+transaction, so the bytes the wallet signs are the ones that were checked.
+`client.tx.broadcast(envelope)` is a pure passthrough, so envelopes built by an
+existing SDK still relay through the API. See
+[Kwil-free v1 Client](./docs/api-reference.md#kwil-free-v1-client-trufnetworksdk-jsv1)
+for credentials, capabilities, pagination, join sets, typed namespaces, and error
+handling.
+
 ### Wallet In-App Browsers
 
 A dapp opened in a wallet's in-app browser runs in Android WebView or iOS WKWebView. Those drop third-party cookies by default, so the gateway's session cookie is lost when the dapp is not served from truf.network.
@@ -598,6 +641,7 @@ For other bundlers or serverless platforms, consult their documentation on modul
 | Get a market's volume and traders | `orderbook.getMarketActivity(queryId, fromTs, toTs)` |
 | Destroy stream | `client.destroyStream(streamLocator)` |
 | Read or restore the gateway session token | `client.getSessionToken()` / `client.setSessionToken(token)` |
+| Place a trade through the v1 API (kwil-free) | `v1Client.tx.submit(intent, { verify: true })` |
 
 **Safe Operation Pattern:**
 ```typescript
