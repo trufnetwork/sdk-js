@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { V1ApiError } from "./errors";
 import { Transport } from "./transport";
 
@@ -187,6 +187,60 @@ describe("Transport", () => {
     expect(envelope.data.hello).toBe("world");
   });
 
+  describe("calls fetch the way a browser requires", () => {
+    // A browser's `fetch` throws "Illegal invocation" unless it is called with
+    // no receiver or with the window. Node's `fetch` does not check, so this
+    // stand-in does.
+    function receiverCheckingFetch(): {
+      fetchImpl: typeof fetch;
+      receivers: unknown[];
+    } {
+      const receivers: unknown[] = [];
+      const fetchImpl = function (this: unknown): Promise<Response> {
+        receivers.push(this);
+        if (this !== undefined && this !== globalThis) {
+          return Promise.reject(
+            new TypeError(
+              "Failed to execute 'fetch' on 'Window': Illegal invocation",
+            ),
+          );
+        }
+        return Promise.resolve(jsonResponse(success));
+      } as unknown as typeof fetch;
+      return { fetchImpl, receivers };
+    }
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it("with the global fetch when none is passed", async () => {
+      const { fetchImpl, receivers } = receiverCheckingFetch();
+      vi.stubGlobal("fetch", fetchImpl);
+      const transport = new Transport({
+        baseUrl: "https://api.example.com",
+        network: "mainnet",
+      });
+
+      const envelope = await transport.get<{ hello: string }>("capabilities");
+      expect(envelope.data.hello).toBe("world");
+      expect(receivers).toEqual([undefined]);
+    });
+
+    it("with a fetch passed in options", async () => {
+      const { fetchImpl, receivers } = receiverCheckingFetch();
+      const transport = new Transport({
+        baseUrl: "https://api.example.com",
+        network: "mainnet",
+        fetch: fetchImpl,
+      });
+
+      const envelope = await transport.get<{ hello: string }>("capabilities");
+      expect(envelope.data.hello).toBe("world");
+      expect(receivers).toEqual([undefined]);
+    });
+  });
+
   it("throws a typed error for a v1 JSON error response", async () => {
     const errorBody = {
       ok: false,
@@ -351,6 +405,48 @@ describe("Transport", () => {
       .catch((e: unknown) => e)) as V1ApiError;
     expect(error.code).toBe(V1ApiError.TRANSPORT_CODE);
     expect(error.message).toMatch(/timed out/);
+  });
+
+  it("keeps the status of an error response whose body fails to arrive", async () => {
+    const fetchImpl = async (): Promise<Response> =>
+      ({
+        ok: false,
+        status: 401,
+        headers: new Headers(),
+        text: () => Promise.reject(new TypeError("connection reset")),
+      }) as unknown as Response;
+    const transport = new Transport({
+      baseUrl: "https://api.example.com",
+      network: "mainnet",
+      fetch: fetchImpl,
+    });
+
+    const error = (await transport
+      .get("capabilities")
+      .catch((e: unknown) => e)) as V1ApiError;
+    expect(error.code).toBe(V1ApiError.TRANSPORT_CODE);
+    expect(error.status).toBe(401);
+    expect(error.message).toMatch(/HTTP 401 response could not be read/);
+  });
+
+  it("stops waiting for a stalled credential when the caller aborts", async () => {
+    const { fetchImpl, calls } = fakeFetch(() => jsonResponse(success));
+    const transport = new Transport({
+      baseUrl: "https://api.example.com",
+      network: "mainnet",
+      fetch: fetchImpl,
+      getToken: () => new Promise<string>(() => undefined),
+    });
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), 5);
+
+    const error = (await transport
+      .get("capabilities", { signal: controller.signal })
+      .catch((e: unknown) => e)) as V1ApiError;
+
+    expect(error).toBeInstanceOf(V1ApiError);
+    expect(error.message).toMatch(/request aborted/);
+    expect(calls).toHaveLength(0);
   });
 
   it("labels a caller abort as aborted, not as a timeout", async () => {

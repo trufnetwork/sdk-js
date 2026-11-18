@@ -238,6 +238,29 @@ describe("decodeActionExecution", () => {
     expect(() => decodeActionExecution(bad)).toThrow(/version/i);
   });
 
+  it("keeps a leading byte order mark in every string", () => {
+    const payload = buildPayload("\uFEFFmain", "\uFEFFact", [
+      [{ v: "\uFEFFhi" }],
+    ]);
+    const decoded = decodeActionExecution(payload);
+    expect(decoded.namespace).toBe("\uFEFFmain");
+    expect(decoded.action).toBe("\uFEFFact");
+    expect(decoded.arguments[0]).toEqual(["\uFEFFhi"]);
+  });
+
+  it("rejects a string that is not valid UTF-8", () => {
+    const enc = new TextEncoder();
+    const bad = concat(
+      hexToBytes("0000"),
+      new Uint8Array([2, 0, 0, 0]),
+      new Uint8Array([0x70, 0xff]),
+      new Uint8Array([3, 0, 0, 0]),
+      enc.encode("act"),
+      hexToBytes("0000"),
+    );
+    expect(() => decodeActionExecution(bad)).toThrow(/UTF-8/);
+  });
+
   it("rejects a truncated payload", () => {
     expect(() => decodeActionExecution(hexToBytes("0000"))).toThrow();
   });

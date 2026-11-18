@@ -11,7 +11,13 @@
  */
 
 import type { QueryValue, Transport } from "./transport";
-import { walkCursor, type WalkCursorOptions } from "./pagination";
+import {
+  pageRows,
+  walkCursor,
+  walkPages,
+  type PageRowsOption,
+  type WalkCursorOptions,
+} from "./pagination";
 import type { V1Success } from "./types";
 
 /** Per-request options for a namespace read. */
@@ -70,16 +76,20 @@ export class NamespaceReader {
     return this.transport.get<T>(this.path(relative), options);
   }
 
-  /** `GET` one page of a list, with an optional explicit cursor. */
-  list<T = Record<string, unknown>>(
+  /**
+   * `GET` one page of a list, with an optional explicit cursor. `D` is the
+   * page's `data`: the rows on most lists, or the object that holds them on the
+   * lists that keep the v0 shape.
+   */
+  list<T = Record<string, unknown>, D = T[]>(
     relative: string,
     options?: NamespaceRequestOptions & { cursor?: string | null },
-  ): Promise<V1Success<T[]>> {
+  ): Promise<V1Success<D>> {
     const query: Record<string, QueryValue> = { ...(options?.query ?? {}) };
     if (options?.cursor !== undefined && options.cursor !== null) {
       query.cursor = options.cursor;
     }
-    return this.transport.get<T[]>(this.path(relative), {
+    return this.transport.get<D>(this.path(relative), {
       query,
       signal: options?.signal,
     });
@@ -87,15 +97,44 @@ export class NamespaceReader {
 
   /**
    * Walk a list's cursor, copying each cursor verbatim and stopping on `null`.
-   * `limit` is sent on every page; it is the only paging knob v1 has.
+   * `limit` is sent on every page; it is the only paging knob v1 has. On a list
+   * whose `data` is an object, pass `rows` so an empty page also ends the walk.
    */
-  paginate<T = Record<string, unknown>>(
+  paginate<T = Record<string, unknown>, D = T[]>(
     relative: string,
-    options?: NamespaceRequestOptions & { limit?: number } & Pick<
-        WalkCursorOptions,
-        "maxPages"
-      >,
-  ): AsyncGenerator<V1Success<T[]>, void, void> {
+    options?: ListWalkOptions<T, D>,
+  ): AsyncGenerator<V1Success<D>, void, void> {
+    return walkCursor<T, D>(
+      this.listFetcher<D>(relative, options),
+      walkOptions(options),
+    );
+  }
+
+  /**
+   * Walk a list to completion and return all rows. A list whose `data` is an
+   * object (for example `markets/{id}/activity`, whose rows are in `events`)
+   * needs `rows` to pick them out; without it this throws on the first page.
+   */
+  async collect<T = Record<string, unknown>, D = T[]>(
+    relative: string,
+    options?: ListWalkOptions<T, D>,
+  ): Promise<T[]> {
+    const fetchPage = this.listFetcher<D>(relative, options);
+    const items: T[] = [];
+    for await (const { page, rows } of walkPages<T, D>(
+      fetchPage,
+      walkOptions(options),
+    )) {
+      items.push(...(rows ?? pageRows(page.data, options?.rows)));
+    }
+    return items;
+  }
+
+  /** The page fetcher of a list route, with `limit` sent on every page. */
+  private listFetcher<D>(
+    relative: string,
+    options?: NamespaceRequestOptions & { limit?: number },
+  ): (cursor: string | null, signal?: AbortSignal) => Promise<V1Success<D>> {
     if (
       options?.limit !== undefined &&
       (!Number.isInteger(options.limit) || options.limit <= 0)
@@ -107,30 +146,28 @@ export class NamespaceReader {
     };
     if (options?.limit !== undefined) staticQuery.limit = options.limit;
     const path = this.path(relative);
-    return walkCursor<T>(
-      (cursor, signal) => {
-        const query: Record<string, QueryValue> = { ...staticQuery };
-        if (cursor !== null) query.cursor = cursor;
-        return this.transport.get<T[]>(path, { query, signal });
-      },
-      { maxPages: options?.maxPages, signal: options?.signal },
-    );
+    return (cursor, signal) => {
+      const query: Record<string, QueryValue> = { ...staticQuery };
+      if (cursor !== null) query.cursor = cursor;
+      return this.transport.get<D>(path, { query, signal });
+    };
   }
+}
 
-  /** Walk a list to completion and return all items. */
-  async collect<T = Record<string, unknown>>(
-    relative: string,
-    options?: NamespaceRequestOptions & { limit?: number } & Pick<
-        WalkCursorOptions,
-        "maxPages"
-      >,
-  ): Promise<T[]> {
-    const items: T[] = [];
-    for await (const page of this.paginate<T>(relative, options)) {
-      items.push(...page.data);
-    }
-    return items;
-  }
+/** Options for {@link NamespaceReader.paginate} and {@link NamespaceReader.collect}. */
+type ListWalkOptions<T, D> = NamespaceRequestOptions & {
+  limit?: number;
+} & Pick<WalkCursorOptions, "maxPages"> &
+  PageRowsOption<T, D>;
+
+function walkOptions<T, D>(
+  options?: ListWalkOptions<T, D>,
+): WalkCursorOptions & PageRowsOption<T, D> {
+  return {
+    maxPages: options?.maxPages,
+    rows: options?.rows,
+    signal: options?.signal,
+  };
 }
 
 /** Typed reader for the `streams` namespace (locator-addressed; no list route). */

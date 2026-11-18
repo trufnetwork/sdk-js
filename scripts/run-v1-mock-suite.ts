@@ -12,6 +12,7 @@
  * gate as the real router, so a missing credential would fail rather than
  * silently pass. `TEST_V1_WRITE=1` opts the write tests in: the mock accepts
  * `prepare`/`broadcast` and keeps a receipt, so a trade runs end to end here.
+ * `TEST_V1_MOCK=1` lets a test also check the mock's seeded rows exactly.
  *
  *   npm run test:v1:mock
  *
@@ -43,6 +44,7 @@ function runVitest(baseUrl: string, network: string): Promise<number> {
         TEST_V1_NETWORK: network,
         TEST_V1_ORIGIN: process.env.TEST_V1_ORIGIN ?? "http://localhost",
         TEST_V1_WRITE: "1",
+        TEST_V1_MOCK: "1",
       },
     },
   );

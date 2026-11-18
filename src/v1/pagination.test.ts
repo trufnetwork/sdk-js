@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { collectCursor, walkCursor } from "./pagination";
+import { collectCursor, walkCursor, type PageRows } from "./pagination";
 import type { V1Success } from "./types";
 
 /** Tests for the single cursor walker shared by every v1 list. */
@@ -99,5 +99,138 @@ describe("walkCursor", () => {
     await collectCursor(fetchPage, { signal: controller.signal });
 
     expect(received).toBe(controller.signal);
+  });
+
+  describe("a list whose data is an object", () => {
+    interface Activity {
+      query_id: number;
+      events: number[];
+    }
+    function objectPage(
+      events: number[],
+      cursor: string | null,
+    ): V1Success<Activity> {
+      return {
+        ok: true,
+        data: { query_id: 7, events },
+        meta_data: { cursor, data_version: "1" },
+      };
+    }
+
+    it("collects the rows that rows picks out", async () => {
+      const pages = [objectPage([1, 2], "c1"), objectPage([3], null)];
+      let i = 0;
+      const fetchPage = async (): Promise<V1Success<Activity>> => pages[i++]!;
+
+      const rows = await collectCursor(fetchPage, {
+        rows: (data: Activity) => data.events,
+      });
+
+      expect(rows).toEqual([1, 2, 3]);
+    });
+
+    it("stops on an empty page when rows is given", async () => {
+      let calls = 0;
+      const fetchPage = async (): Promise<V1Success<Activity>> => {
+        calls += 1;
+        return objectPage([], "more");
+      };
+
+      const rows = await collectCursor(fetchPage, {
+        rows: (data: Activity) => data.events,
+      });
+
+      expect(rows).toEqual([]);
+      expect(calls).toBe(1);
+    });
+
+    it("says to pass rows instead of failing on a spread", async () => {
+      const fetchPage = async (): Promise<V1Success<number[]>> =>
+        objectPage([1], null) as unknown as V1Success<number[]>;
+
+      await expect(collectCursor(fetchPage)).rejects.toThrow(
+        "this list's data is an object (keys: query_id, events), not its rows; pass rows to pick them out, for example (data) => data.events",
+      );
+    });
+
+    it("quotes a field name that is not an identifier", async () => {
+      const fetchPage = async (): Promise<V1Success<number[]>> =>
+        ({
+          ok: true,
+          data: { "trade-events": [1] },
+          meta_data: { cursor: null, data_version: "1" },
+        }) as unknown as V1Success<number[]>;
+
+      await expect(collectCursor(fetchPage)).rejects.toThrow(
+        'for example (data) => data["trade-events"]',
+      );
+    });
+
+    it("does not run rows on the last page of a walk", async () => {
+      const pages = [objectPage([1], "c1"), objectPage([2], null)];
+      let i = 0;
+      const fetchPage = async (): Promise<V1Success<Activity>> => pages[i++]!;
+      const seen: number[][] = [];
+
+      const walked: number[][] = [];
+      for await (const current of walkCursor(fetchPage, {
+        rows: (data: Activity) => {
+          seen.push(data.events);
+          return data.events;
+        },
+      })) {
+        walked.push(current.data.events);
+      }
+
+      expect(walked).toEqual([[1], [2]]);
+      expect(seen).toEqual([[1]]);
+    });
+
+    it("runs rows once per page", async () => {
+      // A selector with state: it returns only rows it has not returned yet.
+      const pages = [objectPage([1, 2], "c1"), objectPage([2, 3], null)];
+      let i = 0;
+      const fetchPage = async (): Promise<V1Success<Activity>> => pages[i++]!;
+      const returned = new Set<number>();
+      const rows = (data: Activity): number[] => {
+        const fresh = data.events.filter((id) => !returned.has(id));
+        fresh.forEach((id) => returned.add(id));
+        return fresh;
+      };
+
+      expect(await collectCursor(fetchPage, { rows })).toEqual([1, 2, 3]);
+    });
+
+    it("walks object pages to the null cursor without rows", async () => {
+      const pages = [objectPage([1], "c1"), objectPage([], null)];
+      let i = 0;
+      const fetchPage = async (): Promise<V1Success<Activity>> => pages[i++]!;
+
+      const seen: Activity[] = [];
+      for await (const current of walkCursor(fetchPage))
+        seen.push(current.data);
+
+      expect(seen.map((d) => d.events)).toEqual([[1], []]);
+    });
+  });
+
+  it("decides where to go before a consumer can change the page", async () => {
+    const pages = [page([1, 2], "c1"), page([3], null)];
+    let i = 0;
+    const fetchPage = async (): Promise<V1Success<number[]>> => pages[i++]!;
+
+    const drained: number[] = [];
+    for await (const current of walkCursor(fetchPage)) {
+      drained.push(...current.data.splice(0));
+    }
+
+    expect(drained).toEqual([1, 2, 3]);
+  });
+
+  it("accepts an optional rows on an array list", async () => {
+    const fetchPage = async (): Promise<V1Success<number[]>> => page([1], null);
+    const rows: PageRows<number, number[]> | undefined = undefined;
+
+    expect(await collectCursor(fetchPage, { rows })).toEqual([1]);
   });
 });

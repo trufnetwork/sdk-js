@@ -214,6 +214,35 @@ describe("namespace readers", () => {
     ]);
     expect(() => client.markets.markets({ limit: 0 })).toThrow(/limit/);
   });
+
+  it("collects a list whose data is an object through rows", async () => {
+    // markets/{id}/activity keeps the v0 object as data; the rows are in events.
+    let page = 0;
+    const fetchImpl = async (): Promise<Response> => {
+      page += 1;
+      return jsonResponse({
+        ok: true,
+        data: { query_id: 3105, events: [{ id: page }] },
+        meta_data: { cursor: page === 1 ? "next" : null, data_version: "1" },
+      });
+    };
+    const client = new V1Client({
+      baseUrl: "https://api.example.com",
+      network: "mainnet",
+      fetch: fetchImpl,
+    });
+
+    const events = await client.markets.collect("3105/activity", {
+      rows: (data: { query_id: number; events: { id: number }[] }) =>
+        data.events,
+    });
+    expect(events).toEqual([{ id: 1 }, { id: 2 }]);
+
+    page = 0;
+    await expect(client.markets.collect("3105/activity")).rejects.toThrow(
+      /data is an object.*rows/,
+    );
+  });
 });
 
 describe("V1Client credential strategy", () => {

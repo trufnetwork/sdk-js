@@ -89,7 +89,9 @@ const client = new V1Client({
 	network: "mainnet",
 	signer: {
 		address: wallet.address,
-		// Receives the exact bytes to personal-sign (EIP-191).
+		// Receives the exact bytes to personal-sign (EIP-191), the default
+		// "secp256k1_ep" type. A 33-byte key uses signatureType "secp256k1"
+		// and signs the sha256 of the message without the EIP-191 prefix.
 		signMessage: (message) => wallet.signMessage(message),
 	},
 });

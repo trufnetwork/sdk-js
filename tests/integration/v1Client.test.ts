@@ -58,6 +58,8 @@ const token = process.env.TEST_V1_CREDENTIAL;
 const origin = process.env.TEST_V1_ORIGIN;
 /** Writes are a second opt-in, so a live read-only run never trades. */
 const canWrite = process.env.TEST_V1_WRITE === "1";
+/** Set by `npm run test:v1:mock`, so a test can check the mock's seeded rows. */
+const isMock = process.env.TEST_V1_MOCK === "1";
 
 /** Reads under a data namespace need a credential; `capabilities` does not. */
 const canAuthenticate = token !== undefined || origin !== undefined;
@@ -207,6 +209,37 @@ describe.skipIf(baseUrl === undefined)("v1 client against a live API", () => {
       );
 
       expect(items.length).toBeLessThanOrEqual(2);
+    },
+  );
+
+  it.skipIf(!canAuthenticate)(
+    "collects a list whose data is an object through rows",
+    async () => {
+      const client = makeClient();
+      const first = await client.markets.list<{ query_id: number }>("", {
+        query: { limit: 1 },
+      });
+      const id = first.data[0]?.query_id;
+      expect(typeof id).toBe("number");
+
+      // markets/{id}/activity keeps the v0 object as data; the rows are events.
+      const events = await client.markets.collect(`${String(id)}/activity`, {
+        limit: 2,
+        maxPages: 2,
+        rows: (data: { events: unknown[] }) => data.events,
+      });
+
+      expect(Array.isArray(events)).toBe(true);
+      expect(events.length).toBeLessThanOrEqual(4);
+      if (isMock) {
+        // The mock seeds three events per market: two on the first page of
+        // two, one on the second.
+        expect(events.map((e) => (e as { id: string }).id)).toEqual([
+          `${String(id)}-1`,
+          `${String(id)}-2`,
+          `${String(id)}-3`,
+        ]);
+      }
     },
   );
 

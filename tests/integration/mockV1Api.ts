@@ -15,7 +15,8 @@
  * in the contract.
  *
  * Only the routes the v1 integration suite reads are implemented
- * (`capabilities`, `credentials`, `markets`, `markets/{id}`, and the `tx` read
+ * (`capabilities`, `credentials`, `markets`, `markets/{id}`,
+ * `markets/{id}/activity` (whose `data` is an object, as on the server), and the `tx` read
  * and write path: `tx/params`, `tx/prepare`, `tx/broadcast`, `tx/{hash}`);
  * anything else answers a typed `not_found`. The point is to prove transport,
  * envelope parsing, credential acquisition, cursor handling, typed errors and a
@@ -39,7 +40,10 @@ import { encodeActionExecution, MockEncodeError } from "./mockV1Payload";
 
 /** One row of the mock `markets` table. */
 export interface MockMarket {
+  /** The route key, `GET /markets/{id}`. */
   id: string;
+  /** The market id as the server's rows carry it: the same number as `id`. */
+  query_id: number;
   question: string;
   status: "open" | "closed";
   created_at: string;
@@ -68,18 +72,21 @@ export const DEFAULT_MOCK_DB: MockV1Database = {
   markets: [
     {
       id: "1",
+      query_id: 1,
       question: "Will BTC close above 100k this year?",
       status: "open",
       created_at: "2026-01-01T00:00:00Z",
     },
     {
       id: "2",
+      query_id: 2,
       question: "Will ETH close above 5k this year?",
       status: "open",
       created_at: "2026-01-01T00:00:00Z",
     },
     {
       id: "3",
+      query_id: 3,
       question: "Will TRUF hold at or above 1 USD?",
       status: "closed",
       created_at: "2026-01-01T00:00:00Z",
@@ -156,6 +163,14 @@ function validateDatabase(db: MockV1Database): void {
     if (typeof market.id !== "string" || market.id === "") {
       throw new Error("every mock market needs a non-empty id");
     }
+    if (
+      !Number.isSafeInteger(market.query_id) ||
+      market.id !== String(market.query_id)
+    ) {
+      throw new Error(
+        `mock market ${market.id} needs an integer query_id written the same way`,
+      );
+    }
     if (seen.has(market.id)) {
       throw new Error(`duplicate mock market id: ${market.id}`);
     }
@@ -231,10 +246,17 @@ function parseLimit(raw: string | null): number | null {
   return limit;
 }
 
-function handleMarketsList(
+/**
+ * Send one cursor page of `rows`. `wrap` shapes the page into `data`: the rows
+ * themselves on most lists, or the v0 object that holds them on the lists that
+ * kept that shape (for example `markets/{id}/activity`).
+ */
+function sendPage<T>(
   res: ServerResponse,
   url: URL,
-  db: MockV1Database,
+  rows: readonly T[],
+  wrap: (page: T[]) => unknown,
+  dataVersion: string,
 ): void {
   const limit = parseLimit(url.searchParams.get("limit"));
   if (limit === null) {
@@ -260,17 +282,47 @@ function handleMarketsList(
     }
     offset = decoded;
   }
-  if (offset > db.markets.length) offset = db.markets.length;
+  if (offset > rows.length) offset = rows.length;
 
-  const page = db.markets.slice(offset, offset + limit);
+  const page = rows.slice(offset, offset + limit);
   const nextOffset = offset + page.length;
-  const cursor =
-    nextOffset < db.markets.length ? encodeCursor(nextOffset) : null;
+  const cursor = nextOffset < rows.length ? encodeCursor(nextOffset) : null;
   sendJson(res, 200, {
     ok: true,
-    data: page,
-    meta_data: { cursor, data_version: db.dataVersion },
+    data: wrap(page),
+    meta_data: { cursor, data_version: dataVersion },
   });
+}
+
+function handleMarketsList(
+  res: ServerResponse,
+  url: URL,
+  db: MockV1Database,
+): void {
+  sendPage(res, url, db.markets, (page) => page, db.dataVersion);
+}
+
+/**
+ * `GET /markets/{id}/activity`: like the real route, `data` is an object and
+ * the rows are its `events`. Each market has three seeded events.
+ */
+function handleMarketActivity(
+  res: ServerResponse,
+  url: URL,
+  db: MockV1Database,
+  market: MockMarket,
+): void {
+  const events = [1, 2, 3].map((n) => ({
+    id: `${market.id}-${n}`,
+    event_type: "place",
+  }));
+  sendPage(
+    res,
+    url,
+    events,
+    (page) => ({ query_id: Number(market.id), events: page }),
+    db.dataVersion,
+  );
 }
 
 /** The largest request body the mock will read; the real API bounds broadcast too. */
@@ -826,7 +878,7 @@ function handle(
       handleMarketsList(res, url, db);
       return;
     }
-    if (tail.length === 1) {
+    if (tail.length === 1 || (tail.length === 2 && tail[1] === "activity")) {
       let id: string;
       try {
         id = decodeURIComponent(tail[0] ?? "");
@@ -847,6 +899,10 @@ function handle(
         sendError(res, 404, "not_found", `market ${id} does not exist`, {
           field: "id",
         });
+        return;
+      }
+      if (tail.length === 2) {
+        handleMarketActivity(res, url, db, market);
         return;
       }
       sendSuccess(res, market, null, db.dataVersion);

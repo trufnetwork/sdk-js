@@ -9,11 +9,22 @@
 
 import type { V1Success } from "./types";
 
-/** Fetches one page. `cursor` is `null` for the first page and copied verbatim afterwards. */
-export type PageFetcher<T> = (
+/**
+ * Fetches one page. `cursor` is `null` for the first page and copied verbatim
+ * afterwards. `D` is the page's `data`: the rows themselves on most lists, or
+ * an object that holds them on the lists that keep the v0 shape.
+ */
+export type PageFetcher<T, D = T[]> = (
   cursor: string | null,
   signal?: AbortSignal,
-) => Promise<V1Success<T[]>>;
+) => Promise<V1Success<D>>;
+
+/**
+ * Picks the rows out of a page whose `data` is an object. Most v1 lists return
+ * the rows as `data`, but a few keep the v0 object as `data` and put the rows
+ * in one of its fields (for example `events` on `markets/{id}/activity`).
+ */
+export type PageRows<T, D> = (data: D) => readonly T[];
 
 /** Options for {@link walkCursor} and {@link collectCursor}. */
 export interface WalkCursorOptions {
@@ -23,16 +34,69 @@ export interface WalkCursorOptions {
   signal?: AbortSignal;
 }
 
+/** The `rows` option: where the rows are when `data` is an object. */
+export interface PageRowsOption<T, D> {
+  /** Not needed when `data` is the rows. */
+  rows?: PageRows<T, D>;
+}
+
 /**
- * Yield each page in order. Stops when `meta_data.cursor` is `null`, when a page
- * is empty, or when `maxPages` is reached.
+ * The rows of one page: `rows(data)` when given, else `data` itself when it is
+ * an array.
  *
- * @throws If the server repeats a cursor, which would otherwise loop forever.
+ * @throws If `data` is an object and no `rows` was given, or `rows` does not
+ * return an array.
  */
-export async function* walkCursor<T>(
-  fetchPage: PageFetcher<T>,
-  options: WalkCursorOptions = {},
-): AsyncGenerator<V1Success<T[]>, void, void> {
+export function pageRows<T, D>(data: D, rows?: PageRows<T, D>): readonly T[] {
+  if (rows !== undefined) {
+    const picked = rows(data);
+    if (!Array.isArray(picked)) {
+      throw new Error("rows must return the page's array of rows");
+    }
+    return picked;
+  }
+  if (Array.isArray(data)) return data as readonly T[];
+  const fields =
+    data !== null && typeof data === "object"
+      ? (data as Record<string, unknown>)
+      : {};
+  const keys = Object.keys(fields);
+  const listKey = keys.find((key) => Array.isArray(fields[key]));
+  throw new Error(
+    `this list's data is an object (keys: ${keys.join(", ")}), not its rows; pass rows to pick them out` +
+      (listKey === undefined
+        ? ""
+        : `, for example (data) => ${fieldAccess("data", listKey)}`),
+  );
+}
+
+/** `data.key`, or `data["key"]` when the key is not an identifier. */
+function fieldAccess(object: string, key: string): string {
+  return /^[A-Za-z_$][\w$]*$/.test(key)
+    ? `${object}.${key}`
+    : `${object}[${JSON.stringify(key)}]`;
+}
+
+/** One walked page with its rows, read before the page was handed out. */
+export interface WalkedPage<T, D> {
+  page: V1Success<D>;
+  /**
+   * `undefined` when the walk did not need them: on the last page, or on an
+   * object page walked without `rows`.
+   */
+  rows: readonly T[] | undefined;
+}
+
+/**
+ * The walk behind {@link walkCursor} and the collectors. Each page's cursor and
+ * rows are read once, before the page is handed out, so a consumer that changes
+ * the page cannot change where the walk goes, and a `rows` selector runs once
+ * per page.
+ */
+export async function* walkPages<T, D>(
+  fetchPage: PageFetcher<T, D>,
+  options: WalkCursorOptions & PageRowsOption<T, D> = {},
+): AsyncGenerator<WalkedPage<T, D>, void, void> {
   const maxPages = options.maxPages ?? Number.POSITIVE_INFINITY;
   if (!(maxPages > 0)) {
     throw new Error("maxPages must be positive");
@@ -43,13 +107,22 @@ export async function* walkCursor<T>(
   for (;;) {
     const page = await fetchPage(cursor, options.signal);
     pages += 1;
-    yield page;
-
     const next = page.meta_data.cursor;
     // `null` is the documented last page; an undefined cursor is treated the same.
-    if (next === null || next === undefined) return;
+    const last = next === null || next === undefined;
+    // The rows are needed only to stop on an empty page, so the last page is
+    // not counted. An object page without `rows` cannot be counted, so only its
+    // cursor ends the walk.
+    const rows =
+      !last && (options.rows !== undefined || Array.isArray(page.data))
+        ? pageRows(page.data, options.rows)
+        : undefined;
+    const count = rows?.length;
+    yield { page, rows };
+
+    if (last) return;
     // A short (empty) page carries no more rows even if a cursor was sent.
-    if (page.data.length === 0) return;
+    if (count === 0) return;
     if (seen.has(next)) {
       throw new Error(
         `cursor walker detected a repeated cursor; refusing to loop (route page ${pages})`,
@@ -61,14 +134,38 @@ export async function* walkCursor<T>(
   }
 }
 
-/** Walk every page and return the concatenated items. */
+/**
+ * Yield each page in order. Stops when `meta_data.cursor` is `null`, when a page
+ * is empty, or when `maxPages` is reached.
+ *
+ * @throws If the server repeats a cursor, which would otherwise loop forever.
+ */
+export async function* walkCursor<T, D = T[]>(
+  fetchPage: PageFetcher<T, D>,
+  options: WalkCursorOptions & PageRowsOption<T, D> = {},
+): AsyncGenerator<V1Success<D>, void, void> {
+  for await (const { page } of walkPages(fetchPage, options)) yield page;
+}
+
+/**
+ * Walk every page and return the concatenated rows. A list whose `data` is an
+ * object needs `rows` to say where its rows are.
+ */
 export async function collectCursor<T>(
   fetchPage: PageFetcher<T>,
-  options?: WalkCursorOptions,
+  options?: WalkCursorOptions & PageRowsOption<T, T[]>,
+): Promise<T[]>;
+export async function collectCursor<T, D>(
+  fetchPage: PageFetcher<T, D>,
+  options: WalkCursorOptions & { rows: PageRows<T, D> },
+): Promise<T[]>;
+export async function collectCursor<T, D>(
+  fetchPage: PageFetcher<T, D>,
+  options?: WalkCursorOptions & PageRowsOption<T, D>,
 ): Promise<T[]> {
   const items: T[] = [];
-  for await (const page of walkCursor(fetchPage, options)) {
-    items.push(...page.data);
+  for await (const { page, rows } of walkPages(fetchPage, options)) {
+    items.push(...(rows ?? pageRows(page.data, options?.rows)));
   }
   return items;
 }
