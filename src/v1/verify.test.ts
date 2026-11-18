@@ -308,6 +308,51 @@ describe("verifyPrepared", () => {
     expect(result.issues.map((i) => i.code)).toContain("action");
   });
 
+  it("keeps a leading byte order mark the intent does not have", () => {
+    // The node keeps a string's raw bytes, so EF BB BF in front of a namespace,
+    // an action or a text argument is a different payload.
+    const intent = intentWith([{ type: "text", value: "hello" }]);
+    const result = verifyPrepared(
+      makePrepared([[text("\uFEFFhello")]], intent, {
+        wire: { namespace: "\uFEFFmain", action: "\uFEFFplace_trade" },
+      }),
+      intent,
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.issues.map((i) => i.code)).toEqual([
+      "namespace",
+      "action",
+      "argument_value",
+    ]);
+  });
+
+  it("accepts a byte order mark the intent does have", () => {
+    const intent = intentWith([{ type: "text", value: "\uFEFFhello" }]);
+    const result = verifyPrepared(
+      makePrepared([[text("\uFEFFhello")]], intent),
+      intent,
+    );
+
+    expect(result.ok).toBe(true);
+  });
+
+  it("reports text that is not valid UTF-8 instead of matching U+FFFD", () => {
+    const intent = intentWith([{ type: "text", value: "p\uFFFD" }]);
+    const result = verifyPrepared(
+      makePrepared(
+        [[{ type: "text", elements: [new Uint8Array([0x70, 0xff])] }]],
+        intent,
+      ),
+      intent,
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.issues[0]?.code).toBe("payload_decode");
+    expect(result.issues[0]?.message).toMatch(/UTF-8/);
+    expect(result.decoded).toBeNull();
+  });
+
   it("detects a different argument count", () => {
     const intent = intentWith([
       { type: "text", value: "a" },
@@ -365,6 +410,17 @@ describe("verifyPrepared", () => {
 
     expect(result.ok).toBe(false);
     expect(result.issues.map((i) => i.code)).toContain("argument_type");
+  });
+
+  it("does not trim a numeric the node would refuse", () => {
+    const intent = intentWith([{ type: "numeric(6,3)", value: "1.50" }]);
+    for (const wire of ["\uFEFF1.500", " 1.500", "1.500\n"]) {
+      const result = verifyPrepared(
+        makePrepared([[numeric(wire)]], intent),
+        intent,
+      );
+      expect(result.issues.map((i) => i.code)).toEqual(["argument_value"]);
+    }
   });
 
   it("treats equivalent decimal spellings as equal", () => {

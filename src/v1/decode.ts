@@ -143,10 +143,18 @@ class ByteReader {
   }
 }
 
-const textDecoder = new TextDecoder("utf-8");
+// The node keeps a string's raw bytes, so decoding must not change them: keep a
+// leading U+FEFF (`ignoreBOM`) and refuse invalid UTF-8 (`fatal`) instead of
+// turning it into U+FFFD. Otherwise two different payloads decode to the same
+// string and verification cannot tell them apart.
+const textDecoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 
 function decodeText(bytes: Uint8Array): string {
-  return textDecoder.decode(bytes);
+  try {
+    return textDecoder.decode(bytes);
+  } catch {
+    throw new Error("string is not valid UTF-8");
+  }
 }
 
 /**
@@ -274,7 +282,8 @@ function bytesToUuid(bytes: Uint8Array): string {
  * Decode a kwil `EXECUTE_ACTION` payload into its namespace, action and batched
  * native arguments. Accepts raw bytes or a base64 string.
  *
- * @throws If the payload is truncated or uses an unsupported version.
+ * @throws If the payload is truncated, uses an unsupported version or an
+ * unknown type, or holds a string that is not valid UTF-8.
  */
 export function decodeActionExecution(
   payload: string | Uint8Array,

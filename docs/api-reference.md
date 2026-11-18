@@ -112,8 +112,9 @@ const client = new V1Client({
   network: "mainnet", // becomes the /{network}/v1/... path segment
   signer: {
     address: walletAddress,
-    // `signMessage` receives the exact UTF-8 bytes of `signature_message` and
-    // must apply Ethereum personal-sign (EIP-191) itself.
+    // `signMessage` receives the exact UTF-8 bytes of `signature_message`. For
+    // the default "secp256k1_ep" type it applies Ethereum personal-sign
+    // (EIP-191), which is what ethers' `wallet.signMessage` does.
     signMessage: (message) => wallet.signMessage(message),
   },
 });
@@ -186,15 +187,24 @@ the wallet, and returns a deep clone of the prepared envelope with two fields
 added:
 
 - `signature: { sig, type }` — `sig` is **base64 of the 65 raw `r || s || v`
-  bytes**, and `type` is `"secp256k1_ep"` by default, the node's Ethereum
-  personal-sign authenticator (it requires a 20-byte `sender`). A caller signing
-  with a 33-byte compressed key passes `type: "secp256k1"`, the plain secp256k1
-  authenticator. The key is `sig`, not `data`; using `signature.data` is the
-  usual cause of "invalid signature" reports.
+  bytes**, and `type` is the signer's `signatureType`. The key is `sig`, not
+  `data`; using `signature.data` is the usual cause of "invalid signature"
+  reports.
 - `sender` — the bare lowercase account hex, without `0x`.
 
 Nothing else is re-encoded or re-ordered, and the prepared object is not
 mutated, so the envelope you echo is exactly the one the server built.
+
+The node checks each signature type differently, so `signatureType` decides
+what `signMessage` must sign:
+
+| `signatureType` | `address` | `signMessage` signs |
+| :--- | :--- | :--- |
+| `"secp256k1_ep"` (default) | the 20-byte Ethereum address | the message with Ethereum personal-sign (EIP-191), as `wallet.signMessage(message)` does |
+| `"secp256k1"` | the 33-byte compressed public key | the sha256 of the message, as a plain secp256k1 signature with no EIP-191 prefix (the node does not read `v`) |
+
+`sign` refuses an `address` of the wrong length for either type before the
+wallet is asked to sign.
 
 `sign` signs the message **verbatim**; it does not rebuild it. That is why
 verification (below) refuses a `prepare` whose `signature_message` does not
@@ -220,6 +230,11 @@ argument count, each argument's declared type (including `numeric(p,s)`
 precision and scale), and each value. In `full` mode (the default) the envelope's
 `body.type`, `fee`, `nonce`, and `chain_id` are also checked against what
 `prepare` reported. `{ mode: "payload" }` restricts the check to the payload.
+
+Strings (the namespace, the action, and `text` values) are compared as the node
+reads them, byte for byte: a leading U+FEFF is kept, so it only matches an
+intent that has it, and bytes that are not valid UTF-8 are a `payload_decode`
+issue rather than a match for U+FFFD.
 
 #### The signed message is bound to the body
 
@@ -365,6 +380,18 @@ for await (const page of client.markets.markets({ limit: 100 })) {
 const all = await client.markets.collect("", { limit: 100 });
 ```
 
+Most lists return their rows as `data`. A few keep the v0 object as `data` and
+put the rows in one of its fields, for example `events` on
+`markets/{id}/activity` and `trades` on `markets/{id}/trades`. Pass `rows` to
+pick them out; `collect` and `collectCursor` throw without it on such a list,
+and `paginate` and `walkCursor` use it to stop on an empty page.
+
+```typescript
+const events = await client.markets.collect("3105/activity", {
+  rows: (data: { query_id: number; events: MarketEvent[] }) => data.events,
+});
+```
+
 ### Namespaces
 
 Phase 1 ships typed readers for `tx`, `capabilities`, `credentials`, `streams`,
@@ -390,14 +417,23 @@ The transport throws `V1ApiError`. Branch on `code` and `details.lever`, never o
   a timeout or an unreachable host).
 - `is(code)` and `isLever(lever)` are conveniences over those fields.
 
-There is no automatic retry on `429`; surface `details.lever` to the caller.
+The transport never retries a `429`; surface `details.lever` to the caller. The
+one retry in the client is `tx.waitForReceipt`, described below.
 
 ### Receipts and troubleshooting
 
 - `tx.get(hash)` returns the receipt; `height` is `-1` while the transaction is
   still in the mempool.
-- `tx.waitForReceipt(hash)` retries a `not_found` while pending and resolves once
-  `height >= 0`; it throws `TxWaitTimeoutError` when the timeout elapses.
+- `tx.waitForReceipt(hash)` resolves once `height >= 0`. It retries a
+  `not_found` while the node has not admitted the transaction, a `503`
+  `unavailable`, a `429` `resource_exhausted`, and a failed request, and throws
+  `TxWaitTimeoutError` when the timeout elapses. Any other error, and an abort,
+  ends the wait at once.
+- `tx.submit(intent, { wait })` throws `TxSubmitWaitError` when the broadcast
+  succeeded but the wait failed. It carries `hash`, `signed`, `prepared`, and
+  `broadcast`, and the original error as `cause`: poll `hash` again or resend
+  `signed`. Calling `submit` again would prepare a second transaction with the
+  next nonce.
 - A `200` at broadcast followed by a receipt that **stays** `404` means the node
   did not admit the envelope. Prepare and sign again instead of polling forever.
 - Resending the same signed envelope is safe; it has the same transaction hash.
@@ -409,8 +445,7 @@ There is no automatic retry on `429`; surface `details.lever` to the caller.
 `main`, `module`, and `types` are unchanged, and the existing `node`, `browser`,
 and `default` conditions moved verbatim under the `.` key; `exports` gained the
 `./v1` subpath, which is why the sugar form had to become the expanded form.
-Existing imports keep working with no code change. This is the `0.6.0` release
-(`0.5.9` plus the additive subpath).
+Existing imports keep working with no code change.
 
 ## Stream Identification
 

@@ -90,6 +90,8 @@ export {
   collectCursor,
   walkCursor,
   type PageFetcher,
+  type PageRows,
+  type PageRowsOption,
   type WalkCursorOptions,
 } from "./pagination";
 
@@ -112,6 +114,7 @@ export {
 // ── Transactions (AC1, AC3) ──────────────────────────────────────────────────
 export {
   TxApi,
+  TxSubmitWaitError,
   TxWaitTimeoutError,
   type SubmitOptions,
   type SubmitResult,

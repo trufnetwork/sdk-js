@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { V1ApiError } from "./errors";
 import { Transport } from "./transport";
 
@@ -185,6 +185,60 @@ describe("Transport", () => {
 
     const envelope = await transport.get<{ hello: string }>("capabilities");
     expect(envelope.data.hello).toBe("world");
+  });
+
+  describe("calls fetch the way a browser requires", () => {
+    // A browser's `fetch` throws "Illegal invocation" unless it is called with
+    // no receiver or with the window. Node's `fetch` does not check, so this
+    // stand-in does.
+    function receiverCheckingFetch(): {
+      fetchImpl: typeof fetch;
+      receivers: unknown[];
+    } {
+      const receivers: unknown[] = [];
+      const fetchImpl = function (this: unknown): Promise<Response> {
+        receivers.push(this);
+        if (this !== undefined && this !== globalThis) {
+          return Promise.reject(
+            new TypeError(
+              "Failed to execute 'fetch' on 'Window': Illegal invocation",
+            ),
+          );
+        }
+        return Promise.resolve(jsonResponse(success));
+      } as unknown as typeof fetch;
+      return { fetchImpl, receivers };
+    }
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it("with the global fetch when none is passed", async () => {
+      const { fetchImpl, receivers } = receiverCheckingFetch();
+      vi.stubGlobal("fetch", fetchImpl);
+      const transport = new Transport({
+        baseUrl: "https://api.example.com",
+        network: "mainnet",
+      });
+
+      const envelope = await transport.get<{ hello: string }>("capabilities");
+      expect(envelope.data.hello).toBe("world");
+      expect(receivers).toEqual([undefined]);
+    });
+
+    it("with a fetch passed in options", async () => {
+      const { fetchImpl, receivers } = receiverCheckingFetch();
+      const transport = new Transport({
+        baseUrl: "https://api.example.com",
+        network: "mainnet",
+        fetch: fetchImpl,
+      });
+
+      const envelope = await transport.get<{ hello: string }>("capabilities");
+      expect(envelope.data.hello).toBe("world");
+      expect(receivers).toEqual([undefined]);
+    });
   });
 
   it("throws a typed error for a v1 JSON error response", async () => {

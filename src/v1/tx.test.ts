@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { bytesToBase64 } from "./decode";
+import { V1ApiError } from "./errors";
 import { signatureMessageFromBody } from "./signature";
-import { TxApi, TxWaitTimeoutError, type TnSigner } from "./tx";
+import {
+  TxApi,
+  TxSubmitWaitError,
+  TxWaitTimeoutError,
+  type TnSigner,
+} from "./tx";
 import type { TxBody, TxEnvelope, TxIntent, TxPreparedData } from "./types";
 import { Transport } from "./transport";
 import { PayloadVerificationError } from "./verify";
@@ -218,6 +224,36 @@ describe("TxApi.sign", () => {
     });
   });
 
+  it("refuses a sender length the signature type cannot carry, before signing", async () => {
+    const compressedKey = `0x02${"ab".repeat(32)}`;
+    const cases: Array<[TnSigner["signatureType"], string, RegExp]> = [
+      [undefined, compressedKey, /needs a 20-byte address/],
+      ["secp256k1_ep", compressedKey, /needs a 20-byte address/],
+      ["secp256k1", SENDER, /needs a 33-byte compressed public key/],
+    ];
+    for (const [signatureType, address, message] of cases) {
+      const { signer, seen } = makeSigner({ address, signatureType });
+      const { tx } = makeTx(() => jsonResponse(envelope({})), signer);
+
+      await expect(tx.sign(prepared)).rejects.toThrow(message);
+      expect(seen).toHaveLength(0);
+    }
+  });
+
+  it("signs with a 33-byte key under secp256k1", async () => {
+    const compressedKey = `0x02${"AB".repeat(32)}`;
+    const { signer } = makeSigner({
+      address: compressedKey,
+      signatureType: "secp256k1",
+    });
+    const { tx } = makeTx(() => jsonResponse(envelope({})), signer);
+
+    const signed = await tx.sign(prepared);
+
+    expect(signed.sender).toBe(`02${"ab".repeat(32)}`);
+    expect(signed.signature?.type).toBe("secp256k1");
+  });
+
   it("rejects a signature that is not 65 bytes", async () => {
     const { signer } = makeSigner({
       signMessage: async () => toHex(new Uint8Array(64)),
@@ -351,6 +387,70 @@ describe("TxApi.submit", () => {
 
     expect(result.receipt?.height).toBe(3);
   });
+
+  it("keeps the hash when the wait fails after the broadcast", async () => {
+    const { signer } = makeSigner();
+    const { tx, calls } = makeTx((url) => {
+      if (url.endsWith("/tx/prepare")) return jsonResponse(envelope(prepared));
+      if (url.endsWith("/tx/broadcast"))
+        return jsonResponse(envelope({ tx_hash: HASH }));
+      return jsonResponse(
+        { ok: false, error: { code: "internal", message: "boom" } },
+        500,
+      );
+    }, signer);
+
+    const error = await tx
+      .submit(intent, { wait: { intervalMs: 1, timeoutMs: 100 } })
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(TxSubmitWaitError);
+    const wait = error as TxSubmitWaitError;
+    expect(wait.hash).toBe(HASH);
+    expect(wait.broadcast).toEqual({ tx_hash: HASH });
+    expect(wait.signed.signature?.sig).toBe(bytesToBase64(SIGNATURE));
+    expect(wait.prepared).toEqual(prepared);
+    expect(wait.cause).toBeInstanceOf(V1ApiError);
+    expect(calls.filter((c) => c.url.endsWith("/tx/broadcast"))).toHaveLength(
+      1,
+    );
+  });
+
+  it("refuses a bad wait option before anything is sent", async () => {
+    const { signer } = makeSigner();
+    const { tx, calls } = makeTx(
+      () => jsonResponse(envelope({ tx_hash: HASH })),
+      signer,
+    );
+
+    await expect(
+      tx.submit(intent, { wait: { intervalMs: 0, timeoutMs: 100 } }),
+    ).rejects.toThrow(/intervalMs/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("keeps the hash when the wait times out", async () => {
+    const { signer } = makeSigner();
+    const { tx } = makeTx((url) => {
+      if (url.endsWith("/tx/prepare")) return jsonResponse(envelope(prepared));
+      if (url.endsWith("/tx/broadcast"))
+        return jsonResponse(envelope({ tx_hash: HASH }));
+      return jsonResponse(
+        { ok: false, error: { code: "not_found", message: "pending" } },
+        404,
+      );
+    }, signer);
+
+    const error = await tx
+      .submit(intent, { wait: { intervalMs: 1, timeoutMs: 10 } })
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(TxSubmitWaitError);
+    expect((error as TxSubmitWaitError).hash).toBe(HASH);
+    expect((error as TxSubmitWaitError).cause).toBeInstanceOf(
+      TxWaitTimeoutError,
+    );
+  });
 });
 
 describe("TxApi reads", () => {
@@ -418,6 +518,108 @@ describe("TxApi reads", () => {
     expect(calls).toHaveLength(2);
   });
 
+  it.each([
+    [503, "unavailable"],
+    [429, "resource_exhausted"],
+  ])(
+    "retries a %i %s receipt read and returns the mined receipt",
+    async (status, code) => {
+      let receipts = 0;
+      const { tx, calls } = makeTx(() => {
+        receipts += 1;
+        if (receipts === 1) {
+          return jsonResponse(
+            { ok: false, error: { code, message: "not now" } },
+            status,
+          );
+        }
+        return jsonResponse(
+          envelope({ tx_hash: HASH, height: 5, tx: null, tx_result: null }),
+        );
+      });
+
+      const receipt = await tx.waitForReceipt(HASH, {
+        intervalMs: 1,
+        timeoutMs: 100,
+      });
+
+      expect(receipt.height).toBe(5);
+      expect(calls).toHaveLength(2);
+    },
+  );
+
+  it("retries a receipt read that got no response", async () => {
+    let receipts = 0;
+    const { tx } = makeTx(() => {
+      receipts += 1;
+      if (receipts === 1) throw new TypeError("fetch failed");
+      return jsonResponse(
+        envelope({ tx_hash: HASH, height: 5, tx: null, tx_result: null }),
+      );
+    });
+
+    const receipt = await tx.waitForReceipt(HASH, {
+      intervalMs: 1,
+      timeoutMs: 100,
+    });
+
+    expect(receipt.height).toBe(5);
+    expect(receipts).toBe(2);
+  });
+
+  it("surfaces a response that is not v1 at once", async () => {
+    // A wrong base URL path answers a plain-text 404 that will never change.
+    const { tx, calls } = makeTx(
+      () =>
+        new Response("404 page not found", {
+          status: 404,
+          headers: { "Content-Type": "text/plain" },
+        }),
+    );
+
+    const error = await tx
+      .waitForReceipt(HASH, { intervalMs: 1, timeoutMs: 100 })
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(V1ApiError);
+    expect((error as V1ApiError).code).toBe(V1ApiError.TRANSPORT_CODE);
+    expect(calls).toHaveLength(1);
+  });
+
+  it("names the last failed read when the wait times out", async () => {
+    const { tx } = makeTx(() =>
+      jsonResponse(
+        { ok: false, error: { code: "unavailable", message: "not now" } },
+        503,
+      ),
+    );
+
+    const error = await tx
+      .waitForReceipt(HASH, { intervalMs: 1, timeoutMs: 10 })
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(TxWaitTimeoutError);
+    expect((error as Error).message).toMatch(/last read failed: not now/);
+    expect((error as TxWaitTimeoutError).cause).toBeInstanceOf(V1ApiError);
+  });
+
+  it("surfaces a receipt error that will not change on retry", async () => {
+    const { tx, calls } = makeTx(() =>
+      jsonResponse(
+        {
+          ok: false,
+          error: { code: "invalid_argument", message: "bad hash" },
+        },
+        400,
+      ),
+    );
+
+    await expect(
+      tx.waitForReceipt(HASH, { intervalMs: 1, timeoutMs: 100 }),
+    ).rejects.toThrow(/bad hash/);
+    expect(calls).toHaveLength(1);
+  });
+
   it("times out when the receipt never appears", async () => {
     const { tx } = makeTx(() =>
       jsonResponse(
@@ -426,8 +628,12 @@ describe("TxApi reads", () => {
       ),
     );
 
-    await expect(
-      tx.waitForReceipt(HASH, { intervalMs: 1, timeoutMs: 10 }),
-    ).rejects.toThrow(TxWaitTimeoutError);
+    const error = await tx
+      .waitForReceipt(HASH, { intervalMs: 1, timeoutMs: 10 })
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(TxWaitTimeoutError);
+    expect((error as Error).message).toMatch(/was not mined within 10ms/);
+    expect((error as TxWaitTimeoutError).cause).toBeUndefined();
   });
 });

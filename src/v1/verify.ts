@@ -427,7 +427,13 @@ function compareScalar(
     }
     case "numeric": {
       const wanted = toCanonicalDecimal(expected);
-      const got = toCanonicalDecimal(actual);
+      // The node parses the decoded bytes as they are, so surrounding
+      // whitespace or a U+FEFF there is a different (invalid) value, not a
+      // spelling to trim away.
+      const got =
+        typeof actual === "string" && actual !== actual.trim()
+          ? null
+          : toCanonicalDecimal(actual);
       if (wanted === null) {
         out.push({
           code: "argument_value",

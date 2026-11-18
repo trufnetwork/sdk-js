@@ -100,4 +100,69 @@ describe("walkCursor", () => {
 
     expect(received).toBe(controller.signal);
   });
+
+  describe("a list whose data is an object", () => {
+    interface Activity {
+      query_id: number;
+      events: number[];
+    }
+    function objectPage(
+      events: number[],
+      cursor: string | null,
+    ): V1Success<Activity> {
+      return {
+        ok: true,
+        data: { query_id: 7, events },
+        meta_data: { cursor, data_version: "1" },
+      };
+    }
+
+    it("collects the rows that rows picks out", async () => {
+      const pages = [objectPage([1, 2], "c1"), objectPage([3], null)];
+      let i = 0;
+      const fetchPage = async (): Promise<V1Success<Activity>> => pages[i++]!;
+
+      const rows = await collectCursor(fetchPage, {
+        rows: (data: Activity) => data.events,
+      });
+
+      expect(rows).toEqual([1, 2, 3]);
+    });
+
+    it("stops on an empty page when rows is given", async () => {
+      let calls = 0;
+      const fetchPage = async (): Promise<V1Success<Activity>> => {
+        calls += 1;
+        return objectPage([], "more");
+      };
+
+      const rows = await collectCursor(fetchPage, {
+        rows: (data: Activity) => data.events,
+      });
+
+      expect(rows).toEqual([]);
+      expect(calls).toBe(1);
+    });
+
+    it("says to pass rows instead of failing on a spread", async () => {
+      const fetchPage = async (): Promise<V1Success<number[]>> =>
+        objectPage([1], null) as unknown as V1Success<number[]>;
+
+      await expect(collectCursor(fetchPage)).rejects.toThrow(
+        "this list's data is an object (keys: query_id, events), not its rows; pass rows to pick them out, for example (data) => data.events",
+      );
+    });
+
+    it("walks object pages to the null cursor without rows", async () => {
+      const pages = [objectPage([1], "c1"), objectPage([], null)];
+      let i = 0;
+      const fetchPage = async (): Promise<V1Success<Activity>> => pages[i++]!;
+
+      const seen: Activity[] = [];
+      for await (const current of walkCursor(fetchPage))
+        seen.push(current.data);
+
+      expect(seen.map((d) => d.events)).toEqual([[1], []]);
+    });
+  });
 });

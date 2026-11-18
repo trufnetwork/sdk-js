@@ -188,7 +188,10 @@ export interface TxEnvelope {
 export interface TxPreparedData {
   /** The unsigned envelope. */
   transaction: TxEnvelope;
-  /** The exact UTF-8 message the client signs (personal_sign). */
+  /**
+   * The exact UTF-8 message the signer signs; `TnSigner` says how for each
+   * signature type.
+   */
   signature_message: string;
   /** Decimal string. Sealed into the body and the signature message. */
   fee: string;

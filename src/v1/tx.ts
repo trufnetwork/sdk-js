@@ -25,24 +25,30 @@ import type {
 } from "./types";
 
 /**
- * A `personal_sign`-capable wallet. `signMessage` is given the exact UTF-8 bytes
- * of the `prepare` `signature_message` and must apply Ethereum personal-sign
- * (EIP-191) itself, returning a 65-byte `r || s || v` signature as hex (an
- * optional `0x`) or raw bytes.
+ * The wallet that signs a prepared transaction. `signMessage` is given the exact
+ * UTF-8 bytes of the `prepare` `signature_message` and returns a 65-byte
+ * `r || s || v` signature as hex (an optional `0x`) or raw bytes. What it signs
+ * depends on `signatureType`, because the node checks each type differently:
+ *
+ * - `"secp256k1_ep"` (the default): Ethereum personal-sign (EIP-191) over the
+ *   message, which is what `wallet.signMessage(message)` does in ethers.
+ *   `address` is the 20-byte Ethereum address.
+ * - `"secp256k1"`: a plain secp256k1 signature over the sha256 of the message,
+ *   with no EIP-191 prefix. `address` is the 33-byte compressed public key. The
+ *   node does not read `v`.
  */
 export interface TnSigner {
   /**
-   * The signing account identifier used for the envelope `sender`: a 20-byte
-   * Ethereum address (for the default personal-sign type) or a 33-byte
-   * compressed secp256k1 key (when `signatureType` is `"secp256k1"`), optional
-   * `0x`.
+   * The envelope `sender`, hex with an optional `0x`: the 20-byte Ethereum
+   * address for `"secp256k1_ep"`, or the 33-byte compressed public key for
+   * `"secp256k1"`.
    */
   address: string;
   signMessage(message: Uint8Array): Promise<string | Uint8Array>;
   /**
-   * The signature type written to the envelope. Defaults to `"secp256k1_ep"`
-   * (Ethereum personal-sign), which requires a 20-byte `address`. A caller
-   * signing with a 33-byte compressed key must pass `"secp256k1"` explicitly.
+   * The signature type written to the envelope. Defaults to `"secp256k1_ep"`.
+   * A 33-byte compressed key needs `"secp256k1"`, and `signMessage` must then
+   * sign the sha256 of the message without the EIP-191 prefix.
    */
   signatureType?: string;
 }
@@ -79,17 +85,94 @@ export interface SubmitResult {
   receipt?: TxReceiptData;
 }
 
-/** Thrown by {@link TxApi.waitForReceipt} when the receipt does not appear in time. */
+/**
+ * Thrown by {@link TxApi.submit} when the broadcast succeeded but waiting for
+ * the receipt failed. The transaction may still execute, so it carries what
+ * `submit` did: poll `hash` again, or resend `signed` (the same envelope has the
+ * same hash, so a resend is safe). Preparing again would place a second
+ * transaction. `cause` is the error the wait ended with.
+ */
+export class TxSubmitWaitError extends Error {
+  declare readonly cause: unknown;
+  readonly hash: string;
+  readonly prepared: TxPreparedData;
+  readonly signed: TxEnvelope;
+  readonly broadcast: TxBroadcastData;
+
+  constructor(result: Omit<SubmitResult, "receipt">, cause: unknown) {
+    const reason = cause instanceof Error ? cause.message : String(cause);
+    super(
+      `transaction ${result.broadcast.tx_hash} was broadcast, but waiting for its receipt failed: ${reason}`,
+      { cause },
+    );
+    this.name = "TxSubmitWaitError";
+    this.hash = result.broadcast.tx_hash;
+    this.prepared = result.prepared;
+    this.signed = result.signed;
+    this.broadcast = result.broadcast;
+  }
+}
+
+/**
+ * Thrown by {@link TxApi.waitForReceipt} when the receipt does not appear in
+ * time. When the last read failed (a `503`, a `429`, or no response), that
+ * error is `cause` and the message says so; otherwise every read found the
+ * transaction pending or not yet admitted.
+ */
 export class TxWaitTimeoutError extends Error {
+  declare readonly cause: unknown;
   readonly hash: string;
   readonly timeoutMs: number;
 
-  constructor(hash: string, timeoutMs: number) {
-    super(`transaction ${hash} was not mined within ${timeoutMs}ms`);
+  constructor(hash: string, timeoutMs: number, lastError?: V1ApiError) {
+    const failed = lastError !== undefined && lastError.code !== "not_found";
+    super(
+      failed
+        ? `transaction ${hash} has no receipt after ${timeoutMs}ms; the last read failed: ${lastError.message}`
+        : `transaction ${hash} was not mined within ${timeoutMs}ms`,
+      failed ? { cause: lastError } : undefined,
+    );
     this.name = "TxWaitTimeoutError";
     this.hash = hash;
     this.timeoutMs = timeoutMs;
   }
+}
+
+/**
+ * Receipt poll errors that say "not yet" rather than "no": the node has not
+ * admitted the transaction (`not_found`), the gateway is unavailable (503), or
+ * the read is rate limited (429).
+ */
+const RETRYABLE_RECEIPT_CODES: ReadonlySet<string> = new Set([
+  "not_found",
+  "unavailable",
+  "resource_exhausted",
+]);
+
+function isRetryableReceiptError(error: unknown): error is V1ApiError {
+  if (!(error instanceof V1ApiError)) return false;
+  // A transport error that carries an HTTP status is a response that is not
+  // v1 (a wrong base URL, a proxy's page) and will not change on retry. Only a
+  // request that got no response at all (status 0: a network failure or a
+  // timeout) is worth another try.
+  if (error.code === V1ApiError.TRANSPORT_CODE) return error.status === 0;
+  return RETRYABLE_RECEIPT_CODES.has(error.code);
+}
+
+/** The validated timing of a receipt wait, checked before anything is sent. */
+function waitTiming(options: WaitForReceiptOptions): {
+  timeoutMs: number;
+  intervalMs: number;
+} {
+  const timeoutMs = options.timeoutMs ?? 60_000;
+  const intervalMs = options.intervalMs ?? 2_000;
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    throw new Error("timeoutMs must be a positive number");
+  }
+  if (!Number.isFinite(intervalMs) || intervalMs <= 0) {
+    throw new Error("intervalMs must be a positive number");
+  }
+  return { timeoutMs, intervalMs };
 }
 
 const SENDER_RE = /^(0x)?([0-9a-fA-F]{40}|[0-9a-fA-F]{66})$/;
@@ -118,6 +201,24 @@ function validateSender(sender: string): void {
   if (typeof sender !== "string" || !SENDER_RE.test(sender)) {
     throw new Error(
       "sender must be a 20-byte address or a 33-byte compressed public key, hex with an optional 0x",
+    );
+  }
+}
+
+/**
+ * The node's two secp256k1 types each accept one sender length, so a mismatch
+ * would be rejected after the wallet has signed. Other types pass through.
+ */
+function validateSenderForType(type: string, address: string): void {
+  const bytes = bareHex(address).length / 2;
+  if (type === "secp256k1_ep" && bytes !== 20) {
+    throw new Error(
+      'signature type "secp256k1_ep" needs a 20-byte address; a 33-byte compressed key signs with signatureType "secp256k1"',
+    );
+  }
+  if (type === "secp256k1" && bytes !== 33) {
+    throw new Error(
+      'signature type "secp256k1" needs a 33-byte compressed public key as the address',
     );
   }
 }
@@ -265,6 +366,8 @@ export class TxApi {
       throw new Error("a TnSigner is required to sign a transaction");
     }
     validateSender(active.address);
+    const type = active.signatureType ?? "secp256k1_ep";
+    validateSenderForType(type, active.address);
     const envelope = cloneEnvelope(prepared.transaction);
     if (envelope.body === undefined || envelope.body === null) {
       throw new Error("prepared transaction has no body");
@@ -275,10 +378,7 @@ export class TxApi {
     if (!(sigBytes instanceof Uint8Array) || sigBytes.length !== 65) {
       throw new Error(`signature must be 65 bytes, got ${sigBytes.length}`);
     }
-    const signature: TxSignature = {
-      sig: bytesToBase64(sigBytes),
-      type: active.signatureType ?? "secp256k1_ep",
-    };
+    const signature: TxSignature = { sig: bytesToBase64(sigBytes), type };
     envelope.signature = signature;
     envelope.sender = bareHex(active.address);
     return envelope;
@@ -333,45 +433,47 @@ export class TxApi {
 
   /**
    * Poll the receipt until the transaction is in a block (`height >= 0`). A
-   * `404` while the node has not admitted the transaction yet is retried; any
-   * other error is surfaced.
+   * `404` while the node has not admitted the transaction yet, a `503`, a `429`
+   * and a request that got no response are retried until the timeout; any
+   * other error, a response that is not v1, and an abort end the wait at once.
    */
   async waitForReceipt(
     hash: string,
     options: WaitForReceiptOptions = {},
   ): Promise<TxReceiptData> {
     validateHash(hash);
-    const timeoutMs = options.timeoutMs ?? 60_000;
-    const intervalMs = options.intervalMs ?? 2_000;
-    if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
-      throw new Error("timeoutMs must be a positive number");
-    }
-    if (!Number.isFinite(intervalMs) || intervalMs <= 0) {
-      throw new Error("intervalMs must be a positive number");
-    }
+    const { timeoutMs, intervalMs } = waitTiming(options);
     const deadline = Date.now() + timeoutMs;
+    let lastError: V1ApiError | undefined;
     for (;;) {
       try {
         const receipt = await this.get(hash, { signal: options.signal });
         if (receipt.height >= 0) return receipt;
+        lastError = undefined;
       } catch (error) {
-        if (!(error instanceof V1ApiError) || error.code !== "not_found")
+        if (options.signal?.aborted === true || !isRetryableReceiptError(error))
           throw error;
+        lastError = error;
       }
       const remaining = deadline - Date.now();
-      if (remaining <= 0) throw new TxWaitTimeoutError(hash, timeoutMs);
+      if (remaining <= 0)
+        throw new TxWaitTimeoutError(hash, timeoutMs, lastError);
       await sleep(Math.min(intervalMs, remaining), options.signal);
     }
   }
 
   /**
    * The convenience flow: prepare, optionally verify, sign, broadcast, and
-   * optionally wait for the receipt. Verification is opt-in.
+   * optionally wait for the receipt. Verification is opt-in. When the wait
+   * fails after a successful broadcast, this throws {@link TxSubmitWaitError},
+   * which carries the hash and the signed envelope.
    */
   async submit(
     intent: TxIntent,
     options: SubmitOptions = {},
   ): Promise<SubmitResult> {
+    // A bad wait option must fail before anything is broadcast.
+    if (typeof options.wait === "object") waitTiming(options.wait);
     const prepared = await this.prepare(intent, { signal: options.signal });
     if (options.verify === true) {
       assertPrepared(prepared, intent);
@@ -380,16 +482,18 @@ export class TxApi {
     }
     const signed = await this.sign(prepared, options.signer);
     const broadcast = await this.broadcast(signed, { signal: options.signal });
-    let receipt: TxReceiptData | undefined;
-    if (options.wait === true) {
-      receipt = await this.waitForReceipt(broadcast.tx_hash, {
-        signal: options.signal,
-      });
-    } else if (options.wait !== undefined && options.wait !== false) {
-      receipt = await this.waitForReceipt(broadcast.tx_hash, {
-        ...options.wait,
-        signal: options.signal ?? options.wait.signal,
-      });
+    if (options.wait === undefined || options.wait === false) {
+      return { prepared, signed, broadcast };
+    }
+    const waitOptions: WaitForReceiptOptions =
+      options.wait === true
+        ? { signal: options.signal }
+        : { ...options.wait, signal: options.signal ?? options.wait.signal };
+    let receipt: TxReceiptData;
+    try {
+      receipt = await this.waitForReceipt(broadcast.tx_hash, waitOptions);
+    } catch (error) {
+      throw new TxSubmitWaitError({ prepared, signed, broadcast }, error);
     }
     return { prepared, signed, broadcast, receipt };
   }

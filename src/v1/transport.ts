@@ -129,14 +129,16 @@ export class Transport {
   constructor(options: TransportOptions) {
     this.baseUrl = normalizeBaseUrl(options.baseUrl);
     this.network = validateNetwork(options.network);
-    const globalFetch = globalThis.fetch;
-    const fetchImpl = options.fetch ?? globalFetch;
+    const fetchImpl = options.fetch ?? globalThis.fetch;
     if (typeof fetchImpl !== "function") {
       throw new Error(
         "no fetch implementation is available; pass one in TransportOptions.fetch",
       );
     }
-    this.fetchImpl = fetchImpl;
+    // Call it as a plain function. A browser's `fetch` refuses any receiver
+    // but the window ("Illegal invocation"), and `this.fetchImpl(...)` would
+    // pass this Transport as the receiver.
+    this.fetchImpl = (input, init) => fetchImpl(input, init);
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     if (!Number.isFinite(this.timeoutMs) || this.timeoutMs <= 0) {
       throw new Error("timeoutMs must be a positive number");

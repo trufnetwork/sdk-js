@@ -211,6 +211,28 @@ describe.skipIf(baseUrl === undefined)("v1 client against a live API", () => {
   );
 
   it.skipIf(!canAuthenticate)(
+    "collects a list whose data is an object through rows",
+    async () => {
+      const client = makeClient();
+      const first = await client.markets.list<{ query_id: number }>("", {
+        query: { limit: 1 },
+      });
+      const id = first.data[0]?.query_id;
+      expect(typeof id).toBe("number");
+
+      // markets/{id}/activity keeps the v0 object as data; the rows are events.
+      const events = await client.markets.collect(`${String(id)}/activity`, {
+        limit: 2,
+        maxPages: 2,
+        rows: (data: { events: unknown[] }) => data.events,
+      });
+
+      expect(Array.isArray(events)).toBe(true);
+      expect(events.length).toBeLessThanOrEqual(4);
+    },
+  );
+
+  it.skipIf(!canAuthenticate)(
     "surfaces an absent market as a typed not_found error",
     async () => {
       const client = makeClient();
